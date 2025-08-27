@@ -16,6 +16,30 @@ const getServerUrl = async (path = '') => {
     return `http://${host}:${port}${path}`;
 };
 
+let LP_ACTIVE = false;
+
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function startLongPoll() {
+    if (LP_ACTIVE) return;
+    LP_ACTIVE = true;
+    while (LP_ACTIVE) {
+        try {
+            const url = await getServerUrl("/token-needed/long");
+            const r = await fetch(url, { cache: "no-store" });
+            if (r.ok) {
+                const data = await r.json();
+                if (data.needed) await initiateReload();
+            } else {
+                await wait(1000);
+            }
+        } catch (_) {
+            await wait(2000);
+        }
+    }
+}
+
+
 // --- Token Refresh Logic ---
 const pollForTokenRequest = async () => {
     console.log("wplacer: Polling server for token request...");
@@ -122,11 +146,17 @@ const quickLogout = (callback) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "sendCookie") {
         sendCookie(sendResponse);
-        return true; // Required for async response
+        return true;
     }
     if (request.action === "quickLogout") {
         quickLogout(sendResponse);
-        return true; // Required for async response
+        return true;
+    }
+    if (request.action === "settingsUpdated") {
+        LP_ACTIVE = false;
+        setTimeout(startLongPoll, 100);
+        if (sendResponse) sendResponse({ ok: true });
+        return false;
     }
     if (request.type === "SEND_TOKEN") {
         getServerUrl("/t").then(url => {
@@ -174,9 +204,11 @@ const initializeAlarms = () => {
 chrome.runtime.onStartup.addListener(() => {
     console.log("wplacer: Browser startup.");
     initializeAlarms();
+    startLongPoll();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
     console.log("wplacer: Extension installed/updated.");
     initializeAlarms();
+    startLongPoll();
 });

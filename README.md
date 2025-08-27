@@ -10,14 +10,61 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
 ## Features ✅
 
--   **Simple and easy-to-use web UI:** For managing users and templates
--   **Advanced Multi-Account System:** Run templates with multiple users simultaneously. The system intelligently prioritizes users with the most charges available to maximize efficiency.
--   **Multiple Drawing Modes:** Choose from several drawing strategies (Top to Bottom, Bottom to Top, Edges First, Random Color, etc.) to optimize your approach for different templates.
--   **Automatic Upgrade Purchasing:** If enabled, the bot will automatically purchase max charge upgrades or extra charges when running out for your accounts whenever they have enough droplets.
--   **Account Status Checker:** A tool in the "Manage Users" tab allows you to quickly check if your accounts' cookies are still valid.
--   **Advanced Template Controls:** Options such as restarting, replacing a template's image, or pausing on the fly make management more flexible as well as providing you with real time updates on the template's status.
--   **Automatic Captcha (Turnstile) Token Handling:** Turnstile handling lets you babysit the bot much less
--   **Desktop Notifications:** The program will now send a desktop notification when it needs a new Turnstile token, so you don't have to constantly check the console.
+### Web UI (Fully Reworked)
+- **Simple Navigation Panel:** One-click access to **Users**, **Add Template**, **Manage Templates**, **Settings**.
+- **Manage Users:**
+  - Add accounts using **JWT cookie (`j`)** + optional **session cookie (`s`)**.
+  - **Account Status Checker:** Parallel/sequential checks (respecting UI cooldown) show **charges / max / level / % / droplets**.
+  - **Show Latest Info:** Re-applies last fetched stats (kept in local storage) without refetching.
+  - **Hide Sensitive Info:** Masks names/IDs/actions for streams & screenshots.
+  - **Quick JSON Peek:** Pretty popup with user info + one-click **Copy raw JSON**.
+  - **Bulk “Buy Max Upgrades (All)”**: Purchases **Max Charge** upgrades for every account that can afford them; displays a compact report.
+- **Add Template:**
+  - **Image → Template converter** (palette mapping to wplace color IDs).
+  - **Use paid colors** toggle: exact premium matches allowed; otherwise **nearest basic** color used.
+  - **Coordinates parser:** Paste a full URL (`.../pixel/{tx}/{ty}?x={px}&y={py}`) or labeled string — fields **auto-fill**.
+  - **Canvas Preview:** Fetches live canvas tiles and overlays the **translucent template** with adjustable preview distance.
+  - Per-template toggles: **Paint transparent pixels**, **Buy charges**, **Buy Max upgrades**, **Anti-grief mode**.
+  - **Assign users** (multi-select + **Select All**).
+- **Manage Templates:**
+  - Cards showing **coords**, **assigned accounts**, **progress bar**, **pixel counts**, and **status**.
+  - **Start/Stop** per template, plus **Start All / Stop All** actions.
+  - **Edit** (opens prefilled Add Template form) and **Delete** (with confirmation).
+  - **Full-screen Preview:** Zoom/pan, **toggle overlay**, **highlight mismatches**, and **match % summary**.
+- **Active Templates bar:** Floating bar listing running templates with a miniature preview and quick **Stop/Edit** actions.
+- **Settings:**
+  - **Drawing mode gallery** with animated previews for every mode.
+  - **Reference scenes** (Space / Portrait / Typo / Landscape / Dungeon / Emblem), **preview speed** slider, and **seed count** on Burst.
+  - Behaviour: **Always draw when ≥1 charge** (or use **Charge Threshold**), optional **Turnstile notifications**.
+  - Timings: **Account turn cooldown**, **Purchase cooldown**, **Account check cooldown**, **Anti-grief standby**, **Droplet reserve**.
+  - **Proxy panel:** Enable proxying, **rotation mode** (sequential/random), **log proxy usage**, **reload `proxies.txt`**, and **loaded count**.
+
+
+### Painting Engine & Modes
+- **Palette-accurate rendering:** Supports 63 wplace colors (basic + premium). Skips premium colors a specific user doesn’t own.
+- **Transparent handling:** `0` means “transparent” in templates. Toggle **Paint transparent pixels** to allow overwriting background.
+- **Precise mismatch detection:** Loads remote tiles, decodes pixels to palette IDs, compares against template.
+- **Multiple strategies to fit any artwork:**
+  - **Linear:** `linear` (Top→Bottom), `linear-reversed` (Bottom→Top), `linear-ltr` (Left→Right), `linear-rtl` (Right→Left).
+  - **Spatial:** `radial-inward` (edges to center).
+  - **Color-centric:** `singleColorRandom` (random color grouping), `colorByColor` (group by color).
+  - **Scatter:** `random`.
+  - **Advanced burst family:**
+    - **`burst`** — multi-seed BFS with dynamic queue speeds and directional “dash” streaks; seeds persist per template.
+    - **`outline-then-burst`** — trace outlines first, then fill interiors.
+    - **`colors-burst-rare`** — sort colors by **rarity** ascending, burst each color.
+    - **`burst-mixed`** — splits work into segments and randomly mixes *outline / burst / rare* every segment.
+- **Seeds:** Global **seed count (1–16)**; **burst seeds persist** across turns and reset on image/coordinate change.
+
+## Previews
+
+### Drawing mods:
+(1)
+![drawing-mode-preview-1](./preview/drawing-mode-preview-1.gif)
+(2)
+![drawing-mode-preview-2](./preview/drawing-mode-preview-2.gif)
+![manage-templates](./preview/manage-templates.png)
+![preview-template-progress](./preview/preview-template-progress.png)
 
 ## Installation and Usage 💻
 
@@ -68,22 +115,12 @@ To pass environment variables when running the container:
   --name wplacer luluwaffless/wplacer`
 Note: HOST and PORT can be omitted if you passed them in the .env file or the Dockerfile.
 
-### To-dos ✅
-- [ ] **Proxy support**
-- [ ] **Auto-farm EXP and droplets function for users**
-- [x] ~~Add support for paid colors~~
-- [x] ~~Support for painting between multiple tiles~~
-- [x] ~~Easier multi-account support for one template~~
-- [x] ~~Queueing system for multi-accounts~~
-- [x] ~~Docker support~~
 
 ### Credits 🙏
 
 -   [luluwaffless](https://github.com/luluwaffless)
 -   [Jinx](https://github.com/JinxTheCatto)
-
-And to our amazing contributors!
-<p align="center"><img src="https://contrib.rocks/image?repo=luluwaffless/wplacer"></p>
+-   Fork maintainer: [lllexxa](https://github.com/lllexxa)
 
 ### License 📜
 
