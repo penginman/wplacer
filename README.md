@@ -23,11 +23,11 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
   - **Image → Template converter** (palette mapping to wplace color IDs).
   - **Use paid colors** toggle: exact premium matches allowed; otherwise **nearest basic** color used.
   - **Coordinates parser:** Paste a full URL (`.../pixel/{tx}/{ty}?x={px}&y={py}`) or labeled string — fields **auto-fill**.
-  - **Canvas Preview:** Fetches live canvas tiles and overlays the **translucent template** with adjustable preview distance.
-  - Per-template toggles: **Paint transparent pixels**, **Buy charges**, **Buy Max upgrades**, **Anti-grief mode**.
+  - **Canvas Preview:** Fetches live canvas tiles and overlays the **translucent template** with adjustable preview distance; mismatch highlight respects transparent pixels.
+  - Per-template toggles: **Paint transparent pixels**, **Buy charges**, **Buy Max upgrades**, **Anti‑grief mode**, **Auto purchase premium colors**.
   - **Assign users** (multi-select + **Select All**).
 - **Manage Templates:**
-  - Cards showing **coords**, **assigned accounts**, **progress bar**, **pixel counts**, and **status**.
+  - Cards showing **palette type** (Basic/Premium), **coords**, **assigned accounts**, **progress bar**, **pixel counts**, and the list of enabled options (**Enabled**).
   - **Start/Stop** per template, plus **Start All / Stop All** actions.
   - **Edit** (opens prefilled Add Template form) and **Delete** (with confirmation).
   - **Full-screen Preview:** Zoom/pan, **toggle overlay**, **highlight mismatches**, and **match % summary**.
@@ -46,7 +46,7 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 - **Precise mismatch detection:** Loads remote tiles, decodes pixels to palette IDs, compares against template.
 - **Multiple strategies to fit any artwork:**
   - **Linear:** `linear` (Top→Bottom), `linear-reversed` (Bottom→Top), `linear-ltr` (Left→Right), `linear-rtl` (Right→Left).
-  - **Spatial:** `radial-inward` (edges to center).
+  - **Spatial:** `radial-inward` (edges to center), `radial-outward` (Inside Out, center to edges).
   - **Color-centric:** `singleColorRandom` (random color grouping), `colorByColor` (group by color).
   - **Scatter:** `random`.
   - **Advanced burst family:**
@@ -58,13 +58,11 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
 ## Previews
 
-### Drawing mods:
+### Drawing mods previews:
 (1)
 ![drawing-mode-preview-1](./preview/drawing-mode-preview-1.gif)
 (2)
 ![drawing-mode-preview-2](./preview/drawing-mode-preview-2.gif)
-![manage-templates](./preview/manage-templates.png)
-![preview-template-progress](./preview/preview-template-progress.png)
 
 ## Installation and Usage 💻
 
@@ -88,6 +86,7 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
    - You can assign multiple users to a single template.
 5. Finally, go to "Manage Templates" and click "Start" on any template to begin drawing.
    - The script will occasionally refresh one of the active bot windows on [wplace.live](https://wplace.live/). This is required to refresh the Turnstile token needed for painting.
+
 
 ## Notes 📝
 

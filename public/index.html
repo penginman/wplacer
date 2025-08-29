@@ -72,6 +72,10 @@
                 <img src="icons/manageTemplates.svg" alt="" />
                 <span>Manage Templates</span>
             </button>
+            <button class="nav-btn" onclick="changeTab(colorsManager)">
+                <img src="icons/manageTemplates.svg" alt="" />
+                <span>Colors</span>
+            </button>
             <button class="nav-btn" onclick="document.getElementById('openSettings').click()">
                 <img src="icons/settings.svg" alt="" />
                 <span>Settings</span>
@@ -172,6 +176,12 @@
 
                     <div id="chargeSummary" class="summary">
                         <div class="summary-line">
+                            <span><b>Last Check:</b> <span id="usersColorsLastCheckLabel">–</span></span>
+                        </div>
+                    </div>
+
+                    <div id="chargeSummary" class="summary">
+                        <div class="summary-line">
                             <span><b>Total Available Charges:</b> <span id="totalCharges">?</span></span>
                             <span><b>Total Max Charges:</b> <span id="totalMaxCharges">?</span></span>
                         </div>
@@ -209,25 +219,45 @@
                     </div>
 
                     <div id="details" class="template-details" style="display:none;">
-                        <div class="meta">
-                            <span class="badge"><b>Size:</b> <span id="size"></span></span>
-                            <span class="badge"><b>Charges needed:</b> <span id="ink"></span></span>
-                        </div>
                         <div class="preview-wrap">
                             <canvas id="templateCanvas"></canvas>
-                            <div class="preview-controls">
-                                <button id="previewCanvasButton" class="secondary-button">
-                                    <img src="icons/eye.svg" alt="" /> Preview Canvas
-                                </button>
 
-                                <div class="inline-field">
-                                    <label for="previewBorder" class="label-margin0">Preview distance (px)</label>
-                                    <input type="number" id="previewBorder" min="0" value="0" />
+                            <div id="palettePanel" class="form-card" style="margin-top:12px;">
+
+                                <div class="field">
+                                    <label class="label-margin0">Image palette</label>
+                                    <small class="help">Used colors and pixel counts. Basic: ID 0–31, Premium:
+                                        32–63.</small>
+                                    <small class="help" id="editTmpltMsg" style="display: none;">NOTE: For already uploaded
+                                        images you can only switch the palette from premium to basic, not the other way
+                                        around. To switch in the opposite direction, please re-upload the image.</small>
                                 </div>
+
+                                <div class="setting-toggle">
+                                    <label for="usePaidColors" class="label-margin0">Use premium (paid) colors</label>
+                                    <label class="switch" class="label-margin0">
+                                        <input id="usePaidColors" name="usePaidColors" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+
+                                <div id="paletteSummary" class="meta">
+                                    <span class="badge"><b>Size:</b> <span id="size"></span></span>
+                                    <span class="badge"><b>Painted pixels total:</b>
+                                        <span id="paletteTotal">0</span>
+                                    </span>
+                                    <span class="badge"><b>Unique colors:</b> <span id="paletteUnique">0</span></span>
+                                    <span class="badge" style="display: none;"><b>Charges needed:</b>
+                                        <span id="ink"></span>
+                                    </span>
+                                </div>
+                                <div id="paletteList" class="palette-grid"></div>
                             </div>
 
-                            <canvas id="previewCanvas"></canvas>
+
                         </div>
+
+
                     </div>
 
                     <form id="templateForm" class="form-card">
@@ -251,6 +281,20 @@
                                 <code>.../pixel/{tx}/{ty}?x={px}&amp;y={py}</code> or string
                                 <code>(Tl X: {tx}, Tl Y: {ty}, Px X: {px}, Px Y: {py})</code> — fields will be
                                 parsed.</small>
+
+
+                            <div class="preview-controls">
+                                <button id="previewCanvasButton" class="secondary-button" type="button">
+                                    <img src="icons/eye.svg" alt="" /> Preview Canvas
+                                </button>
+
+                                <div class="inline-field">
+                                    <label for="previewBorder" class="label-margin0">Preview distance (px)</label>
+                                    <input type="number" id="previewBorder" min="0" value="0" />
+                                </div>
+                            </div>
+
+                            <canvas id="previewCanvas" style="display: none;"></canvas>
                         </div>
 
                         <div class="field">
@@ -260,39 +304,17 @@
                                 <button type="button" id="selectAllUsers" class="secondary-button">
                                     <img src="icons/manageUsers.svg" alt="" /> Select All
                                 </button>
+                                <button type="button" id="unselectAllUsers" class="secondary-button">
+                                    <img src="icons/manageUsers.svg" alt="" /> Unselect All
+                                </button>
                             </div>
                         </div>
 
                         <div class="toggles">
                             <div class="setting-toggle">
-                                <label for="usePaidColors" class="label-margin0">Use paid colors when exact</label>
-                                <label class="switch" class="label-margin0">
-                                    <input id="usePaidColors" name="usePaidColors" type="checkbox" />
-                                    <span class="slider"></span>
-                                </label>
-                            </div>
-
-                            <div class="setting-toggle">
                                 <label for="paintTransparent" class="label-margin0">Paint transparent pixels</label>
                                 <label class="switch" class="label-margin0">
                                     <input id="paintTransparent" name="paintTransparent" type="checkbox" />
-                                    <span class="slider"></span>
-                                </label>
-                            </div>
-
-                            <div class="setting-toggle">
-                                <label for="canBuyMaxCharges" class="label-margin0">Buy max charge upgrades</label>
-                                <label class="switch" class="label-margin0">
-                                    <input id="canBuyMaxCharges" name="canBuyMaxCharges" type="checkbox" />
-                                    <span class="slider"></span>
-                                </label>
-                            </div>
-
-                            <div class="setting-toggle">
-                                <label for="canBuyCharges" class="label-margin0">Buy paint charges when running
-                                    out</label>
-                                <label class="switch" class="label-margin0">
-                                    <input id="canBuyCharges" name="canBuyCharges" type="checkbox" />
                                     <span class="slider"></span>
                                 </label>
                             </div>
@@ -304,6 +326,39 @@
                                     <span class="slider"></span>
                                 </label>
                             </div>
+                        </div>
+
+                        <div class="settings-card" style="margin-top:10px; box-shadow: none;">
+                            <div class="settings-card-head">
+                                <h3 class="settings-card-title">Auto-purchases</h3>
+                                <p class="settings-card-sub">Prices: Buy paint charges — 500, Buy max charge upgrades — 500, Premium color — 2000; Don't forget about the droplets reserve specified in the settings.</p>
+                            </div>
+                            <div class="toggles">
+                                <div class="setting-toggle">
+                                    <label for="canBuyMaxCharges" class="label-margin0">Buy max charge upgrades <span class="muted">(500)</span></label>
+                                    <label class="switch" class="label-margin0">
+                                        <input id="canBuyMaxCharges" name="canBuyMaxCharges" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+
+                                <div class="setting-toggle">
+                                    <label for="canBuyCharges" class="label-margin0">Buy paint charges when running out <span class="muted">(500)</span></label>
+                                    <label class="switch" class="label-margin0">
+                                        <input id="canBuyCharges" name="canBuyCharges" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+
+                                <div class="setting-toggle">
+                                    <label for="autoBuyNeededColors" class="label-margin0">Auto-purchase needed premium colors <span class="muted">(2000)</span></label>
+                                    <label class="switch" class="label-margin0">
+                                        <input id="autoBuyNeededColors" name="autoBuyNeededColors" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <small class="help">If enabled, the bot balances premium color ownership across assigned accounts: buys needed premium colors for accounts with fewer premium colors first, if they have enough droplets. Works only when the template uses premium colors.</small>
                         </div>
 
                         <div class="form-actions">
@@ -333,6 +388,87 @@
 
                     <div id="templateList" class="template-list"></div>
                 </section>
+
+                <!-- ====== COLORS ====== -->
+                <section id="colorsManager" style="display:none;">
+                    <header class="section-head">
+                        <h2>Colors</h2>
+                        <div class="section-actions">
+                            <button id="checkColorsAll" class="secondary-button">
+                                <img src="icons/check.svg" alt="" />
+                                Check Colors (All)
+                            </button>
+                            <button id="loadColorsCache" class="secondary-button">
+                                Load Last Check
+                            </button>
+                            <button onclick="changeTab(main);" class="ghost-btn">
+                                <img src="icons/return.svg" alt="" /> Return
+                            </button>
+                        </div>
+                    </header>
+
+                    <div class="summary" style="margin-bottom:8px">
+                        <span><b>Last Check:</b> <span id="colorsLastCheckLabel">–</span></span>
+                    </div>
+
+                    <!-- Palette of all colors -->
+                    <div class="settings-card">
+                        <div class="settings-card-head">
+                            <h3 class="settings-card-title">Palette</h3>
+                            <p class="settings-card-sub settings-card-sub-text2">Click a color to see who has it and buy
+                                for others (premium
+                                only).</p>
+                        </div>
+                        <div id="paletteAllColors" class="palette-grid"></div>
+                    </div>
+
+                    <!-- Selected color details -->
+                    <div id="colorDetailsCard" class="settings-card" style="display:none;">
+                        <div class="settings-card-info">
+                            <div class="colors-card-head">
+                                <span id="selectedColorSwatch" class="swatch large"
+                                    style="vertical-align:middle;">#–</span>
+                                <div class="settings-card-title-info-right">
+                                    <span class="settings-card-title" id="selectedColorTitle">Color details</span>
+                                    <span id="selectedColorKind" class="settings-card-sub">–</span>
+                                </div>
+                            </div>
+                            <div class="color-compact">
+                                <span id="selectedColorId" style="display:none">–</span>
+                            </div>
+                        </div>
+                        <p class="settings-card-sub settings-card-sub-text2">Premium colors are IDs 32–63. Basic colors
+                            are available for
+                            everyone.</p>
+
+                        <div class="grid-2">
+                            <div>
+                                <label class="label-margin0">Users who already have this color</label>
+                                <div id="usersHaveColor" class="chips" style="margin-top:6px;"></div>
+                            </div>
+                            <div>
+                                <label class="label-margin0">Users who don't have this color</label>
+                                <div id="usersNoColor" class="user-select-list" style="margin-top:6px;"></div>
+                                <div class="inline-actions">
+                                    <button type="button" id="selectAllNoColor" class="secondary-button">
+                                        <img src="icons/manageUsers.svg" alt=""> Select All
+                                    </button>
+                                    <button type="button" id="UnselectAllNoColor" class="secondary-button">
+                                        <img src="icons/manageUsers.svg" alt=""> Unselect all
+                                    </button>
+                                </div>
+                                <div class="form-actions" style="margin-top:8px;">
+                                    <button type="button" id="purchaseColorBtn" class="primary-button">
+                                        Attempt to Buy for Selected
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="purchaseReport" class="summary" style="margin-top:8px; display:none;"></div>
+                    </div>
+                </section>
+
 
                 <!-- ====== SETTINGS ====== -->
                 <section id="settings" style="display:none;">
@@ -388,8 +524,8 @@
                                         <canvas class="mode-preview" data-mode="linear" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Top to Bottom (linear)</span>
-                                            <span class="mode-badge">Row-by-row, top → bottom</span>
+                                            <span class="mode-title">1. Top to Bottom</span>
+                                            <span class="mode-badge">Row by row</span>
                                         </div>
                                     </div>
 
@@ -397,8 +533,8 @@
                                         <canvas class="mode-preview" data-mode="linear-reversed" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Bottom to Top (linear-reversed)</span>
-                                            <span class="mode-badge">Row-by-row, bottom → top</span>
+                                            <span class="mode-title">2. Bottom to Top</span>
+                                            <span class="mode-badge">Row by row</span>
                                         </div>
                                     </div>
 
@@ -406,8 +542,8 @@
                                         <canvas class="mode-preview" data-mode="linear-ltr" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Left to Right (linear-ltr)</span>
-                                            <span class="mode-badge">Column-by-column, left → right</span>
+                                            <span class="mode-title">3. Left to Right</span>
+                                            <span class="mode-badge">Column by column</span>
                                         </div>
                                     </div>
 
@@ -415,8 +551,8 @@
                                         <canvas class="mode-preview" data-mode="linear-rtl" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Right to Left (linear-rtl)</span>
-                                            <span class="mode-badge">Column-by-column, right → left</span>
+                                            <span class="mode-title">4. Right to Left</span>
+                                            <span class="mode-badge">Column by column</span>
                                         </div>
                                     </div>
 
@@ -424,7 +560,7 @@
                                         <canvas class="mode-preview" data-mode="singleColorRandom" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Random Color (singleColorRandom)</span>
+                                            <span class="mode-title">5. Random Colors</span>
                                             <span class="mode-badge">Random order of colors</span>
                                         </div>
                                     </div>
@@ -433,7 +569,7 @@
                                         <canvas class="mode-preview" data-mode="colorByColor" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Color by Color (colorByColor)</span>
+                                            <span class="mode-title">6. By Color</span>
                                             <span class="mode-badge">Group by color</span>
                                         </div>
                                     </div>
@@ -442,7 +578,7 @@
                                         <canvas class="mode-preview" data-mode="random" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Random Scatter (random)</span>
+                                            <span class="mode-title">7. Random</span>
                                             <span class="mode-badge">Random scatter</span>
                                         </div>
                                     </div>
@@ -451,8 +587,17 @@
                                         <canvas class="mode-preview" data-mode="radial-inward" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Radial Inward (radial-inward)</span>
-                                            <span class="mode-badge">Edges → center</span>
+                                            <span class="mode-title">8. Outside In</span>
+                                            <span class="mode-badge">Edges to center</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="mode-card" data-mode="radial-outward">
+                                        <canvas class="mode-preview" data-mode="radial-outward" width="220"
+                                            height="120"></canvas>
+                                        <div class="mode-card-head">
+                                            <span class="mode-title">9. Inside Out</span>
+                                            <span class="mode-badge">Center to edges</span>
                                         </div>
                                     </div>
 
@@ -460,8 +605,8 @@
                                         <canvas class="mode-preview" data-mode="burst" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Burst (multi-source)</span>
-                                            <span class="mode-badge">Multi-source bursts</span>
+                                            <span class="mode-title">10. Bursts</span>
+                                            <span class="mode-badge">Multiple start points</span>
                                         </div>
 
                                         <!-- seed count moved to burst card -->
@@ -477,7 +622,7 @@
                                         <canvas class="mode-preview" data-mode="colors-burst-rare" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Rarest Colors First (colors-burst-rare)</span>
+                                            <span class="mode-title">11. Rare Colors First</span>
                                             <span class="mode-badge">Colors by rarity</span>
                                         </div>
                                     </div>
@@ -486,7 +631,7 @@
                                         <canvas class="mode-preview" data-mode="outline-then-burst" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Outline then Burst (outline-then-burst)</span>
+                                            <span class="mode-title">12. Outline then Fill</span>
                                             <span class="mode-badge">Outline first</span>
                                         </div>
                                     </div>
@@ -495,8 +640,8 @@
                                         <canvas class="mode-preview" data-mode="burst-mixed" width="220"
                                             height="120"></canvas>
                                         <div class="mode-card-head">
-                                            <span class="mode-title">Burst Mixed (burst-mixed)</span>
-                                            <span class="mode-badge">Random: outline / burst / rare</span>
+                                            <span class="mode-title">13. Mixed (3 modes)</span>
+                                            <span class="mode-badge">Random (10, 11, 12)</span>
                                         </div>
                                     </div>
 
@@ -525,25 +670,37 @@
                                 </div>
                             </div>
 
-                            <div class="field">
-                                <div class="setting-toggle">
-                                    <label for="alwaysDrawOnCharge" class="label-margin0">Always draw when at least one
-                                        charge is available</label>
-                                    <label class="switch" class="label-margin0">
-                                        <input id="alwaysDrawOnCharge" name="alwaysDrawOnCharge" type="checkbox" />
-                                        <span class="slider"></span>
-                                    </label>
+                            <div>
+                                <div class="field">
+                                    <div class="setting-toggle">
+                                        <label for="alwaysDrawOnCharge" class="label-margin0">Always draw when at least one charge is available</label>
+                                        <label class="switch" class="label-margin0">
+                                            <input id="alwaysDrawOnCharge" name="alwaysDrawOnCharge" type="checkbox" />
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                    <small class="help">If enabled — lower threshold is ignored.</small>
                                 </div>
-                                <small class="help">If enabled — lower threshold is ignored.</small>
+
+                                <div class="field" id="chargeThresholdContainer">
+                                    <label for="chargeThreshold">Charge Threshold</label>
+                                    <div class="input-affix">
+                                        <input type="number" id="chargeThreshold" min="1" max="100" value="50" />
+                                        <span class="suffix">%</span>
+                                    </div>
+                                    <small class="help">Start drawing when the charge threshold is reached.</small>
+                                </div>
                             </div>
 
-                            <div class="field" id="chargeThresholdContainer">
-                                <label for="chargeThreshold">Charge Threshold</label>
-                                <div class="input-affix">
-                                    <input type="number" id="chargeThreshold" min="1" max="100" value="50" />
-                                    <span class="suffix">%</span>
+                            <div>
+                                <div class="field">
+                                    <label for="maxPixelsPerPass">Max pixels per pass</label>
+                                    <div class="input-affix">
+                                        <input type="number" id="maxPixelsPerPass" min="0" value="0" />
+                                        <span class="suffix">px</span>
+                                    </div>
+                                    <small class="help">0 = no limit. If > 0, limits how many pixels a user paints per run.</small>
                                 </div>
-                                <small class="help">Start drawing when the charge threshold is reached.</small>
                             </div>
                         </div>
 
@@ -625,7 +782,7 @@
                                         Proxies are loaded from the <code>proxies.txt</code> file in your
                                         <code>/data</code> folder. Add one proxy per line in the format
                                         <code>protocol://user:pass@host:port</code>. You can get high quality proxies at
-                                        <a href="https://dataimpulse.com/?aff=199328" target="_blank"
+                                        <a href="https://dataimpulse.com/" target="_blank"
                                             rel="noopener noreferrer">DataImpulse</a>.
                                     </small>
 
@@ -661,10 +818,9 @@
             <section class="footer-container">
                 <div class="footer-box">
                     <p class="credits">
-                        Forked
-                        by <a href="https://github.com/lllexxa">lllexxa <img src="icons/github.svg"></a> | Made by <a
-                            href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a>
-                        and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a>
+                        Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a>
+                        and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a> | Forked
+                        by <a href="https://github.com/lllexxa">lllexxa <img src="icons/github.svg"></a>
                     </p>
                     <p class="credits"><a href="https://github.com/lllexxa/wplacer">Github repository <img
                                 src="icons/github.svg"></a>
@@ -689,6 +845,17 @@
             <div class="message-box-buttons">
                 <button id="messageBoxConfirm" class="primary-button">OK</button>
                 <button id="messageBoxCancel" class="secondary-button">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="messageBoxOverlayBig" class="hidden" role="dialog" aria-modal="true">
+        <div id="messageBoxBig">
+            <h3 id="messageBoxTitleBig"></h3>
+            <p id="messageBoxContentBig"></p>
+            <div class="message-box-buttons">
+                <button id="messageBoxConfirmBig" class="primary-button">OK</button>
+                <button id="messageBoxCancelBig" class="secondary-button">Cancel</button>
             </div>
         </div>
     </div>

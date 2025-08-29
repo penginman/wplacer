@@ -22,7 +22,7 @@
     --warn: hsl(39, 100%, 50%);
     --error: hsl(0, 65%, 54%);
 
-    /* для JS (status colors) */
+    /* for JS (status colors) */
     --success-color: var(--success);
     --warning-color: var(--warn);
     --error-color: var(--error);
@@ -51,7 +51,7 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* глобальные скроллбары */
+/* global scrollbars */
 * {
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, .25) transparent
@@ -79,6 +79,7 @@ body {
     width: 1px;
     height: 1px;
     overflow: hidden;
+    display: none;
 }
 
 .skip-link:focus {
@@ -235,6 +236,13 @@ body {
 .muted {
     color: var(--muted);
     margin: 0
+}
+
+.muted-user-id {
+    color: var(--muted);
+    margin: 0;
+    font-size: 11px;
+    margin-bottom: 5px;
 }
 
 .badge {
@@ -428,8 +436,12 @@ select:focus-visible {
     margin-bottom: 14px;
 }
 
+#usersDataAsOfLabel {
+    font-weight: 100;
+}
+
 .field {
-    margin-bottom: 14px
+    margin-bottom: 20px
 }
 
 .field:last-child {
@@ -566,6 +578,7 @@ input:checked+.slider:before {
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 12px;
+    margin-top: 5px;
 }
 
 .summary-line {
@@ -661,6 +674,36 @@ input:checked+.slider:before {
     background: rgba(255, 255, 255, .06)
 }
 
+/* inline edit form for user */
+.edit-btn img {
+    width: 14px;
+    height: 14px;
+}
+
+.edit-form {
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .03);
+    display: none;
+}
+
+.edit-form .field {
+    margin-bottom: 8px;
+}
+
+.edit-inline {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.edit-actions {
+    display: flex;
+    gap: 6px;
+}
+
 /* USER SELECT LIST */
 #userSelectList {
     background: rgba(255, 255, 255, .04);
@@ -713,7 +756,8 @@ input:checked+.slider:before {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
+    margin-top: 5px;
 }
 
 .preview-wrap {
@@ -816,7 +860,7 @@ input[type="range"]::-moz-range-thumb {
     border-radius: 8px
 }
 
-/* адаптив */
+/* responsive */
 @media (max-width:720px) {
     .preview-controls {
         grid-template-columns: 1fr;
@@ -860,7 +904,7 @@ input[type="range"]::-moz-range-thumb {
     color: var(--text-0)
 }
 
-/* Progress bars (новые) */
+/* Progress bars */
 .progress-bar-container {
     position: relative;
     width: 100%;
@@ -958,6 +1002,40 @@ input[type="range"]::-moz-range-thumb {
 }
 
 #messageBoxContent {
+    word-break: break-all;
+    color: var(--text-1)
+}
+
+/**/
+
+
+#messageBoxOverlayBig {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+#messageBoxBig {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    width: min(92vw, 570px);
+    text-align: center;
+}
+
+#messageBoxTitleBig {
+    margin: 0 0 8px;
+    color: var(--text-0)
+}
+
+#messageBoxContentBig {
+    word-break: break-all;
     color: var(--text-1)
 }
 
@@ -1244,11 +1322,16 @@ button[disabled] {
 }
 
 .settings-card-head {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    display: inline-block;
     margin-bottom: 10px;
 }
+
+.colors-card-head {
+    display: flex;
+    margin-bottom: 10px;
+    gap: 10px;
+}
+
 
 .settings-card-title {
     margin: 0;
@@ -1450,6 +1533,7 @@ option {
 }
 
 .template-info .t-name {
+    word-break: break-all;
     font-size: 1rem;
     margin-bottom: 2px;
 }
@@ -1459,6 +1543,11 @@ option {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.t-templates-enabled {
+    color: var(--text-2);
+    opacity: .8;
 }
 
 .template-info .t-meta {
@@ -1586,4 +1675,258 @@ p.credits a img {
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 10px;
+}
+
+.palette-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 5px;
+}
+
+.palette-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-2);
+}
+
+.swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, .15);
+    flex: 0 0 24px;
+    font-size: 12px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.palette-meta {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.palette-meta .name {
+    font-size: 14px;
+}
+
+.palette-meta .id {
+    font-weight: 600;
+}
+
+.palette-meta .type {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.premium {
+    color: #ffd600 !important;
+}
+
+.palette-meta .count {
+    font-size: 12px;
+}
+
+/* colorsManager */
+
+#colorDetailsCard .summary {
+    margin-bottom: 8px;
+}
+
+.color-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+    align-items: center;
+}
+
+.color-meta .swatch {
+    width: 32px;
+    height: 24px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+/* Compact color header */
+.color-compact {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0 6px;
+}
+
+.swatch.large {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    font-size: 14px;
+    border-radius: 8px;
+    box-sizing: border-box;
+    background: rgb(170, 170, 170);
+    color: #fff;
+}
+
+.color-compact-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.color-kind {
+    font-weight: 600;
+    color: var(--text-0);
+}
+
+/* users lists inside color details */
+#usersNoColor,
+#usersHaveColor {
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-height: 220px;
+    overflow: auto;
+    padding: 6px;
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+#usersNoColor .user-select-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+
+#usersNoColor .user-select-item:hover {
+    background: rgba(255, 255, 255, .05);
+}
+
+#usersNoColor .user-select-item input {
+    width: auto;
+    margin: 0;
+}
+
+#usersNoColor .user-select-item .drops-badge {
+    margin-left: auto;
+}
+
+/* Compact palette in Colors section */
+#paletteAllColors .palette-item {
+    position: relative;
+    padding: 6px 8px;
+}
+
+#paletteAllColors .palette-item.color-tile {
+    cursor: pointer;
+}
+
+#paletteAllColors .swatch {
+    width: 20px;
+    height: 20px;
+    font-size: 11px;
+}
+
+#paletteAllColors .palette-meta .name {
+    font-size: 13px;
+}
+
+#paletteAllColors .palette-meta .type {
+    font-size: 11px;
+}
+
+/* Selected color tile highlight */
+.color-tile.selected {
+    box-shadow: 0 0 0 3px var(--ring);
+    border-color: var(--accent);
+}
+
+/* Small count badge on color tile */
+.count-badge {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    padding: 2px 6px;
+    font-size: 11px;
+    line-height: 1;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid var(--hair);
+    color: var(--text-1);
+}
+
+/* Compact chips for users without color */
+.user-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    margin: 3px;
+    border-radius: 999px;
+    background: #1e2025;
+    border: 1px solid #1e2025;
+}
+
+.user-chip label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.drops-badge {
+    padding: 2px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--hair);
+    font-size: 11px;
+    color: var(--text-2);
+}
+
+.user-chip input[type="checkbox"] {
+    margin: 0;
+}
+
+/* Tiny swatches list used in Get User Info */
+.tiny-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.tiny-swatch {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 22px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, .2);
+    font-size: 11px;
+}
+
+
+
+.settings-card-sub-text2 {
+    margin-bottom: 10px;
+}
+
+.settings-card-title-info-right {
+    display: grid;
 }

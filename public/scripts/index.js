@@ -35,8 +35,10 @@ const px = $("px");
 const py = $("py");
 const userSelectList = $("userSelectList");
 const selectAllUsers = $("selectAllUsers");
+const unselectAllUsers = $("unselectAllUsers");
 const canBuyMaxCharges = $("canBuyMaxCharges");
 const canBuyCharges = $("canBuyCharges");
+const autoBuyNeededColors = $("autoBuyNeededColors");
 const antiGriefMode = $("antiGriefMode");
 const paintTransparent = $("paintTransparent");
 const submitTemplate = $("submitTemplate");
@@ -57,6 +59,7 @@ const totalCharges = $("totalCharges");
 const totalMaxCharges = $("totalMaxCharges");
 const messageBoxOverlay = $("messageBoxOverlay");
 const alwaysDrawOnCharge = $("alwaysDrawOnCharge");
+const maxPixelsPerPass = $("maxPixelsPerPass");
 const messageBoxTitle = $("messageBoxTitle");
 const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
@@ -97,6 +100,24 @@ const showMessage = (title, content) => {
     confirmCallback = null;
 };
 
+const showMessageBig = (title, content) => {
+    messageBoxTitleBig.textContent = title;
+    messageBoxContentBig.innerHTML = String(content);
+    messageBoxCancelBig.classList.add('hidden');
+    messageBoxConfirmBig.textContent = 'OK';
+    messageBoxOverlayBig.classList.remove('hidden');
+    confirmCallback = null;
+};
+
+const showConfirmationBig = (title, content, onConfirm) => {
+    messageBoxTitleBig.textContent = title;
+    messageBoxContentBig.innerHTML = String(content);
+    messageBoxCancelBig.classList.remove('hidden');
+    messageBoxConfirmBig.textContent = 'Confirm';
+    messageBoxOverlayBig.classList.remove('hidden');
+    confirmCallback = onConfirm;
+};
+
 const showConfirmation = (title, content, onConfirm) => {
     messageBoxTitle.textContent = title;
     messageBoxContent.innerHTML = String(content);
@@ -104,6 +125,11 @@ const showConfirmation = (title, content, onConfirm) => {
     messageBoxConfirm.textContent = 'Confirm';
     messageBoxOverlay.classList.remove('hidden');
     confirmCallback = onConfirm;
+};
+
+const closeMessageBoxBig = () => {
+    messageBoxOverlayBig.classList.add('hidden');
+    confirmCallback = null;
 };
 
 const closeMessageBox = () => {
@@ -119,6 +145,16 @@ const proxyCount = $("proxyCount");
 const reloadProxiesBtn = $("reloadProxiesBtn");
 const logProxyUsage = $("logProxyUsage");
 
+messageBoxConfirmBig.addEventListener('click', () => {
+    if (confirmCallback) {
+        confirmCallback();
+    }
+    closeMessageBoxBig();
+});
+
+messageBoxCancelBig.addEventListener('click', () => {
+    closeMessageBoxBig();
+});
 
 messageBoxConfirm.addEventListener('click', () => {
     if (confirmCallback) {
@@ -130,6 +166,80 @@ messageBoxConfirm.addEventListener('click', () => {
 messageBoxCancel.addEventListener('click', () => {
     closeMessageBox();
 });
+
+// One-time disclaimer modal (educational use)
+const DISCLAIMER_KEY = 'wplacer_disclaimer_ack_v1';
+function showDisclaimerIfNeeded() {
+    try { if (localStorage.getItem(DISCLAIMER_KEY) === '1') return; } catch (_) { }
+    const content = `
+      <div style="text-align:left; max-height:80vh; overflow:auto; line-height:1.45">
+        <p><b>Important notice</b></p>
+        <p>This software is provided <b>for educational and research purposes only</b>. You must use it responsibly and in full compliance with the rules, Terms of Service, and policies of the target website/platform. Any actions that violate the platform’s rules, disrupt services, harm other users, or seek unfair advantage are <b>strictly discouraged</b>.</p>
+        <p>By proceeding, you confirm that:</p>
+        <ul>
+          <li>You will strictly follow the rules of the <b>wplace</b> website and will not attempt to bypass or violate them.</li>
+          <li>You will not use this tool for profit, abuse, harassment, fraud, or any unlawful activity.</li>
+          <li>You will respect rate limits, security measures, and fair‑use policies of the platform.</li>
+          <li>You take full responsibility for how you use this software. The authors and distributors are not liable for any consequences of misuse.</li>
+        </ul>
+        <p>If you do not agree, please close this window and stop using the application.</p>
+      </div>`;
+    // Show as one-button dialog
+    messageBoxTitle.textContent = 'Disclaimer';
+    messageBoxContent.innerHTML = content;
+    messageBoxCancel.classList.add('hidden');
+    messageBoxConfirm.textContent = 'I understand and agree';
+    messageBoxOverlay.classList.remove('hidden');
+    confirmCallback = () => {
+        try { localStorage.setItem(DISCLAIMER_KEY, '1'); } catch (_) { }
+    };
+}
+
+document.addEventListener('DOMContentLoaded', showDisclaimerIfNeeded);
+
+// Version check: warn if local package.json is older than remote
+function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function renderMarkdown(md) {
+    const lines = String(md || '').split(/\r?\n/);
+    let html = '', inList = false;
+    const flush = () => { if (inList) { html += '</ul>'; inList = false; } };
+    for (const raw of lines) {
+        const line = raw.trimEnd();
+        if (!line.trim()) { flush(); continue; }
+        if (line.startsWith('### ')) { flush(); html += `<h3>${escapeHtml(line.slice(4))}</h3>`; continue; }
+        if (line.startsWith('## ')) { flush(); html += `<h2>${escapeHtml(line.slice(3))}</h2>`; continue; }
+        if (line.startsWith('# ')) { flush(); html += `<h1>${escapeHtml(line.slice(2))}</h1>`; continue; }
+        if (line.startsWith('- ')) { if (!inList) { html += '<ul>'; inList = true; } html += `<li>${escapeHtml(line.slice(2))}</li>`; continue; }
+        flush(); html += `<p>${escapeHtml(line)}</p>`;
+    }
+    flush();
+    return html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>');
+}
+async function checkVersionAndWarn() {
+    try {
+        const { data } = await axios.get('/version');
+        if (data?.outdated) {
+            let changelog = '';
+            try {
+                const ch = await axios.get('/changelog');
+                // prefer remote changelog only; fallback to local if remote missing
+                const content = (ch.data?.remote || '').trim() || (ch.data?.local || '').trim();
+                if (content) {
+                    const mdHtml = renderMarkdown(content);
+                    changelog = `<div style="max-height:40vh; overflow:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background: rgba(255,255,255,.04); text-align: left;">${mdHtml}</div>`;
+                }
+            } catch (_) { }
+
+            const html = `A new version is available.<br><br>
+                <b>Current:</b> ${data.local}<br>
+                <b>Latest:</b> ${data.latest}<br><br>
+                ${changelog}
+                <div style="margin-top:8px">Please update from <a href="https://github.com/lllexxa/wplacer" target="_blank" rel="noreferrer noopener">GitHub</a>.</div>`;
+            showMessageBig('Update available', html);
+        }
+    } catch (_) { /* ignore */ }
+}
+document.addEventListener('DOMContentLoaded', checkVersionAndWarn);
 
 previewSpeed?.addEventListener('input', (e) => {
     const v = parseFloat(e.target.value) || 1;
@@ -350,7 +460,7 @@ function ensureMtPreviewOverlay() {
     const canvas = document.createElement('canvas');
     canvas.id = 'mtPreviewCanvas';
     canvas.style.cssText = `
-        image-rendering: pixelated; width: 100%; height: auto; background:#f8f4f0; border-radius: 6px;
+        image-rendering: pixelated; width: 100%; height: auto; max-height: 765px; background:#f8f4f0; border-radius: 6px;
         cursor: default;
     `;
 
@@ -513,7 +623,8 @@ async function showManageTemplatePreview(t) {
         viewStartX: 0,
         viewStartY: 0,
         showOverlay: true,
-        highlightMismatch: false
+        highlightMismatch: false,
+        paintTransparent: !!t.paintTransparentPixels
     };
 
     function drawOverlayMiniFit() {
@@ -522,16 +633,25 @@ async function showManageTemplatePreview(t) {
         for (let y = 0; y < STATE.h; y++) {
             for (let x = 0; x < STATE.w; x++) {
                 const id = STATE.template?.data?.[x]?.[y] ?? 0;
-                if (id <= 0) continue;
-                const tplRGB = rgbOfId(id);
-                if (!tplRGB) continue;
                 const i = (y * STATE.w + x) * 4;
                 const br = STATE.src[i], bg = STATE.src[i + 1], bb = STATE.src[i + 2], ba = STATE.src[i + 3];
-                if (ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]) continue;
-                const dx = x * STATE.SCALE + OFF;
-                const dy = y * STATE.SCALE + OFF;
-                pctx.fillStyle = `rgb(${tplRGB[0]},${tplRGB[1]},${tplRGB[2]})`;
-                pctx.fillRect(dx, dy, MINI, MINI);
+                if (id > 0) {
+                    const tplRGB = rgbOfId(id);
+                    if (!tplRGB) continue;
+                    if (ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]) continue;
+                    const dx = x * STATE.SCALE + OFF;
+                    const dy = y * STATE.SCALE + OFF;
+                    pctx.fillStyle = `rgb(${tplRGB[0]},${tplRGB[1]},${tplRGB[2]})`;
+                    pctx.fillRect(dx, dy, MINI, MINI);
+                } else if (STATE.paintTransparent) {
+                    // template expects transparent, but tile is not
+                    if (ba !== 0) {
+                        const dx = x * STATE.SCALE + OFF;
+                        const dy = y * STATE.SCALE + OFF;
+                        pctx.fillStyle = 'rgba(0,0,0,0.6)';
+                        pctx.fillRect(dx, dy, MINI, MINI);
+                    }
+                }
             }
         }
     }
@@ -544,16 +664,24 @@ async function showManageTemplatePreview(t) {
         for (let y = sy; y < sy + vh; y++) {
             for (let x = sx; x < sx + vw; x++) {
                 const id = STATE.template?.data?.[x]?.[y] ?? 0;
-                if (id <= 0) continue;
-                const tplRGB = rgbOfId(id);
-                if (!tplRGB) continue;
                 const i = (y * STATE.w + x) * 4;
                 const br = STATE.src[i], bg = STATE.src[i + 1], bb = STATE.src[i + 2], ba = STATE.src[i + 3];
-                if (ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]) continue;
-                const cx = (x - sx) * cellW + offX;
-                const cy = (y - sy) * cellH + offY;
-                pctx.fillStyle = `rgb(${tplRGB[0]},${tplRGB[1]},${tplRGB[2]})`;
-                pctx.fillRect(Math.floor(cx), Math.floor(cy), Math.floor(miniW), Math.floor(miniH));
+                if (id > 0) {
+                    const tplRGB = rgbOfId(id);
+                    if (!tplRGB) continue;
+                    if (ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]) continue;
+                    const cx = (x - sx) * cellW + offX;
+                    const cy = (y - sy) * cellH + offY;
+                    pctx.fillStyle = `rgb(${tplRGB[0]},${tplRGB[1]},${tplRGB[2]})`;
+                    pctx.fillRect(Math.floor(cx), Math.floor(cy), Math.floor(miniW), Math.floor(miniH));
+                } else if (STATE.paintTransparent) {
+                    if (ba !== 0) {
+                        const cx = (x - sx) * cellW + offX;
+                        const cy = (y - sy) * cellH + offY;
+                        pctx.fillStyle = 'rgba(0,0,0,0.6)';
+                        pctx.fillRect(Math.floor(cx), Math.floor(cy), Math.floor(miniW), Math.floor(miniH));
+                    }
+                }
             }
         }
     }
@@ -563,13 +691,16 @@ async function showManageTemplatePreview(t) {
         for (let y = 0; y < STATE.h; y++) {
             for (let x = 0; x < STATE.w; x++) {
                 const id = STATE.template?.data?.[x]?.[y] ?? 0;
-                if (id <= 0) continue;
-                const tplRGB = rgbOfId(id);
-                if (!tplRGB) continue;
                 const i = (y * STATE.w + x) * 4;
                 const br = STATE.src[i], bg = STATE.src[i + 1], bb = STATE.src[i + 2], ba = STATE.src[i + 3];
-                if (ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]) continue;
-                pctx.fillRect(x * STATE.SCALE, y * STATE.SCALE, STATE.SCALE, STATE.SCALE);
+                if (id > 0) {
+                    const tplRGB = rgbOfId(id);
+                    if (!tplRGB) continue;
+                    if (ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]) continue;
+                    pctx.fillRect(x * STATE.SCALE, y * STATE.SCALE, STATE.SCALE, STATE.SCALE);
+                } else if (STATE.paintTransparent) {
+                    if (ba !== 0) pctx.fillRect(x * STATE.SCALE, y * STATE.SCALE, STATE.SCALE, STATE.SCALE);
+                }
             }
         }
     }
@@ -579,12 +710,19 @@ async function showManageTemplatePreview(t) {
         for (let y = sy; y < sy + vh; y++) {
             for (let x = sx; x < sx + vw; x++) {
                 const id = STATE.template?.data?.[x]?.[y] ?? 0;
-                if (id <= 0) continue;
-                const tplRGB = rgbOfId(id);
-                if (!tplRGB) continue;
                 const i = (y * STATE.w + x) * 4;
                 const br = STATE.src[i], bg = STATE.src[i + 1], bb = STATE.src[i + 2], ba = STATE.src[i + 3];
-                if (ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]) continue;
+                let mismatch = false;
+                if (id > 0) {
+                    const tplRGB = rgbOfId(id);
+                    if (!tplRGB) continue;
+                    mismatch = !(ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]);
+                } else if (STATE.paintTransparent) {
+                    mismatch = (ba !== 0);
+                } else {
+                    mismatch = false;
+                }
+                if (!mismatch) continue;
                 const cx = (x - sx) * cellW;
                 const cy = (y - sy) * cellH;
                 pctx.fillRect(Math.floor(cx), Math.floor(cy), Math.ceil(cellW), Math.ceil(cellH));
@@ -777,20 +915,59 @@ const processImageFile = (file, callback) => {
     }
 };
 
-const processEvent = () => {
+const processEvent = (soft = false) => {
+    // on new image load, detach old edit handler to avoid stale flicker
+    if (usePaidColors && usePaidColors.__editHandler) {
+        try { usePaidColors.removeEventListener('change', usePaidColors.__editHandler); } catch (_) { }
+        usePaidColors.__editHandler = null;
+    }
+    currentTemplate = { width: 0, height: 0, data: [] };
+    if (!soft && templateCanvas) {
+        const c = templateCanvas.getContext("2d");
+        c.clearRect(0, 0, templateCanvas.width, templateCanvas.height);
+        templateCanvas.width = 0;
+        templateCanvas.height = 0;
+    }
+    if (previewCanvas) {
+        if (!soft) {
+            const c2 = previewCanvas.getContext("2d");
+            c2.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            previewCanvas.style.display = "none";
+        }
+    }
+    const list = document.getElementById('paletteList');
+    const uniqueEl = document.getElementById('paletteUnique');
+    const totalEl = document.getElementById('paletteTotal');
+    if (!soft && list) list.innerHTML = '';
+    if (!soft && uniqueEl) uniqueEl.textContent = '0';
+    if (!soft && totalEl) totalEl.textContent = '0';
+    if (!soft) details.style.display = "none";
+    if (!soft) size.textContent = '';
+    if (!soft) ink.textContent = '0';
+
     const file = convertInput.files[0];
     if (!file) return;
     templateName.value = file.name.replace(/\.[^/.]+$/, "");
     processImageFile(file, (template) => {
         currentTemplate = template;
+        // in soft mode avoid resetting canvas size; just redraw in place
         drawTemplate(template, templateCanvas);
         size.innerHTML = `${template.width}x${template.height}px`;
         ink.innerHTML = template.ink;
         details.style.display = "block";
+        renderPalette(template);
     });
 };
+
 convertInput.addEventListener('change', processEvent);
-usePaidColors.addEventListener('change', processEvent);
+if (usePaidColors) {
+    usePaidColors.addEventListener('change', () => {
+        if (!convertInput?.files?.length) return; // in edit mode, the handler is attached separately
+        // soft rebuild without hiding the section
+        processEvent(true);
+    });
+}
+
 
 previewCanvasButton?.addEventListener('click', async () => {
     const txVal = parseInt(tx.value, 10);
@@ -802,26 +979,53 @@ previewCanvasButton?.addEventListener('click', async () => {
         return;
     }
     await fetchCanvas(txVal, tyVal, pxVal, pyVal, currentTemplate.width, currentTemplate.height);
+    previewCanvas.style.display = "block";
 });
 
 canBuyMaxCharges.addEventListener('change', () => {
     if (canBuyMaxCharges.checked) {
         canBuyCharges.checked = false;
+        if (autoBuyNeededColors) autoBuyNeededColors.checked = false;
     }
 });
 
 canBuyCharges.addEventListener('change', () => {
     if (canBuyCharges.checked) {
         canBuyMaxCharges.checked = false;
+        if (autoBuyNeededColors) autoBuyNeededColors.checked = false;
     }
 });
 
+autoBuyNeededColors?.addEventListener('change', () => {
+    if (autoBuyNeededColors.checked) {
+        if (typeof usePaidColors !== 'undefined' && usePaidColors && !usePaidColors.checked) {
+            autoBuyNeededColors.checked = false;
+            showMessage("Warning", "Enable 'Use premium (paid) colors' to auto-purchase premium colors.");
+            return;
+        }
+        canBuyMaxCharges.checked = false;
+        canBuyCharges.checked = false;
+    }
+});
+
+// Premium palette usage dependency: if paid colors usage is off in editor, disable auto-buy premium
+if (typeof usePaidColors !== 'undefined' && usePaidColors) {
+    usePaidColors.addEventListener('change', () => {
+        const on = !!usePaidColors.checked;
+        if (!on && autoBuyNeededColors) autoBuyNeededColors.checked = false;
+    });
+}
+
 const resetTemplateForm = () => {
+    killPreviewPipelines()
     templateForm.reset();
+    if (convertInput) convertInput.value = '';
     templateFormTitle.textContent = "Add Template";
     submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
     delete templateForm.dataset.editId;
     details.style.display = "none";
+    previewCanvas.style.display = "none";
+    editTmpltMsg.style.display = "none";
     currentTemplate = { width: 0, height: 0, data: [] };
 };
 
@@ -846,6 +1050,7 @@ templateForm.addEventListener('submit', async (e) => {
         userIds: selectedUsers,
         canBuyCharges: canBuyCharges.checked,
         canBuyMaxCharges: canBuyMaxCharges.checked,
+        autoBuyNeededColors: !!autoBuyNeededColors?.checked && !!(usePaidColors?.checked),
         antiGriefMode: antiGriefMode.checked,
         paintTransparentPixels: !!paintTransparent.checked
     };
@@ -895,11 +1100,9 @@ stopAll.addEventListener('click', async () => {
 // tabs
 let currentTab = main;
 const changeTab = (el) => {
-    // stop preview animations if leaving settings
     if (currentTab === settings && typeof MODE_PREVIEW !== 'undefined' && MODE_PREVIEW.stopAll) {
         MODE_PREVIEW.stopAll();
     }
-    // if leaving manageTemplates — stop interval
     if (currentTab === manageTemplates && templateUpdateInterval) {
         clearInterval(templateUpdateInterval);
         templateUpdateInterval = null;
@@ -909,13 +1112,16 @@ const changeTab = (el) => {
     el.style.display = "block";
     currentTab = el;
 
-    // if came to settings — start previews
     if (currentTab === settings && typeof MODE_PREVIEW !== 'undefined' && MODE_PREVIEW.start) {
         setTimeout(() => {
             const ref = document.getElementById('modeReference');
             if (ref && MODE_PREVIEW.drawReference) MODE_PREVIEW.drawReference(ref);
             document.querySelectorAll('.mode-preview[data-mode]').forEach(cv => MODE_PREVIEW.start(cv));
         }, 50);
+    }
+
+    if (currentTab === colorsManager) {
+        initColorsManager().catch(console.error);
     }
 };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -949,6 +1155,7 @@ openManageUsers.addEventListener("click", () => {
                 <div class="user-actions">
                     <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
                     <button class="json-btn" title="Get User Info"><img src="icons/code.svg"></button>
+                    <button class="edit-btn" title="Edit User"><img src="icons/pencil.svg"></button>
                 </div>`;
 
             user.querySelector('.delete-btn').addEventListener("click", () => {
@@ -966,10 +1173,85 @@ openManageUsers.addEventListener("click", () => {
                     }
                 );
             });
+
+            // Edit user modal
+            const editBtn = user.querySelector('.edit-btn');
+            editBtn.addEventListener('click', () => {
+                const content = `
+                    <div class="form-card" style="text-align:left; margin:0;">
+                        <div class="muted-user-id">ID: #${id}</div>
+                        <div class="field">
+                            <label for="edit-name-${id}">Name (max 15)</label>
+                            <input id="edit-name-${id}" type="text" maxlength="15" value="${(users[id].name || '').replace(/"/g, '&quot;')}" />
+                        </div>
+                        <div class="field">
+                            <label for="edit-discord-${id}">Discord (max 15)</label>
+                            <input id="edit-discord-${id}" type="text" maxlength="15" value="${(users[id].discord || '').replace(/"/g, '&quot;')}" />
+                        </div>
+                        <div class="field edit-inline">
+                            <label for="edit-showLastPixel-${id}" class="label-margin0">Show last pixel</label>
+                            <label class="switch">
+                                <input id="edit-showLastPixel-${id}" type="checkbox" ${users[id].showLastPixel ? 'checked' : ''} />
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <small class="help">Changes will be saved to your account on wplace.</small>
+                    </div>`;
+
+                showConfirmation('Edit Account', content, async () => {
+                    const nameEl = document.getElementById(`edit-name-${id}`);
+                    const discordEl = document.getElementById(`edit-discord-${id}`);
+                    const showEl = document.getElementById(`edit-showLastPixel-${id}`);
+                    const name = (nameEl?.value || '').trim().slice(0, 15);
+                    const discord = (discordEl?.value || '').trim().slice(0, 15);
+                    const showLastPixel = !!showEl?.checked;
+                    if (name.length < 2) { showMessage('Error', 'Name must be at least 2 characters.'); return; }
+                    try {
+                        const payload = { name, discord, showLastPixel };
+                        const resp = await axios.put(`/user/${id}/update-profile`, payload);
+                        if (resp.status === 200 && resp.data?.success) {
+                            user.querySelector('.user-info-username').textContent = name;
+                            users[id].name = name;
+                            users[id].discord = discord;
+                            users[id].showLastPixel = showLastPixel;
+                            closeMessageBox();
+                            showMessage('Success', 'Profile updated.');
+                        } else {
+                            handleError({ response: { data: resp.data, status: resp.status } });
+                        }
+                    } catch (error) {
+                        handleError(error);
+                    }
+                });
+                if (messageBoxConfirm) messageBoxConfirm.textContent = 'Save';
+
+                (async () => {
+                    try {
+                        const r = await axios.get(`/user/status/${id}`);
+                        const u = r.data || {};
+                        const nameEl = document.getElementById(`edit-name-${id}`);
+                        const discordEl = document.getElementById(`edit-discord-${id}`);
+                        const showEl = document.getElementById(`edit-showLastPixel-${id}`);
+                        if (typeof u.name === 'string' && nameEl) nameEl.value = u.name.slice(0, 15);
+                        if (typeof u.discord === 'string' && discordEl) discordEl.value = u.discord.slice(0, 15);
+                        if (showEl && typeof u.showLastPixel === 'boolean') showEl.checked = !!u.showLastPixel;
+                    } catch (_) { }
+                })();
+            });
             user.querySelector('.json-btn').addEventListener("click", async () => {
                 try {
                     const response = await axios.get(`/user/status/${id}`);
                     const u = response.data;
+                    const paidColors = [];
+                    for (let c = 32; c <= 63; c++) {
+                        if ((u.extraColorsBitmap | 0) & (1 << (c - 32))) paidColors.push(c);
+                    }
+                    const paidSwatches = paidColors.map(cid => {
+                        const meta = COLORS.find(c => c.id === cid);
+                        const rgb = meta ? `rgb(${meta.rgb[0]},${meta.rgb[1]},${meta.rgb[2]})` : '#333';
+                        const fg = meta ? getContrastColor(meta.rgb[0], meta.rgb[1], meta.rgb[2]) : '#fff';
+                        return `<span class=\"tiny-swatch\" style=\"background:${rgb};color:${fg}\">${cid}</span>`;
+                    }).join('');
                     const info = `
                         <b>User:</b> <span style="color:#f97a1f">${u.name}</span><br>
                         <b>Charges:</b> <span style="color:#f97a1f">${Math.floor(u.charges.count)}</span>/<span style="color:#f97a1f">${u.charges.max}</span><br>
@@ -979,9 +1261,31 @@ openManageUsers.addEventListener("click", () => {
                         <b>Discord:</b> <span style="color:#f97a1f">${u.discord ?? "-"}</span><br>
                         <b>Country:</b> <span style="color:#f97a1f">${u.country ?? "-"}</span><br>
                         <b>Pixels Painted:</b> <span style="color:#f97a1f">${u.pixelsPainted ?? "-"}</span><br>
-                        <b>Alliance:</b> <span style="color:#f97a1f">${u.allianceId ?? "-"}</span> / <span style="color:#f97a1f">${u.allianceRole ?? "-"}</span><br><br>
+                        <b>Alliance:</b> <span style="color:#f97a1f">${u.allianceId ?? "-"}</span> / <span style="color:#f97a1f">${u.allianceRole ?? "-"}</span><br>
+                        <b>Paid colors:</b>
+                        <div class=\"tiny-swatches\">${paidSwatches || '<span class=\"muted\">none</span>'}</div><br>
                         Copy RAW JSON to clipboard?
                     `;
+                    // update local caches for this user
+                    try {
+                        const nowTs = Date.now();
+                        const byId = new Map((COLORS_CACHE?.report || []).map(r => [String(r.userId), r]));
+                        byId.set(String(id), {
+                            userId: String(id),
+                            name: u.name,
+                            extraColorsBitmap: u.extraColorsBitmap | 0,
+                            droplets: u.droplets | 0,
+                            charges: { count: Math.floor(u.charges.count), max: u.charges.max },
+                            level: Math.floor(u.level),
+                            progress: Math.round((u.level % 1) * 100)
+                        });
+                        COLORS_CACHE = { ts: nowTs, report: Array.from(byId.values()) };
+                        saveColorsCache();
+                        if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+                        if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+                        USERS_COLOR_STATE[String(id)] = { name: u.name, extraColorsBitmap: u.extraColorsBitmap | 0, droplets: u.droplets | 0 };
+                    } catch (_) { }
+
                     showConfirmation("User Info", info, () => {
                         navigator.clipboard.writeText(JSON.stringify(u, null, 2));
                     });
@@ -1020,6 +1324,7 @@ checkUserStatus.addEventListener("click", async () => {
 
     let totalCurrent = 0;
     let totalMax = 0;
+    const colorReport = [];
 
     // consider accountCheckCooldown setting
     let settingsAccountCheckCooldown = 0;
@@ -1048,14 +1353,32 @@ checkUserStatus.addEventListener("click", async () => {
             const level = Math.floor(userInfo.level);
             const progress = Math.round((userInfo.level % 1) * 100);
 
-            LAST_USER_STATUS[id] = { charges, max, droplets, level, progress };
+            LAST_USER_STATUS[id] = { charges, max, droplets, level, progress, extraColorsBitmap: userInfo.extraColorsBitmap | 0 };
             saveLastStatus();
+
+            // aggregate color report for COLORS_CACHE merging
+            colorReport.push({
+                userId: String(id),
+                name: userInfo.name,
+                extraColorsBitmap: userInfo.extraColorsBitmap | 0,
+                droplets,
+                charges: { count: charges, max },
+                level,
+                progress
+            });
 
             currentChargesEl.textContent = charges;
             maxChargesEl.textContent = max;
             currentLevelEl.textContent = level;
             levelProgressEl.textContent = `(${progress}%)`;
             currentDroplets.textContent = droplets;
+
+            // update USERS_COLOR_STATE for palette usage
+            USERS_COLOR_STATE[id] = {
+                name: userInfo.name || `#${id}`,
+                extraColorsBitmap: userInfo.extraColorsBitmap | 0,
+                droplets
+            };
             totalCurrent += charges;
             totalMax += max;
 
@@ -1086,6 +1409,17 @@ checkUserStatus.addEventListener("click", async () => {
 
     totalCharges.textContent = totalCurrent;
     totalMaxCharges.textContent = totalMax;
+
+    // merge colorReport into COLORS_CACHE and update labels
+    try {
+        const nowTs = Date.now();
+        const byId = new Map((COLORS_CACHE?.report || []).map(r => [String(r.userId), r]));
+        for (const r of colorReport) byId.set(String(r.userId), r);
+        COLORS_CACHE = { ts: nowTs, report: Array.from(byId.values()) };
+        saveColorsCache();
+        if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+        if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+    } catch (_) { }
 
     checkUserStatus.disabled = false;
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
@@ -1177,6 +1511,13 @@ showLatestInfo.addEventListener("click", () => {
     if (touched) {
         if (totalCharges) totalCharges.textContent = String(sumCharges);
         if (totalMaxCharges) totalMaxCharges.textContent = String(sumMax);
+        // Update "Last Check" label in Manage Users
+        try {
+            if (usersColorsLastCheckLabel) {
+                const ts = (typeof COLORS_CACHE?.ts === 'number') ? COLORS_CACHE.ts : Date.now();
+                usersColorsLastCheckLabel.textContent = new Date(ts).toLocaleString();
+            }
+        } catch (_) { }
     } else {
         showMessage("Latest Info", "There is no saved data for current accounts..");
     }
@@ -1186,31 +1527,157 @@ showLatestInfo.addEventListener("click", () => {
 openAddTemplate.addEventListener("click", () => {
     resetTemplateForm();
     userSelectList.innerHTML = "";
+    // toolbar with sort; label + toolbar are placed in one flex row
+    const toolbarId = 'userSelectToolbar';
+    let toolbar = document.getElementById(toolbarId);
+    if (!toolbar) {
+        toolbar = document.createElement('div');
+        toolbar.id = toolbarId;
+        toolbar.style.cssText = 'display:flex; align-items:center; gap:6px;';
+        const right = document.createElement('div');
+        right.style.cssText = 'display:flex; align-items:center; gap:6px;';
+        const select = document.createElement('select');
+        select.id = 'userSortMode';
+        select.innerHTML = '<option value="priority">Priority (needed colors)</option><option value="droplets">Droplets</option><option value="id">User ID</option>';
+        right.append(select);
+
+        toolbar.append(right);
+    }
+
+    // Ensure (As of ...) span exists inside the existing Users label in HTML
+    const usersLabel = document.querySelector('label[for="userSelectList"]');
+    if (usersLabel) {
+        let asOf = usersLabel.querySelector('#usersDataAsOfLabel');
+        if (!asOf) {
+            asOf = document.createElement('span');
+            asOf.id = 'usersDataAsOfLabel';
+            asOf.className = 'muted';
+            usersLabel.appendChild(asOf);
+        }
+    }
+
+    // Place label and toolbar into one flex row container
+    const parentField = userSelectList.parentElement;
+    if (usersLabel && toolbar && parentField) {
+        let headerRow = document.getElementById('userUsersHeaderRow');
+        if (!headerRow) {
+            headerRow = document.createElement('div');
+            headerRow.id = 'userUsersHeaderRow';
+            headerRow.style.cssText = 'display:flex; align-items:end; justify-content:space-between; gap:8px; margin:6px 0px;';
+            // insert above the list (before label)
+            parentField.insertBefore(headerRow, usersLabel);
+        }
+        if (usersLabel.parentElement !== headerRow) headerRow.appendChild(usersLabel);
+        if (toolbar.parentElement !== headerRow) headerRow.appendChild(toolbar);
+    }
+
+    const readColorsCache = () => {
+        try { return JSON.parse(localStorage.getItem('wplacer_colors_cache_v1') || 'null'); } catch { return null; }
+    };
+    const getAsOf = () => {
+        const cc = readColorsCache();
+        return cc?.ts ? new Date(cc.ts).toLocaleString() : 'unknown';
+    };
+    const setAsOfLabel = () => {
+        const lbl = document.getElementById('usersDataAsOfLabel');
+        if (lbl) lbl.textContent = ` (As of: ${getAsOf()})`;
+    };
+
+    const computeRequiredPremiumSet = () => {
+        const tpl = currentTemplate;
+        const set = new Set();
+        try {
+            if (!tpl?.data) return set;
+            for (let x = 0; x < tpl.width; x++) {
+                for (let y = 0; y < tpl.height; y++) {
+                    const id = tpl.data?.[x]?.[y] | 0; if (id >= 32 && id <= 63) set.add(id);
+                }
+            }
+        } catch { }
+        return set;
+    };
+
+    const tinySwatch = (cid) => {
+        const meta = (typeof COLORS !== 'undefined') ? COLORS.find(c => c.id === cid) : null;
+        const rgb = meta ? `rgb(${meta.rgb[0]},${meta.rgb[1]},${meta.rgb[2]})` : '#333';
+        const fg = meta ? getContrastColor(meta.rgb[0], meta.rgb[1], meta.rgb[2]) : '#fff';
+        return `<span class="tiny-swatch" title="#${cid}" style="background:${rgb};color:${fg}">${cid}</span>`;
+    };
+
+    const getMergedUserInfo = (usersObj) => {
+        const cache = readColorsCache();
+        const mapById = cache?.report?.reduce((m, r) => { if (r?.userId && !r.error) m[String(r.userId)] = r; return m; }, {}) || {};
+        const out = {};
+        for (const id of Object.keys(usersObj)) {
+            const s = LAST_USER_STATUS[id] || {};
+            const c = mapById[id] || {};
+            out[id] = {
+                id,
+                name: usersObj[id].name,
+                droplets: (typeof s.droplets === 'number') ? s.droplets : (c.droplets | 0),
+                bitmap: (typeof s.extraColorsBitmap === 'number') ? s.extraColorsBitmap : (c.extraColorsBitmap | 0)
+            };
+        }
+        return out;
+    };
+
+    const renderList = (usersObj, sortMode) => {
+        const info = getMergedUserInfo(usersObj);
+        const req = computeRequiredPremiumSet();
+        const entries = Object.keys(usersObj).map(id => {
+            const u = info[id];
+            // priority metric: count of owned required premium
+            let ownedCount = 0; const ownedList = [];
+            const bm = u.bitmap | 0;
+            for (const cid of req) { if ((bm & (1 << (cid - 32))) !== 0) { ownedCount++; ownedList.push(cid); } }
+            return { id, name: u.name, droplets: u.droplets | 0, bitmap: bm, ownedCount, ownedList };
+        });
+
+        if (sortMode === 'priority') entries.sort((a, b) => b.ownedCount - a.ownedCount || b.droplets - a.droplets || (Number(b.id) - Number(a.id)));
+        else if (sortMode === 'droplets') entries.sort((a, b) => b.droplets - a.droplets || (Number(a.id) - Number(b.id)));
+        else entries.sort((a, b) => (Number(a.id) - Number(b.id)));
+
+        userSelectList.innerHTML = '';
+        for (const e of entries) {
+            const userDiv = document.createElement('div');
+            userDiv.className = 'user-select-item';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `user_${e.id}`;
+            checkbox.name = 'user_checkbox';
+            checkbox.value = e.id;
+            if (Array.isArray(pendingUserSelection) && pendingUserSelection.includes(String(e.id))) checkbox.checked = true;
+
+            const label = document.createElement('label');
+            label.className = 'label-margin0';
+            label.htmlFor = `user_${e.id}`;
+            const swatches = e.ownedList.slice(0, 12).map(tinySwatch).join('');
+            const more = e.ownedList.length > 12 ? ` +${e.ownedList.length - 12}` : '';
+            label.innerHTML = `${e.name} <span class="muted-user-id">(#${e.id})</span> <span class="drops-badge" title="Droplets">${e.droplets} drops</span> ${swatches}${more}`;
+
+            userDiv.appendChild(checkbox);
+            userDiv.appendChild(label);
+            userSelectList.appendChild(userDiv);
+        }
+    };
+
+    const applySort = (usersObj) => {
+        const sel = document.getElementById('userSortMode');
+        const mode = sel ? sel.value : 'priority';
+        renderList(usersObj, mode);
+    };
+
     loadUsers(users => {
         if (Object.keys(users).length === 0) {
             userSelectList.innerHTML = "<span>No users added. Please add a user first.</span>";
             return;
         }
-        for (const id of Object.keys(users)) {
-            const userDiv = document.createElement('div');
-            userDiv.className = 'user-select-item';
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = `user_${id}`;
-            checkbox.name = 'user_checkbox';
-            checkbox.value = id;
-
-            if (Array.isArray(pendingUserSelection) && pendingUserSelection.includes(String(id))) {
-                checkbox.checked = true;
-            }
-
-            const label = document.createElement('label');
-            label.className = 'label-margin0';
-            label.htmlFor = `user_${id}`;
-            label.textContent = `${users[id].name} (#${id})`;
-            userDiv.appendChild(checkbox);
-            userDiv.appendChild(label);
-            userSelectList.appendChild(userDiv);
+        setAsOfLabel();
+        applySort(users);
+        const sel = document.getElementById('userSortMode');
+        if (sel && !sel._bound) {
+            sel.addEventListener('change', () => applySort(users));
+            sel._bound = true;
         }
         pendingUserSelection = null;
     });
@@ -1219,6 +1686,10 @@ openAddTemplate.addEventListener("click", () => {
 selectAllUsers.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
 });
+document.getElementById('unselectAllUsers')?.addEventListener('click', () => {
+    document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = false);
+});
+
 document.getElementById("HideSensInfo").addEventListener("click", function () {
     const btn = this;
     const elements = document.querySelectorAll(".user-info-username, .user-actions, .user-info-id");
@@ -1249,7 +1720,7 @@ let createToggleButton = (template, id, buttonsContainer, statusSpan) => {
             template.running = !isRunning;
             const newButton = createToggleButton(template, id, buttonsContainer, statusSpan);
             button.replaceWith(newButton);
-            statusSpan.textContent = `Status: ${!isRunning ? 'Started' : 'Stopped'}`;
+            // statusSpan.textContent = `Status: ${!isRunning ? 'Started' : 'Stopped'}`;
         } catch (error) {
             handleError(error);
         }
@@ -1355,10 +1826,34 @@ openManageTemplates.addEventListener("click", () => {
 
                 const meta = document.createElement('div');
                 meta.className = 't-meta';
+                // Palette line (Basic/Premium)
+                const hasPremium = (() => {
+                    try {
+                        const tpl = t.template; if (!tpl?.data) return false;
+                        for (let x = 0; x < tpl.width; x++) {
+                            for (let y = 0; y < tpl.height; y++) {
+                                const id = tpl.data?.[x]?.[y] | 0; if (id >= 32 && id <= 63) return true;
+                            }
+                        }
+                    } catch (_) { }
+                    return false;
+                })();
+                const paletteLine = `<div><span class="t-templates-enabled">Palette:</span> <span class="${hasPremium ? 'premium' : 'basic'}">${hasPremium ? 'Premium' : 'Basic'}</span></div>`;
+
+                // Enabled features line
+                const enabled = [];
+                if (t.canBuyCharges) enabled.push('Buy charges');
+                if (t.canBuyMaxCharges) enabled.push('Buy max charges');
+                if (t.autoBuyNeededColors) enabled.push('Buy premium colors');
+                if (t.paintTransparentPixels) enabled.push('Paint transparent pixels');
+                if (t.antiGriefMode) enabled.push('Anti‑grief mode');
+                const enabledLine = enabled.length ? `<div><span class="t-templates-enabled">Enabled:</span> ${enabled.join(', ')}</div>` : '';
+
                 meta.innerHTML = `
-                    <div class="t-accounts">Coords: ${t.coords.join(", ")}</div>
-                    <div class="t-accounts">Pixels: <span class="pixel-count">${completed} / ${total}</span></div>
-                    <b class="status-text">Status:</b> ${t.status}
+                    ${paletteLine}
+                    <div><span class="t-templates-enabled">Coords:</span> ${t.coords.join(", ")}</div>
+                    <div><span class="t-templates-enabled">Pixels:</span> <span class="pixel-count">${completed} / ${total}</span></div>
+                    ${enabledLine}
                 `;
 
                 const nameDiv = document.createElement('div');
@@ -1427,14 +1922,22 @@ openManageTemplates.addEventListener("click", () => {
                     [tx.value, ty.value, px.value, py.value] = t.coords;
                     canBuyCharges.checked = t.canBuyCharges;
                     canBuyMaxCharges.checked = t.canBuyMaxCharges;
+                    if (autoBuyNeededColors) autoBuyNeededColors.checked = !!t.autoBuyNeededColors;
                     antiGriefMode.checked = t.antiGriefMode;
                     paintTransparent.checked = !!t.paintTransparentPixels;
+
+                    // enforce exclusivity on load
+                    if (autoBuyNeededColors?.checked) { canBuyCharges.checked = false; canBuyMaxCharges.checked = false; }
+                    if (canBuyCharges.checked) { canBuyMaxCharges.checked = false; if (autoBuyNeededColors) autoBuyNeededColors.checked = false; }
+                    if (canBuyMaxCharges.checked) { canBuyCharges.checked = false; if (autoBuyNeededColors) autoBuyNeededColors.checked = false; }
 
                     setTimeout(() => {
                         document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
                             cb.checked = t.userIds.includes(cb.value);
                         });
                     }, 0);
+
+                    fillEditorFromTemplate(t);
                 });
 
                 const delButton = document.createElement('button');
@@ -1487,6 +1990,10 @@ openSettings.addEventListener("click", async () => {
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
         chargeThreshold.value = currentSettings.chargeThreshold * 100;
         alwaysDrawOnCharge.checked = !!currentSettings.alwaysDrawOnCharge;
+        if (maxPixelsPerPass) {
+            const mpp = Number(currentSettings.maxPixelsPerPass);
+            maxPixelsPerPass.value = Number.isFinite(mpp) ? String(mpp) : '0';
+        }
         seedCountHidden.value = currentSettings.seedCount ?? 2;
         window.BURST_SEED_COUNT = currentSettings.seedCount ?? 2;
         // Show/hide the threshold input depending on the toggle
@@ -1667,6 +2174,19 @@ alwaysDrawOnCharge.addEventListener('change', async () => {
     }
 });
 
+// maxPixelsPerPass change
+maxPixelsPerPass?.addEventListener('change', async () => {
+    try {
+        const raw = parseInt(maxPixelsPerPass.value, 10);
+        const val = isNaN(raw) ? 0 : Math.max(0, raw | 0);
+        maxPixelsPerPass.value = String(val);
+        await axios.put('/settings', { maxPixelsPerPass: val });
+        showMessage("Success", "Max pixels per pass saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
 // tx parsing helpers
 tx.addEventListener('blur', () => {
     const raw = (tx.value || '').trim();
@@ -1799,6 +2319,8 @@ async function refreshActiveBar() {
                         cb.checked = t.userIds.includes(cb.value);
                     });
                 }, 0);
+
+                fillEditorFromTemplate(t);
             });
 
             actions.appendChild(stopBtn);
@@ -1853,13 +2375,13 @@ const MODE_PREVIEW = (() => {
         }
     }
 
-    // — кеш сидов для burst: сцена -> { seeds: [{x,y}], activeIdx: number }
+    // burst: scene -> { seeds: [{x,y}], activeIdx: number }
     const BURST_SEEDS_CACHE = new Map();
 
     function getBurstSeeds(scene, k, points) {
         let entry = BURST_SEEDS_CACHE.get(scene.id);
         if (!entry || !entry.seeds || entry.seeds.length !== k) {
-            // берём далеко разведённые сиды из точек сцены
+            // take widely spaced seeds from scene points
             const seeds = pickSeedsFarApart(points, Math.max(1, k)).map(s => ({ x: s.x, y: s.y }));
             entry = {
                 seeds,
@@ -2100,6 +2622,13 @@ const MODE_PREVIEW = (() => {
         })(),
     ];
 
+    // Swap preview scenes #1 and #3 (positions 0 and 2) as requested
+    if (SCENES.length >= 3) {
+        const tmp = SCENES[0];
+        SCENES[0] = SCENES[2];
+        SCENES[2] = tmp;
+    }
+
     // ---------- ordering ----------
     function shuffle(arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]] } return a; }
     function orderByLinear(target, axis, reversed = false) {
@@ -2261,6 +2790,14 @@ const MODE_PREVIEW = (() => {
         arr.sort((a, b) => { const d = r2(b) - r2(a); return d !== 0 ? d : (ang(a) - ang(b)); });
         return arr;
     }
+    function orderByRadialOutward(target, w, h) {
+        const cx = Math.floor(w / 2), cy = Math.floor(h / 2);
+        const r2 = (p) => (p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy);
+        const ang = (p) => Math.atan2(p.y - cy, p.x - cx);
+        const arr = target.slice();
+        arr.sort((a, b) => { const d = r2(a) - r2(b); return d !== 0 ? d : (ang(a) - ang(b)); });
+        return arr;
+    }
     function orderByColorsBurstRare(target, seedCount) {
         const g = groupByColor(target);
         const colorsAsc = Array.from(g.keys()).sort((a, b) => g.get(a).length - g.get(b).length);
@@ -2299,6 +2836,8 @@ const MODE_PREVIEW = (() => {
                 return orderByBurst(target, window.BURST_SEED_COUNT || 2);
             case 'radial-inward':
                 return orderByRadialInward(target, scene.w, scene.h);
+            case 'radial-outward':
+                return orderByRadialOutward(target, scene.w, scene.h);
             case 'colors-burst-rare':
                 return orderByColorsBurstRare(target, window.BURST_SEED_COUNT || 2);
             case 'outline-then-burst':
@@ -2309,29 +2848,29 @@ const MODE_PREVIEW = (() => {
     }
 
     function orderForMode(mode, target, scene) {
-        // для всех обычных режимов — как раньше
+        // for regular modes — same as before
         if (mode !== 'burst-mixed') return baseOrderForMode(mode, target, scene);
 
-        // ▼ для burst-mixed: делим рисунок на сегменты; каждый сегмент — новый случайный подрежим
+        // for burst-mixed: split into segments; each segment — a random submode
         const pool = ['outline-then-burst', 'burst', 'colors-burst-rare'];
 
-        // храним оставшиеся точки, чтобы не рисовать одну и ту же
+        // keep remaining points to avoid repainting the same
         const remaining = new Map(target.map(p => [`${p.x},${p.y}`, p]));
         const out = [];
 
-        // размер сегмента — ~10% от кадра, но не меньше 40 пикселей
+        // segment size ~10% of frame, min 40 px
         const segSize = Math.max(40, Math.floor(target.length * 0.10));
 
         while (remaining.size) {
             const pick = pool[Math.floor(Math.random() * pool.length)];
-            // строим порядок для текущих оставшихся точек выбранным подрежимом
+            // build order for remaining points by chosen submode
             const ordered = baseOrderForMode(pick, Array.from(remaining.values()), scene);
 
             const take = Math.min(segSize, ordered.length);
             for (let i = 0; i < take; i++) {
                 const p = ordered[i];
                 const key = `${p.x},${p.y}`;
-                if (remaining.has(key)) { // на случай дублей
+                if (remaining.has(key)) { // in case of duplicates
                     out.push(p);
                     remaining.delete(key);
                 }
@@ -2570,4 +3109,606 @@ reloadProxiesBtn?.addEventListener('click', async () => {
         reloadProxiesBtn.disabled = false;
         reloadProxiesBtn.textContent = "Reload proxies.txt";
     }
+});
+
+// Palette
+const COLORS = [
+    { id: 0, name: "Transparent", rgb: [0, 0, 0] },
+    { id: 1, name: "Black", rgb: [0, 0, 0] },
+    { id: 2, name: "Dark Gray", rgb: [60, 60, 60] },
+    { id: 3, name: "Gray", rgb: [120, 120, 120] },
+    { id: 4, name: "Light Gray", rgb: [210, 210, 210] },
+    { id: 5, name: "White", rgb: [255, 255, 255] },
+    { id: 6, name: "Deep Red", rgb: [96, 0, 24] },
+    { id: 7, name: "Red", rgb: [237, 28, 36] },
+    { id: 8, name: "Orange", rgb: [255, 127, 39] },
+    { id: 9, name: "Gold", rgb: [246, 170, 9] },
+    { id: 10, name: "Yellow", rgb: [249, 221, 59] },
+    { id: 11, name: "Light Yellow", rgb: [255, 250, 188] },
+    { id: 12, name: "Dark Green", rgb: [14, 185, 104] },
+    { id: 13, name: "Green", rgb: [19, 230, 123] },
+    { id: 14, name: "Light Green", rgb: [135, 255, 94] },
+    { id: 15, name: "Dark Teal", rgb: [12, 129, 110] },
+    { id: 16, name: "Teal", rgb: [16, 174, 166] },
+    { id: 17, name: "Light Teal", rgb: [19, 225, 190] },
+    { id: 18, name: "Dark Blue", rgb: [40, 80, 158] },
+    { id: 19, name: "Blue", rgb: [64, 147, 228] },
+    { id: 20, name: "Cyan", rgb: [96, 247, 242] },
+    { id: 21, name: "Indigo", rgb: [107, 80, 246] },
+    { id: 22, name: "Light Indigo", rgb: [153, 177, 251] },
+    { id: 23, name: "Dark Purple", rgb: [120, 12, 153] },
+    { id: 24, name: "Purple", rgb: [170, 56, 185] },
+    { id: 25, name: "Light Purple", rgb: [224, 159, 249] },
+    { id: 26, name: "Dark Pink", rgb: [203, 0, 122] },
+    { id: 27, name: "Pink", rgb: [236, 31, 128] },
+    { id: 28, name: "Light Pink", rgb: [243, 141, 169] },
+    { id: 29, name: "Dark Brown", rgb: [104, 70, 52] },
+    { id: 30, name: "Brown", rgb: [149, 104, 42] },
+    { id: 31, name: "Beige", rgb: [248, 178, 119] },
+    { id: 32, name: "Medium Gray", rgb: [170, 170, 170] },
+    { id: 33, name: "Dark Red", rgb: [165, 14, 30] },
+    { id: 34, name: "Light Red", rgb: [250, 128, 114] },
+    { id: 35, name: "Dark Orange", rgb: [228, 92, 26] },
+    { id: 36, name: "Light Tan", rgb: [214, 181, 148] },
+    { id: 37, name: "Dark Goldenrod", rgb: [156, 132, 49] },
+    { id: 38, name: "Goldenrod", rgb: [197, 173, 49] },
+    { id: 39, name: "Light Goldenrod", rgb: [232, 212, 95] },
+    { id: 40, name: "Dark Olive", rgb: [74, 107, 58] },
+    { id: 41, name: "Olive", rgb: [90, 148, 74] },
+    { id: 42, name: "Light Olive", rgb: [132, 197, 115] },
+    { id: 43, name: "Dark Cyan", rgb: [15, 121, 159] },
+    { id: 44, name: "Light Cyan", rgb: [187, 250, 242] },
+    { id: 45, name: "Light Blue", rgb: [125, 199, 255] },
+    { id: 46, name: "Dark Indigo", rgb: [77, 49, 184] },
+    { id: 47, name: "Dark Slate Blue", rgb: [74, 66, 132] },
+    { id: 48, name: "Slate Blue", rgb: [122, 113, 196] },
+    { id: 49, name: "Light Slate Blue", rgb: [181, 174, 241] },
+    { id: 50, name: "Light Brown", rgb: [219, 164, 99] },
+    { id: 51, name: "Dark Beige", rgb: [209, 128, 81] },
+    { id: 52, name: "Light Beige", rgb: [255, 197, 165] },
+    { id: 53, name: "Dark Peach", rgb: [155, 82, 73] },
+    { id: 54, name: "Peach", rgb: [209, 128, 120] },
+    { id: 55, name: "Light Peach", rgb: [250, 182, 164] },
+    { id: 56, name: "Dark Tan", rgb: [123, 99, 82] },
+    { id: 57, name: "Tan", rgb: [156, 132, 107] },
+    { id: 58, name: "Dark Slate", rgb: [51, 57, 65] },
+    { id: 59, name: "Slate", rgb: [109, 117, 141] },
+    { id: 60, name: "Light Slate", rgb: [179, 185, 209] },
+    { id: 61, name: "Dark Stone", rgb: [109, 100, 63] },
+    { id: 62, name: "Stone", rgb: [148, 140, 107] },
+    { id: 63, name: "Light Stone", rgb: [205, 197, 158] }
+];
+
+function getContrastColor(r, g, b) {
+    const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+    return luma > 186 ? "#000" : "#fff";
+}
+
+function computePalette(template) {
+    const counts = new Map();
+    const { width, height, data } = template || {};
+    if (!width || !height || !data) return [];
+    for (let x = 0; x < width; x++) {
+        for (let y = 0; y < height; y++) {
+            const id = data[x][y] | 0;
+            if (id <= 0) continue;
+            counts.set(id, (counts.get(id) || 0) + 1);
+        }
+    }
+    const items = [];
+    for (const [id, count] of counts.entries()) {
+        const rgbStr = colorById(id);
+        if (!rgbStr) continue;
+        const isPremium = id >= 32 && id <= 63;
+        items.push({ id, rgb: rgbStr, count, isPremium });
+    }
+    items.sort((a, b) => (b.count - a.count) || (a.id - b.id));
+    return items;
+}
+
+function renderPalette(template) {
+    const list = document.getElementById('paletteList');
+    const uniqueEl = document.getElementById('paletteUnique');
+    const totalEl = document.getElementById('paletteTotal');
+    if (!list || !uniqueEl || !totalEl) return;
+
+    const items = computePalette(template);
+    uniqueEl.textContent = String(items.length);
+    const totalPainted = items.reduce((acc, it) => acc + it.count, 0);
+    totalEl.textContent = String(totalPainted);
+
+    list.innerHTML = items.map(it => {
+        const meta = COLORS.find(c => c.id === it.id);
+        const name = meta ? meta.name : 'Unknown';
+        const [r, g, b] = meta ? meta.rgb : it.rgb.split(',').map(Number);
+        const textColor = getContrastColor(r, g, b);
+        const kind = it.isPremium ? 'Premium' : 'Basic';
+
+        return `
+      <article class="palette-item" data-id="${it.id}" data-kind="${kind.toLowerCase()}" title="ID ${it.id}">
+        <div class="swatch" style="background: rgb(${r}, ${g}, ${b}); color: ${textColor}; font-size: 10px;">#${it.id}</div>
+        <div class="palette-meta">
+            <span class="name">${name}</span>
+            <span class="type ${kind.toLowerCase()}">${kind} (${it.count} px)</span>
+        </div>
+      </article>
+    `;
+    }).join('');
+}
+
+function killPreviewPipelines() {
+    // invalidate async fetches/previews
+    if (typeof previewRenderId !== 'undefined') previewRenderId++;
+    if (typeof MT_PREVIEW_RENDER_ID !== 'undefined') MT_PREVIEW_RENDER_ID++;
+
+    // fade-out visible canvases
+    if (previewCanvas) {
+        const c = previewCanvas.getContext('2d');
+        if (c) c.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        previewCanvas.width = 0;
+        previewCanvas.height = 0;
+        previewCanvas.style.display = 'none';
+    }
+    if (templateCanvas) {
+        const c2 = templateCanvas.getContext('2d');
+        if (c2) c2.clearRect(0, 0, templateCanvas.width, templateCanvas.height);
+        templateCanvas.width = 0;
+        templateCanvas.height = 0;
+    }
+
+    // hide fullscreen preview just in case
+    const ov = document.getElementById('mtPreviewOverlay');
+    if (ov) ov.style.display = 'none';
+}
+
+function fillEditorFromTemplate(t) {
+    killPreviewPipelines();
+    if (convertInput) convertInput.value = '';
+    // === 1) Full reset of previous state ===
+    try {
+        // hide/clear preview
+        if (previewCanvas) { previewCanvas.width = 0; previewCanvas.height = 0; previewCanvas.style.display = "none"; }
+        // clear working canvas
+        if (templateCanvas) {
+            const ctx = templateCanvas.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, templateCanvas.width, templateCanvas.height);
+            templateCanvas.width = 0;
+            templateCanvas.height = 0;
+        }
+        // reset palette panel
+        const list = document.getElementById('paletteList');
+        const uniqueEl = document.getElementById('paletteUnique');
+        const totalEl = document.getElementById('paletteTotal');
+        if (list) list.innerHTML = '';
+        if (uniqueEl) uniqueEl.textContent = '0';
+        if (totalEl) totalEl.textContent = '0';
+        // clear current template state
+        currentTemplate = { width: 0, height: 0, data: [] };
+        // remove previous toggle handler if any
+        if (usePaidColors && usePaidColors.__editHandler) {
+            usePaidColors.removeEventListener('change', usePaidColors.__editHandler);
+            usePaidColors.__editHandler = null;
+        }
+    } catch (_) { }
+
+    // === 2) Template from the card ===
+    const tpl = t?.template;
+    if (!tpl || !tpl.width || !tpl.height) return;
+
+    // helper mini-functions
+    const recalcInk = (template) => {
+        let cnt = 0;
+        const { width, height, data } = template;
+        for (let x = 0; x < width; x++) for (let y = 0; y < height; y++) if ((data[x][y] | 0) > 0) cnt++;
+        return cnt;
+    };
+    const hasAnyPremium = (template) => {
+        const { width, height, data } = template;
+        for (let x = 0; x < width; x++) for (let y = 0; y < height; y++) if ((data[x][y] | 0) >= 32) return true;
+        return false;
+    };
+    // premium → nearest basic using colorById/closest/basic_colors
+    const projectToBasicPalette = (src) => {
+        const { width, height, data } = src;
+        const m = Array.from({ length: width }, () => Array(height).fill(0));
+        let inkCount = 0;
+        for (let x = 0; x < width; x++) {
+            for (let y = 0; y < height; y++) {
+                let id = data[x][y] | 0;
+                if (id <= 0) { m[x][y] = 0; continue; }
+                if (id >= 32) { // premium — map to basic
+                    const rgb = colorById(id);               // "r,g,b"
+                    id = (rgb && basic_colors[rgb]) ? basic_colors[rgb] : closest(rgb);
+                }
+                m[x][y] = id;
+                inkCount++;
+            }
+        }
+        return { width, height, data: m, ink: inkCount };
+    };
+
+    // === 3) Prepare two variants and the toggle ===
+    const paidVariant = {
+        width: tpl.width,
+        height: tpl.height,
+        data: tpl.data.map(col => col.slice()),
+        ink: (typeof tpl.ink === 'number') ? tpl.ink : recalcInk(tpl)
+    };
+    const basicVariant = projectToBasicPalette(paidVariant);
+
+    // toggle Use premium (paid) colors — enable/disable by template content
+    if (usePaidColors) usePaidColors.checked = hasAnyPremium(paidVariant);
+
+    // === 4) Apply variant + simple UI update via existing functions ===
+    const apply = (variant) => {
+        currentTemplate = variant;
+        // no canvas size reset — just redraw to avoid flicker
+        drawTemplate(currentTemplate, templateCanvas);
+        details.style.display = "block";
+        // do not hide details on toggle to avoid flicker
+        size.textContent = `${currentTemplate.width}x${currentTemplate.height}px`;
+        ink.textContent = String(typeof currentTemplate.ink === 'number' ? currentTemplate.ink : recalcInk(currentTemplate));
+        renderPalette(currentTemplate);
+        if (editTmpltMsg) editTmpltMsg.style.display = "block";
+    };
+
+    apply(usePaidColors && usePaidColors.checked ? paidVariant : basicVariant);
+
+    // === 5) Toggle while editing — just apply needed variant ===
+    if (usePaidColors) {
+        usePaidColors.__editHandler = () => {
+            apply(usePaidColors.checked ? paidVariant : basicVariant);
+        };
+        usePaidColors.addEventListener('change', usePaidColors.__editHandler);
+    }
+}
+
+
+
+// colorsManager
+const colorsManager = $("colorsManager");
+const paletteAllColors = $("paletteAllColors");
+const colorDetailsCard = $("colorDetailsCard");
+const selectedColorTitle = $("selectedColorTitle");
+const selectedColorKind = $("selectedColorKind");
+const selectedColorId = $("selectedColorId");
+const selectedColorSwatch = $("selectedColorSwatch");
+const usersHaveColor = $("usersHaveColor");
+const usersNoColor = $("usersNoColor");
+const selectAllNoColor = $("selectAllNoColor");
+const UnselectAllNoColor = $("UnselectAllNoColor");
+const purchaseColorBtn = $("purchaseColorBtn");
+const purchaseReport = $("purchaseReport");
+const editTmpltMsg = $("editTmpltMsg");
+
+let COLORS_INIT = false;
+let CURRENT_SELECTED_COLOR = null;
+
+// USERS_COLOR_STATE[userId] = { name, extraColorsBitmap, droplets }
+const USERS_COLOR_STATE = {};
+
+// Colors cache in localStorage
+const COLORS_CACHE_KEY = 'wplacer_colors_cache_v1';
+let COLORS_CACHE = null;
+try { COLORS_CACHE = JSON.parse(localStorage.getItem(COLORS_CACHE_KEY) || 'null'); } catch (_) { COLORS_CACHE = null; }
+const saveColorsCache = () => { try { localStorage.setItem(COLORS_CACHE_KEY, JSON.stringify(COLORS_CACHE)); } catch (_) { } };
+const colorsLastCheckLabel = $("colorsLastCheckLabel");
+const usersColorsLastCheckLabel = $("usersColorsLastCheckLabel");
+const checkColorsAll = $("checkColorsAll");
+const loadColorsCacheBtn = $("loadColorsCache");
+
+function buildAllColorsPalette() {
+    if (!paletteAllColors) return;
+    const items = COLORS.filter(c => c.id !== 0);
+    // prepare owners count map per color
+    const countByColor = new Map();
+    try {
+        const mapById = COLORS_CACHE?.report?.reduce((m, r) => { if (r && r.userId && !r.error) m[r.userId] = r; return m; }, {}) || {};
+        for (const uid of Object.keys(mapById)) {
+            const bitmap = mapById[uid].extraColorsBitmap | 0;
+            for (let cid = 1; cid <= 63; cid++) {
+                const has = cid < 32 ? true : ((bitmap & (1 << (cid - 32))) !== 0);
+                if (has) countByColor.set(cid, (countByColor.get(cid) || 0) + 1);
+            }
+        }
+    } catch (_) { }
+
+    paletteAllColors.innerHTML = items.map(it => {
+        const [r, g, b] = it.rgb;
+        const textColor = getContrastColor(r, g, b);
+        const kind = it.id >= 32 ? 'Premium' : 'Basic';
+        const cnt = countByColor.get(it.id) || 0;
+        const badge = (it.id >= 32 && cnt > 0) ? `<span class="count-badge" title="Users with this color">${cnt}</span>` : '';
+        return `
+      <article class="palette-item color-tile" data-color-id="${it.id}" data-kind="${kind.toLowerCase()}" title="ID ${it.id}">
+        <div class="swatch" style="background: rgb(${r}, ${g}, ${b}); color: ${textColor}">#${it.id}</div>
+        <div class="palette-meta">
+          <span class="name">${it.name}</span>
+          <span class="type ${kind.toLowerCase()}">${kind}</span>
+        </div>
+        ${badge}
+      </article>
+    `;
+    }).join('');
+}
+
+function hasPremiumColor(extraColorsBitmap, colorId) {
+    // premium: 32..63
+    if (colorId < 32) return true;
+    const bit = (colorId - 32);
+    return (extraColorsBitmap & (1 << bit)) !== 0;
+}
+
+async function loadUsersColorState(fromCacheOnly = false) {
+    const { data: users } = await axios.get("/users");
+    if (fromCacheOnly) {
+        const mapById = COLORS_CACHE?.report?.reduce((m, r) => { if (r && r.userId && !r.error) m[r.userId] = r; return m; }, {}) || {};
+        for (const id of Object.keys(users)) {
+            const r = mapById[id];
+            if (!r) continue;
+            USERS_COLOR_STATE[id] = {
+                name: users[id]?.name || `#${id}`,
+                extraColorsBitmap: r.extraColorsBitmap | 0,
+                droplets: r.droplets | 0
+            };
+            LAST_USER_STATUS[id] = {
+                ...(LAST_USER_STATUS[id] || {}),
+                droplets: r.droplets | 0,
+                max: r.charges?.max ?? (LAST_USER_STATUS[id]?.max ?? 0),
+                charges: Math.floor(r.charges?.count ?? (LAST_USER_STATUS[id]?.charges ?? 0)),
+                level: Math.floor(r.level ?? (LAST_USER_STATUS[id]?.level ?? 0)),
+                progress: Math.round((r.progress ?? 0) | 0),
+                extraColorsBitmap: r.extraColorsBitmap | 0,
+            };
+        }
+        saveLastStatus();
+        return;
+    }
+
+    const { data } = await axios.post('/users/colors-check', {});
+    COLORS_CACHE = { ts: data?.ts || Date.now(), report: data?.report || [] };
+    saveColorsCache();
+    // Rebuild palette to refresh badges without page reload
+    try { buildAllColorsPalette(); } catch (_) { }
+    if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
+    if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
+
+    const mapById = COLORS_CACHE.report.reduce((m, r) => { if (r && r.userId && !r.error) m[r.userId] = r; return m; }, {});
+    for (const [id, u] of Object.entries(users)) {
+        const r = mapById[id];
+        if (!r) continue;
+        USERS_COLOR_STATE[id] = {
+            name: u?.name || `#${id}`,
+            extraColorsBitmap: r.extraColorsBitmap | 0,
+            droplets: r.droplets | 0
+        };
+        LAST_USER_STATUS[id] = {
+            ...(LAST_USER_STATUS[id] || {}),
+            droplets: r.droplets | 0,
+            max: r.charges?.max ?? (LAST_USER_STATUS[id]?.max ?? 0),
+            charges: Math.floor(r.charges?.count ?? (LAST_USER_STATUS[id]?.charges ?? 0)),
+            level: Math.floor(r.level ?? (LAST_USER_STATUS[id]?.level ?? 0)),
+            progress: Math.round((r.progress ?? 0) | 0),
+            extraColorsBitmap: r.extraColorsBitmap | 0,
+        };
+    }
+    saveLastStatus();
+    // Refresh current color details and palette badges
+    try { buildAllColorsPalette(); } catch (_) { }
+}
+
+function showColorDetails(colorId) {
+    CURRENT_SELECTED_COLOR = colorId;
+    const meta = COLORS.find(c => c.id === colorId);
+    if (!meta) return;
+    const [r, g, b] = meta.rgb;
+    selectedColorTitle.textContent = meta.name;
+    selectedColorKind.textContent = colorId >= 32 ? "Premium" : "Basic";
+    selectedColorKind.classList.toggle('premium', colorId >= 32);
+    selectedColorId.textContent = String(colorId);
+    selectedColorSwatch.style.background = `rgb(${r}, ${g}, ${b})`;
+    selectedColorSwatch.style.color = getContrastColor(r, g, b);
+    selectedColorSwatch.textContent = `#${colorId}`;
+
+    const have = [];
+    const notHave = [];
+    for (const uid of Object.keys(USERS_COLOR_STATE)) {
+        const u = USERS_COLOR_STATE[uid];
+        if (hasPremiumColor(u.extraColorsBitmap, colorId)) have.push({ id: uid, name: u.name });
+        else notHave.push({ id: uid, name: u.name });
+    }
+
+    usersHaveColor.classList.add('chips');
+    usersHaveColor.innerHTML = have.length
+        ? have.map(u => `
+        <span class="account-chip" title="#${u.id}">
+          <span class="account-name">${u.name}</span>
+          <span class="account-id-badge">#${u.id}</span>
+        </span>`).join('')
+        : `<span class="muted">Nobody has this color yet.</span>`;
+
+    usersNoColor.innerHTML = notHave.length
+        ? notHave.map(u => {
+            const last = (LAST_USER_STATUS?.[u.id] || {});
+            const drops = (typeof last.droplets === 'number') ? last.droplets : '-';
+            return `
+        <div class="user-select-item">
+          <input type="checkbox" id="color_user_${u.id}" value="${u.id}">
+          <label class="label-margin0" for="color_user_${u.id}">
+            ${u.name} <span class="muted">(#${u.id})</span>
+          </label>
+          <span class="drops-badge" title="Droplets at last check">${drops} drops</span>
+        </div>`;
+        }).join('')
+        : `<span class="muted">Everyone already has this color.</span>`;
+
+    const premium = colorId >= 32;
+    purchaseColorBtn.style.display = premium ? 'inline-flex' : 'none';
+    selectAllNoColor?.parentElement?.classList?.toggle('hidden', !premium);
+    if (premium && notHave.length === 0) purchaseColorBtn.style.display = 'none';
+
+    colorDetailsCard.style.display = 'block';
+}
+
+async function initColorsManager() {
+    if (!COLORS_INIT) {
+        buildAllColorsPalette();
+        COLORS_INIT = true;
+    }
+    // show date if cache exists
+    if (COLORS_CACHE?.ts && colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
+    if (COLORS_CACHE?.ts && usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
+    // by default, load from cache only, no server trigger
+    if (COLORS_CACHE) await loadUsersColorState(true);
+    if (CURRENT_SELECTED_COLOR == null) {
+        const firstPremium = COLORS.find(c => c.id >= 32)?.id ?? 32;
+        showColorDetails(firstPremium);
+    } else {
+        showColorDetails(CURRENT_SELECTED_COLOR);
+    }
+}
+
+paletteAllColors?.addEventListener('click', (e) => {
+    const tile = e.target.closest('.color-tile');
+    if (!tile) return;
+    const cid = parseInt(tile.dataset.colorId, 10);
+    if (!Number.isFinite(cid)) return;
+    // visually mark selected
+    paletteAllColors.querySelectorAll('.color-tile.selected').forEach(el => el.classList.remove('selected'));
+    tile.classList.add('selected');
+    showColorDetails(cid);
+});
+
+selectAllNoColor?.addEventListener('click', () => {
+    usersNoColor.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+});
+UnselectAllNoColor?.addEventListener('click', () => {
+    usersNoColor.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+});
+
+purchaseColorBtn?.addEventListener('click', async () => {
+    if (CURRENT_SELECTED_COLOR == null) {
+        showMessage("Error", "Select a color first.");
+        return;
+    }
+    const colorId = CURRENT_SELECTED_COLOR;
+    if (colorId < 32) {
+        showMessage("Info", "Basic colors are available for everyone. No purchase required.");
+        return;
+    }
+    const selectedUserIds = Array.from(usersNoColor.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    if (!selectedUserIds.length) {
+        showMessage("Error", "Select at least one user without this color.");
+        return;
+    }
+
+    try {
+        purchaseColorBtn.disabled = true;
+        purchaseColorBtn.textContent = "Processing...";
+
+        const { data } = await axios.post('/users/purchase-color', {
+            colorId,
+            userIds: selectedUserIds
+        });
+
+        const report = data?.report || [];
+        let ok = 0, skipped = 0, failed = 0;
+        const lines = report.map(r => {
+            if (r.error) { failed++; return `❌ ${r.name} (#${r.userId}): ${r.error}`; }
+            if (r.skipped) { skipped++; return `⏭️ ${r.name} (#${r.userId}): ${r.reason || 'skipped'}`; }
+            if (r.ok || r.success) { ok++; }
+            const before = (r.beforeDroplets ?? '-'), after = (r.afterDroplets ?? '-');
+            return `✅ ${r.name} (#${r.userId}) — purchased. Droplets ${before} → ${after}`;
+        });
+
+        const html = `
+      <b>Color:</b> #${colorId}<br>
+      <b>Purchased:</b> ${ok}<br>
+      <b>Skipped:</b> ${skipped}<br>
+      <b>Failed:</b> ${failed}<br><br>
+      ${lines.slice(0, 20).join('<br>')}
+      ${lines.length > 20 ? `<br>...and ${lines.length - 20} more` : ''}
+    `;
+        showMessage("Purchase Report", html);
+
+        // locally update cache only for users with ok/updated
+        try {
+            const nowTs = Date.now();
+            const byId = new Map((COLORS_CACHE?.report || []).map(r => [String(r.userId), r]));
+            for (const r of report) {
+                if (r && !r.error && !r.skipped) {
+                    const prev = byId.get(String(r.userId));
+                    byId.set(String(r.userId), {
+                        userId: String(r.userId),
+                        name: r.name,
+                        extraColorsBitmap: (prev?.extraColorsBitmap ?? 0) | (1 << (colorId - 32)),
+                        droplets: r.afterDroplets ?? prev?.droplets ?? 0,
+                        charges: prev?.charges ?? { count: 0, max: 0 },
+                        level: prev?.level ?? 0,
+                        progress: prev?.progress ?? 0
+                    });
+                }
+            }
+            COLORS_CACHE = { ts: nowTs, report: Array.from(byId.values()) };
+            saveColorsCache();
+            if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+            if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+        } catch (_) { }
+        await loadUsersColorState(true);
+        // Rebuild palette to update badges immediately and keep current selection
+        try { buildAllColorsPalette(); } catch (_) { }
+        showColorDetails(colorId);
+    } catch (error) {
+        handleError(error);
+    } finally {
+        purchaseColorBtn.disabled = false;
+        purchaseColorBtn.textContent = "Attempt to Buy for Selected";
+    }
+});
+
+// Buttons in Colors tab
+checkColorsAll?.addEventListener('click', async () => {
+    let timer = null;
+    try {
+        checkColorsAll.disabled = true;
+        checkColorsAll.textContent = 'Checking...';
+
+        // progress polling
+        const updateProgress = async () => {
+            try {
+                const { data } = await axios.get('/users/colors-check/progress');
+                const total = data?.total || 0;
+                const completed = data?.completed || 0;
+                if (data?.active && total > 0) {
+                    checkColorsAll.textContent = `Checking... ${completed}/${total}`;
+                }
+            } catch (_) { /* ignore */ }
+        };
+        timer = setInterval(updateProgress, 500);
+        // kick first read
+        updateProgress().catch(() => { });
+
+        await loadUsersColorState(false);
+        try { buildAllColorsPalette(); } catch (_) { }
+        const id = CURRENT_SELECTED_COLOR ?? (COLORS.find(c => c.id >= 32)?.id ?? 32);
+        showColorDetails(id);
+    } catch (e) { handleError(e); }
+    finally {
+        if (timer) clearInterval(timer);
+        checkColorsAll.disabled = false;
+        checkColorsAll.innerHTML = '<img src="icons/check.svg" alt="" />Check Colors (All)';
+    }
+});
+
+loadColorsCacheBtn?.addEventListener('click', async () => {
+    if (!COLORS_CACHE) {
+        showMessage('Info', 'No cached data yet. Press "Check Colors (All)" first.');
+        return;
+    }
+    if (colorsLastCheckLabel && COLORS_CACHE.ts) colorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
+    if (usersColorsLastCheckLabel && COLORS_CACHE.ts) usersColorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
+    await loadUsersColorState(true);
+    try { buildAllColorsPalette(); } catch (_) { }
+    const id = CURRENT_SELECTED_COLOR ?? (COLORS.find(c => c.id >= 32)?.id ?? 32);
+    showColorDetails(id);
 });
