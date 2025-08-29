@@ -1,4 +1,4 @@
-## Changelog v4.1.0
+## Changelog v4.1.1
 
 - Drawing modes - added new mode "Inside Out"
 - Manage Users: profile editor (Name/Discord/Show last pixel)
