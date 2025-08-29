@@ -1,3 +1,8 @@
+
+## Changelog v4.1.4
+- Quick temporary solution for stable core drawing mechanics (Note: re-upload browser extension also).
+
+
 ## Changelog v4.1.3
 - Quick improvement of user sorting
 

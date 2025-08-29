@@ -46,6 +46,43 @@ const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, 
 const pallete = { ...basic_colors, ...premium_colors };
 const colorBitmapShift = Object.keys(basic_colors).length + 1;
 
+// --- Charge cache (avoid logging in all users each cycle) ---
+const ChargeCache = {
+  _m: new Map(),
+  REGEN_MS: 30_000,
+  SYNC_MS: 8 * 60_000,
+  _key(id) { return String(id); },
+
+  has(id) { return this._m.has(this._key(id)); },
+  stale(id, now = Date.now()) {
+    const u = this._m.get(this._key(id)); if (!u) return true;
+    return (now - u.lastSync) > this.SYNC_MS;
+  },
+  markFromUserInfo(userInfo, now = Date.now()) {
+    if (!userInfo?.id || !userInfo?.charges) return;
+    const k = this._key(userInfo.id);
+    const base = Math.floor(userInfo.charges.count ?? 0);
+    const max  = Math.floor(userInfo.charges.max ?? 0);
+    this._m.set(k, { base, max, lastSync: now });
+  },
+  predict(id, now = Date.now()) {
+    const u = this._m.get(this._key(id)); if (!u) return null;
+    const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
+    const count = Math.min(u.max, u.base + Math.max(0, grown));
+    return { count, max: u.max, cooldownMs: this.REGEN_MS };
+  },
+  consume(id, n = 1, now = Date.now()) {
+    const k = this._key(id);
+    const u = this._m.get(k); if (!u) return;
+    const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
+    const avail = Math.min(u.max, u.base + Math.max(0, grown));
+    const newCount = Math.max(0, avail - n);
+    u.base = newCount;
+    u.lastSync = now - ((now - u.lastSync) % this.REGEN_MS);
+    this._m.set(k, u);
+  }
+};
+
 let loadedProxies = [];
 const loadProxies = () => {
   const proxyPath = path.join(dataDir, "proxies.txt");
@@ -120,6 +157,7 @@ class WPlacer {
     this.userInfo = null;
     this.tiles = new Map();
     this.token = null;
+    this._lastTilesAt = 0;
 
     // burst seeds persistence
     this._burstSeeds = Array.isArray(initialBurstSeeds) ? initialBurstSeeds.map(s => ({ gx: s.gx, gy: s.gy })) : null;
@@ -184,6 +222,7 @@ class WPlacer {
       }
       if (userInfo?.id && userInfo?.name) {
         this.userInfo = userInfo;
+        try { ChargeCache.markFromUserInfo(userInfo); } catch {}
         return true;
       }
       throw new Error(`Unexpected JSON from /me (status ${status}): ${JSON.stringify(userInfo).slice(0, 200)}...`);
@@ -614,7 +653,13 @@ class WPlacer {
     }
 
     while (true) {
-      await this.loadTiles();
+      // Кэширование тайлов на короткий промежуток, чтобы ускорить последовательные ходы
+      const nowTiles = Date.now();
+      const TILES_CACHE_MS = 3000;
+      if (nowTiles - this._lastTilesAt >= TILES_CACHE_MS || this.tiles.size === 0) {
+        await this.loadTiles();
+        this._lastTilesAt = Date.now();
+      }
       if (!this.token) throw new Error("REFRESH_TOKEN"); // TokenManager must provide before calling
 
       let mismatchedPixels = this._getMismatchedPixels();
@@ -790,9 +835,13 @@ class WPlacer {
         }
       }
 
-      const allowedByCharges = Math.floor(this.userInfo.charges.count);
+      const allowedByCharges = Math.max(0, Math.floor(this.userInfo?.charges?.count || 0));
       const maxPerPass = Number.isFinite(this.settings?.maxPixelsPerPass) ? Math.max(0, Math.floor(this.settings.maxPixelsPerPass)) : 0;
       const limit = maxPerPass > 0 ? Math.min(allowedByCharges, maxPerPass) : allowedByCharges;
+      if (limit <= 0) {
+        // Нет зарядов — не тратим время дальше в этом проходе
+        return 0;
+      }
       const pixelsToPaint = mismatchedPixels.slice(0, limit);
       const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
         const key = `${p.tx},${p.ty}`;
@@ -995,14 +1044,36 @@ const TokenManager = {
   tokenPromise: null,
   resolvePromise: null,
   isTokenNeeded: false,
+  TOKEN_EXPIRATION_MS: 2 * 60 * 1000,
+  _lastNeededAt: 0,
+
+  _purgeExpiredTokens() {
+    const now = Date.now();
+    let changed = false;
+    const filtered = [];
+    for (const item of this.tokenQueue) {
+      if (item && typeof item === 'object' && item.token) {
+        if (now - item.receivedAt < this.TOKEN_EXPIRATION_MS) filtered.push(item);
+        else changed = true;
+      } else {
+        // backward compatibility: plain string token — keep but wrap
+        filtered.push({ token: String(item), receivedAt: now });
+        changed = true;
+      }
+    }
+    if (changed) this.tokenQueue = filtered;
+  },
 
   getToken() {
+    this._purgeExpiredTokens();
     if (this.tokenQueue.length > 0) {
-      return Promise.resolve(this.tokenQueue[0]);
+      const head = this.tokenQueue[0];
+      return Promise.resolve(head && head.token ? head.token : head);
     }
     if (!this.tokenPromise) {
       log("SYSTEM", "wplacer", "TOKEN_MANAGER: A task is waiting for a token. Flagging for clients.");
       this.isTokenNeeded = true;
+      this._lastNeededAt = Date.now();
       notifyTokenNeeded();
       this.tokenPromise = new Promise((resolve) => {
         this.resolvePromise = resolve;
@@ -1013,9 +1084,10 @@ const TokenManager = {
   setToken(t) {
     log("SYSTEM", "wplacer", `✅ TOKEN_MANAGER: Token received. Queue size: ${this.tokenQueue.length + 1}`);
     this.isTokenNeeded = false;
-    this.tokenQueue.push(t);
+    this.tokenQueue.push({ token: t, receivedAt: Date.now() });
     if (this.resolvePromise) {
-      this.resolvePromise(this.tokenQueue[0]);
+      const head = this.tokenQueue[0];
+      this.resolvePromise(head && head.token ? head.token : head);
       this.tokenPromise = null;
       this.resolvePromise = null;
     }
@@ -1023,6 +1095,12 @@ const TokenManager = {
   invalidateToken() {
     this.tokenQueue.shift();
     log("SYSTEM", "wplacer", `🔄 TOKEN_MANAGER: Invalidating token. ${this.tokenQueue.length} tokens remaining.`);
+    // Если токена нет — немедленно сигнализируем, чтобы расширение сразу дернуло выдачу
+    if (this.tokenQueue.length === 0) {
+      this.isTokenNeeded = true;
+      this._lastNeededAt = Date.now();
+      notifyTokenNeeded();
+    }
   }
 };
 
@@ -1047,6 +1125,10 @@ class TemplateManager {
     this.autoBuyNeededColors = false;
     this.antiGriefMode = !!antiGriefMode;
     this.userIds = userIds;
+    this.userQueue = [...userIds];
+    // throttle for opportunistic resync
+    this._lastResyncAt = 0;
+    this._resyncCooldownMs = 3000;
 
     this.paintTransparentPixels = !!paintTransparentPixels; // NEW: per-template flag like old version
     this.burstSeeds = null; // persist across runs
@@ -1065,6 +1147,15 @@ class TemplateManager {
     // approximate per-user droplets projection
     this.userProjectedDroplets = {}; // userId -> number
     this._premiumsStopLogged = false;
+
+    // Summary throttling to avoid heavy pre-check before every turn
+    this._lastSummary = null;
+    this._lastSummaryAt = 0;
+    this._summaryMinIntervalMs = Math.max(2 * (currentSettings.accountCooldown || 15000), 20000);
+    this._lastPaintedAt = 0;
+    this._lastRunnerId = null;
+    this._lastSwitchAt = 0;
+    this._initialScanned = false;
   }
 
   _computeTemplatePremiumColors() {
@@ -1222,70 +1313,99 @@ class TemplateManager {
     log("SYSTEM", "wplacer", `▶️ Starting template "${this.name}"...`);
 
     try {
-      while (this.running) {
-        // Check remaining pixels using the master account
-        const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
-        let summaryForTurn = null;
-        try {
-          await checkWplacer.login(users[this.masterId].cookies);
-          // Always compute full mismatches summary to drive correct selection
-          const summary = await checkWplacer.mismatchesSummary();
-          summaryForTurn = summary;
-          this.pixelsRemaining = summary.total;
-          if (this.autoBuyNeededColors) {
-            if (summary.total === 0) {
-              // nothing to do
-            } else if (summary.basic === 0 && summary.premium > 0) {
-              // only premium remain — check funds and stop if none can buy
-              // first, try auto-buy immediately to avoid false stop
-              let autoRes = { purchased: false, bought: [] };
-              try { autoRes = await this._tryAutoBuyNeededColors() || autoRes; } catch (_) {}
+      // 1) Перед началом — последовательный прогрев кэша: получаем фактические charges для всех назначенных пользователей
+      if (!this._initialScanned) {
+        const cooldown = Math.max(0, Number(currentSettings.accountCheckCooldown || 0));
+        log("SYSTEM", "wplacer", `[${this.name}] 🔍 Initial scan: starting (${this.userIds.length} accounts). Cooldown=${cooldown}ms`);
+        for (const uid of this.userIds) {
+          const rec = users[uid]; if (!rec) continue;
+          if (rec.suspendedUntil && Date.now() < rec.suspendedUntil) continue;
+          if (activeBrowserUsers.has(uid)) continue;
+          activeBrowserUsers.add(uid);
+          const w = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
+          try {
+            await w.login(rec.cookies); await w.loadUserInfo();
+            const cnt = Math.floor(Number(w.userInfo?.charges?.count || 0));
+            const mx = Math.floor(Number(w.userInfo?.charges?.max || 0));
+            log(w.userInfo.id, w.userInfo.name, `[${this.name}] 🔁 Cache update: charges ${cnt}/${mx}`);
+          }
+          catch (e) { logUserError(e, uid, rec?.name || `#${uid}`, "initial user scan"); }
+          finally { activeBrowserUsers.delete(uid); }
+          if (cooldown > 0) await sleep(cooldown);
+        }
+        log("SYSTEM", "wplacer", `[${this.name}] ✅ Initial scan finished.`);
+        this._initialScanned = true;
+      }
 
-              // re-evaluate ability to buy / own after purchases
-              const reserve = currentSettings.dropletReserve || 0;
-              const dummyTemplate = { width: 0, height: 0, data: [] };
-              const dummyCoords = [0, 0, 0, 0];
-              let anyCanBuy = false;
-              let anyOwnsRemaining = false;
-              for (const uid of this.userIds) {
-                if (activeBrowserUsers.has(uid)) continue;
-                activeBrowserUsers.add(uid);
-                const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, this.name);
-                try {
-                  await w.login(users[uid].cookies); await w.loadUserInfo();
-                  if ((Number(w.userInfo.droplets || 0) - reserve) >= 2000) { anyCanBuy = true; }
-                  const bitmap = Number(w.userInfo.extraColorsBitmap || 0);
-                  for (const cid of Array.from(summary.premiumColors)) {
-                    if (cid >= 32 && ((bitmap & (1 << (cid - 32))) !== 0)) { anyOwnsRemaining = true; break; }
-                  }
-                }
-                catch {} finally { activeBrowserUsers.delete(uid); }
-                if (anyCanBuy) break;
-              }
-              // If someone already owns at least one of remaining premium colors — proceed (let painting reduce set)
-              if (anyOwnsRemaining) {
-                log("SYSTEM", "wplacer", `[${this.name}] ℹ️ Only premium pixels remain, but some are already owned. Proceeding to paint owned premium while waiting for funds to buy others.`);
-              } else if (!anyCanBuy) {
-                const list = Array.from(summary.premiumColors).sort((a,b)=>a-b).join(', ');
+      while (this.running) {
+        // Throttled check of remaining pixels using the master account
+        let summaryForTurn = null;
+        const needFreshSummary = !this._lastSummary || (Date.now() - this._lastSummaryAt) >= this._summaryMinIntervalMs;
+        if (needFreshSummary) {
+          const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
+          try {
+            await checkWplacer.login(users[this.masterId].cookies);
+            const summary = await checkWplacer.mismatchesSummary();
+            summaryForTurn = summary;
+            this._lastSummary = summary;
+            this._lastSummaryAt = Date.now();
+            this.pixelsRemaining = summary.total;
+            if (this.autoBuyNeededColors) {
+              if (summary.total === 0) {
+                // nothing to do
+              } else if (summary.basic === 0 && summary.premium > 0) {
+                // only premium remain — check funds and stop if none can buy
+                // first, try auto-buy immediately to avoid false stop
+                let autoRes = { purchased: false, bought: [] };
+                try { autoRes = await this._tryAutoBuyNeededColors() || autoRes; } catch (_) {}
+
+                // re-evaluate ability to buy / own after purchases
                 const reserve = currentSettings.dropletReserve || 0;
-                const needTotal = 2000 + reserve;
-                log("SYSTEM", "wplacer", `[${this.name}] ⛔ Template stopped: Only premium pixels remain (${summary.premium} px, colors: ${list}), and none of assigned accounts have enough droplets to purchase (need 2000 + ${reserve}(reserve) = ${needTotal}).`);
-                this.status = "Finished.";
-                this.running = false;
-                break;
-              }
-              // If just bought something, let loop continue without declaring 0 remaining prematurely
-              if (autoRes.purchased) {
-                this.pixelsRemaining = Math.max(1, summary.premium);
-              } else {
-                this.pixelsRemaining = summary.premium;
+                const dummyTemplate = { width: 0, height: 0, data: [] };
+                const dummyCoords = [0, 0, 0, 0];
+                let anyCanBuy = false;
+                let anyOwnsRemaining = false;
+                for (const uid of this.userIds) {
+                  if (activeBrowserUsers.has(uid)) continue;
+                  activeBrowserUsers.add(uid);
+                  const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, this.name);
+                  try {
+                    await w.login(users[uid].cookies); await w.loadUserInfo();
+                    if ((Number(w.userInfo.droplets || 0) - reserve) >= 2000) { anyCanBuy = true; }
+                    const bitmap = Number(w.userInfo.extraColorsBitmap || 0);
+                    for (const cid of Array.from(summary.premiumColors)) {
+                      if (cid >= 32 && ((bitmap & (1 << (cid - 32))) !== 0)) { anyOwnsRemaining = true; break; }
+                    }
+                  }
+                  catch {} finally { activeBrowserUsers.delete(uid); }
+                  if (anyCanBuy) break;
+                }
+                if (anyOwnsRemaining) {
+                  log("SYSTEM", "wplacer", `[${this.name}] ℹ️ Only premium pixels remain, but some are already owned. Proceeding to paint owned premium while waiting for funds to buy others.`);
+                } else if (!anyCanBuy) {
+                  const list = Array.from(summary.premiumColors).sort((a,b)=>a-b).join(', ');
+                  const reserve2 = currentSettings.dropletReserve || 0;
+                  const needTotal = 2000 + reserve2;
+                  log("SYSTEM", "wplacer", `[${this.name}] ⛔ Template stopped: Only premium pixels remain (${summary.premium} px, colors: ${list}), and none of assigned accounts have enough droplets to purchase (need 2000 + ${reserve2}(reserve) = ${needTotal}).`);
+                  this.status = "Finished.";
+                  this.running = false;
+                  break;
+                }
+                if (autoRes.purchased) {
+                  this.pixelsRemaining = Math.max(1, summary.premium);
+                } else {
+                  this.pixelsRemaining = summary.premium;
+                }
               }
             }
+          } catch (error) {
+            logUserError(error, this.masterId, this.masterName, "check pixels left");
+            await sleep(60000);
+            continue;
           }
-        } catch (error) {
-          logUserError(error, this.masterId, this.masterName, "check pixels left");
-          await sleep(60000);
-          continue;
+        } else {
+          summaryForTurn = this._lastSummary;
+          this.pixelsRemaining = summaryForTurn?.total ?? this.pixelsRemaining;
         }
 
         if (this.pixelsRemaining === 0) {
@@ -1333,143 +1453,116 @@ class TemplateManager {
           }
         }
 
-        // Collect user states
-        const userStates = [];
-        for (const userId of this.userIds) {
-          const user = users[userId];
-          if (!user) continue;
-          if (user.suspendedUntil && Date.now() < user.suspendedUntil) continue;
+        // Prediction-driven selection: выбрать готового аккаунта с наибольшим количеством зарядов
+        if (this.userQueue.length === 0) this.userQueue = [...this.userIds];
+
+        let resyncScheduled = false;
+        const nowSel = Date.now();
+        let bestUserId = null;
+        let bestPredicted = null;
+
+        // Предварительно отсортируем кандидатов по предсказанному количеству зарядов (убывает)
+        // После первичного сканирования предсказания будут максимально точными
+        const candidates = this.userIds
+          .filter((uid) => {
+            const rec = users[uid];
+            if (!rec) return false;
+            if (rec.suspendedUntil && nowSel < rec.suspendedUntil) return false;
+            if (activeBrowserUsers.has(uid)) return false;
+            return true;
+          })
+          .map((uid) => ({ uid, pred: ChargeCache.predict(uid, nowSel) }))
+          .map((o) => ({ uid: o.uid, count: Math.floor(o.pred?.count || 0), max: Math.floor(o.pred?.max || 0) }))
+          .sort((a, b) => b.count - a.count || b.max - a.max);
+
+        if (candidates.length) {
+          const top = candidates.slice(0, Math.min(3, candidates.length)).map(c => `${c.uid}:${c.count}/${c.max}`).join(', ');
+          log("SYSTEM", "wplacer", `[${this.name}] 📊 Queue preview (top): ${top}`);
+        } else {
+          log("SYSTEM", "wplacer", `[${this.name}] 📊 Queue preview: empty candidates.`);
+        }
+
+        for (const { uid: userId } of candidates) {
+          const rec = users[userId];
+          if (!rec) continue;
+          if (rec.suspendedUntil && nowSel < rec.suspendedUntil) continue;
           if (activeBrowserUsers.has(userId)) continue;
 
-          activeBrowserUsers.add(userId);
-          const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
-          try {
-            await wplacer.login(user.cookies);
-            userStates.push({ userId, name: users[userId].name, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs, bitmap: Number(wplacer.userInfo.extraColorsBitmap || 0) });
-          } catch (error) {
-            logUserError(error, userId, users[userId].name, "check user status");
-          } finally {
-            activeBrowserUsers.delete(userId);
+          if (!resyncScheduled && ChargeCache.stale(userId, nowSel) && (nowSel - this._lastResyncAt) >= this._resyncCooldownMs) {
+            resyncScheduled = true;
+            this._lastResyncAt = nowSel;
+            activeBrowserUsers.add(userId);
+            const w = new WPlacer(this.template, this.coords, currentSettings, this.name);
+            log(userId, rec.name, `[${this.name}] 🔄 Background resync started.`);
+            w.login(rec.cookies)
+              .then(()=>{ try { log(userId, rec.name, `[${this.name}] ✅ Background resync finished.`); } catch {} })
+              .catch((e)=>{ logUserError(e, userId, rec.name, "opportunistic resync"); try { log(userId, rec.name, `[${this.name}] ❌ Background resync finished (error).`); } catch {} })
+              .finally(()=>activeBrowserUsers.delete(userId));
           }
-        }
 
-        // Optionally: attempt balanced auto-buy of needed colors before picking runner
-        try { if (this.autoBuyNeededColors) { await this._tryAutoBuyNeededColors(); } } catch (_) {}
-
-        // If auto-buy is OFF and only premium remain and no user owns required premium colors → stop
-        if (!this.autoBuyNeededColors && summaryForTurn && summaryForTurn.basic === 0 && summaryForTurn.premium > 0) {
-          const neededPremium = new Set(Array.from(summaryForTurn.premiumColors || []));
-          let anyOwns = false;
-          for (const u of userStates) {
-            const bm = u.bitmap | 0;
-            for (const cid of neededPremium) { if (cid >= 32 && ((bm & (1 << (cid - 32))) !== 0)) { anyOwns = true; break; } }
-            if (anyOwns) break;
-          }
-          if (!anyOwns) {
-            const list = Array.from(neededPremium).sort((a,b)=>a-b).join(', ');
-            log("SYSTEM", "wplacer", `[${this.name}] ⛔ Template stopped: Auto-buy is OFF, only premium pixels remain (${summaryForTurn.premium} px, colors: ${list}), and none of assigned accounts own required colors.`);
-            this.status = "Finished.";
-            this.running = false;
-            break;
-          }
-        }
-
-        // Choose a user to run: ready by threshold or with >0 charges
-        let readyUsers = [];
-        if (currentSettings.alwaysDrawOnCharge) {
-          readyUsers = userStates.filter((u) => u.charges.count >= 1);
-        } else {
-          readyUsers = userStates.filter((u) => u.charges.count >= Math.max(1, u.charges.max * currentSettings.chargeThreshold));
-        }
-        // Prefer users who CAN actually paint something now (own needed premium or any basic remains)
-        if (summaryForTurn) {
-          const neededPremium = new Set(Array.from(summaryForTurn.premiumColors || []));
-          const basicRemain = summaryForTurn.basic > 0;
-          const canPaint = (u) => {
-            if (basicRemain) return true; // basic available to everyone
-            // premium-only remain: needs to own at least one of needed colors
-            const bm = u.bitmap | 0;
-            for (const cid of neededPremium) {
-              if (cid >= 32 && ((bm & (1 << (cid - 32))) !== 0)) return true;
+          const p = ChargeCache.predict(userId, nowSel);
+          if (!p) continue;
+          const threshold = currentSettings.alwaysDrawOnCharge ? 1 : Math.max(1, Math.floor(p.max * currentSettings.chargeThreshold));
+          if (Math.floor(p.count) >= threshold) {
+            if (!bestPredicted || Math.floor(p.count) > Math.floor(bestPredicted.count)) {
+              bestPredicted = p; bestUserId = userId;
             }
-            return false;
-          };
-          const able = readyUsers.filter(canPaint);
-          if (able.length > 0) {
-            readyUsers = able;
-          } else {
-            // no suitable user — better to wait than loop users without needed colors
-            if (!basicRemain && neededPremium.size > 0 && this.autoBuyNeededColors) {
-              log("SYSTEM", "wplacer", `[${this.name}] ⚠️ Premium-only stage: no ready users own required colors now. Waiting for funds/purchases.`);
-            }
-            readyUsers = [];
           }
         }
-        let userToRun = readyUsers.length > 0 ? readyUsers.sort((a, b) => b.charges.count - a.charges.count)[0] : null;
-        if (!userToRun && userStates.length > 0) {
-          const nonZero = userStates.filter((u) => u.charges.count > 0).sort((a, b) => b.charges.count - a.charges.count);
-          if (nonZero.length) userToRun = nonZero[0];
-        }
 
-        if (userToRun) {
-          const user = users[userToRun.userId];
-          if (user?.suspendedUntil && Date.now() < user.suspendedUntil) {
-            log("SYSTEM", "wplacer", `[${this.name}] Safeguard: skipped suspended user ${user.name}#${userToRun.userId}.`);
-            await sleep(1000);
+        const foundUserForTurn = bestUserId;
+
+        if (foundUserForTurn) {
+          if (activeBrowserUsers.has(foundUserForTurn)) {
+            await sleep(500);
             continue;
           }
-
-          if (activeBrowserUsers.has(userToRun.userId)) continue;
-          activeBrowserUsers.add(userToRun.userId);
+          // соблюдаем Account Turn Cooldown только при смене аккаунта
+          const nowRun = Date.now();
+          if (this._lastRunnerId && this._lastRunnerId !== foundUserForTurn) {
+            const passed = nowRun - this._lastSwitchAt;
+            const ac = currentSettings.accountCooldown || 0;
+            if (passed < ac) {
+              const remain = ac - passed;
+              log("SYSTEM", "wplacer", `[${this.name}] ⏱️ Switching account cooldown: waiting ${duration(remain)}.`);
+              await sleep(remain);
+            }
+          }
+          activeBrowserUsers.add(foundUserForTurn);
           const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
           try {
-            const { id, name } = await wplacer.login(users[userToRun.userId].cookies);
+            const { id, name } = await wplacer.login(users[foundUserForTurn].cookies);
             this.status = `Running user ${name}#${id}`;
-            log(id, name, `[${this.name}] 🔋 User has ${Math.floor(wplacer.userInfo.charges.count)} charges. Starting turn...`);
-            await this._performPaintTurn(wplacer);
-            // after successful turn, cache any new seeds
+            const pred = ChargeCache.predict(foundUserForTurn, Date.now());
+            if (pred) log(id, name, `[${this.name}] ▶️ Start turn with predicted ${Math.floor(pred.count)}/${pred.max} charges.`);
+            const paintedNow = await this._performPaintTurn(wplacer);
+            if (typeof paintedNow === 'number' && paintedNow > 0) {
+              try { ChargeCache.consume(foundUserForTurn, paintedNow); } catch {}
+              this._lastPaintedAt = Date.now();
+              if (this._lastSummary) {
+                this._lastSummary.total = Math.max(0, (this._lastSummary.total|0) - paintedNow);
+              }
+              log(id, name, `[${this.name}] ✅ Painted ${paintedNow} px. Cache adjusted.`);
+            }
+            // cache any new seeds
             this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : this.burstSeeds;
             saveTemplates();
             await this.handleUpgrades(wplacer);
           } catch (error) {
-            logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn");
+            logUserError(error, foundUserForTurn, users[foundUserForTurn]?.name || `#${foundUserForTurn}`, "perform paint turn");
           } finally {
-            activeBrowserUsers.delete(userToRun.userId);
+            activeBrowserUsers.delete(foundUserForTurn);
           }
-
-          if (this.running && this.userIds.length > 1) {
-            await sleep(currentSettings.accountCooldown);
+          // зафиксировать последнего исполнителя и время возможной смены
+          if (this._lastRunnerId !== foundUserForTurn) {
+            this._lastRunnerId = foundUserForTurn;
+            this._lastSwitchAt = Date.now();
           }
         } else {
-          // If auto-buy is ON and template uses premium colors, check funds and decide whether we should keep waiting or stop
-          if (this.autoBuyNeededColors && this.templatePremiumColors && this.templatePremiumColors.size > 0) {
-            const hasAnyBasic = (() => {
-              try { const t = this.template; for (let x = 0; x < t.width; x++) for (let y = 0; y < t.height; y++) { const id = t.data?.[x]?.[y] | 0; if (id > 0 && id < 32) return true; } } catch {} return false; })();
-            const reserve = currentSettings.dropletReserve || 0;
-            const dummyTemplate = { width: 0, height: 0, data: [] };
-            const dummyCoords = [0, 0, 0, 0];
-            let anyCanBuy = false;
-            for (const uid of this.userIds) {
-              if (activeBrowserUsers.has(uid)) continue;
-              activeBrowserUsers.add(uid);
-              const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, this.name);
-              try { await w.login(users[uid].cookies); await w.loadUserInfo(); if ((Number(w.userInfo.droplets || 0) - reserve) >= 2000) { anyCanBuy = true; } }
-              catch {} finally { activeBrowserUsers.delete(uid); }
-              if (anyCanBuy) break;
-            }
-            if (!anyCanBuy) {
-              if (!hasAnyBasic) {
-                log("SYSTEM", "wplacer", `[${this.name}] ⛔ Stopping: Only premium pixels remain and no accounts have enough droplets to auto-buy needed colors.`);
-                this.status = "Finished.";
-                this.running = false;
-                break;
-              } else {
-                log("SYSTEM", "wplacer", `[${this.name}] ⚠️ Not enough droplets on assigned accounts to auto-buy needed premium colors. Waiting.`);
-              }
-            }
-          }
+          // Optional: attempt auto-buy before waiting (без задержек)
+          try { if (this.autoBuyNeededColors) { await this._tryAutoBuyNeededColors(); } } catch {}
 
-          // Buy charges if allowed
+          // Buy charges if allowed (master only)
           if (this.canBuyCharges && !activeBrowserUsers.has(this.masterId)) {
             activeBrowserUsers.add(this.masterId);
             const chargeBuyer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
@@ -1482,21 +1575,26 @@ class TemplateManager {
                   log(this.masterId, this.masterName, `[${this.name}] 💰 Attempting to buy pixel charges...`);
                   await chargeBuyer.buyProduct(80, amountToBuy);
                   await sleep(currentSettings.purchaseCooldown);
-                  continue;
                 }
               }
             } catch (error) {
               logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
-            } finally {
-              activeBrowserUsers.delete(this.masterId);
-            }
+            } finally { activeBrowserUsers.delete(this.masterId); }
           }
 
-          const times = userStates.map((u) => {
-            const threshold = currentSettings.alwaysDrawOnCharge ? 1 : Math.max(1, u.charges.max * currentSettings.chargeThreshold);
-            return Math.max(0, (threshold - u.charges.count) * u.cooldownMs);
+          // Predict minimal wait time до порога; ограничим верхнюю границу, чтобы не копить лишнюю задержку
+          const now2 = Date.now();
+          const waits = this.userQueue.map((uid) => {
+            const p = ChargeCache.predict(uid, now2);
+            if (!p) return 15_000;
+            const threshold = currentSettings.alwaysDrawOnCharge ? 1 : Math.max(1, Math.floor(p.max * currentSettings.chargeThreshold));
+            const deficit = Math.max(0, threshold - Math.floor(p.count));
+            return deficit * (p.cooldownMs || 30_000);
           });
-          const waitTime = (times.length ? Math.min(...times) : 60000) + 2000;
+          let waitTime = (waits.length ? Math.min(...waits) : 10_000) + 800;
+          // верхний лимит ожидания: не больше 1.5x accountCooldown, чтобы реже уходить в 45-50 секунд
+          const maxWait = Math.max(10_000, Math.floor((currentSettings.accountCooldown || 15000) * 1.5));
+          waitTime = Math.min(waitTime, maxWait);
           this.status = `Waiting for charges.`;
           log("SYSTEM", "wplacer", `[${this.name}] ⏳ No users ready. Waiting for ${duration(waitTime)}.`);
           await sleep(waitTime);
@@ -2082,8 +2180,24 @@ app.put("/settings", (req, res) => {
     patch.maxPixelsPerPass = m;
   }
 
+  const oldSettings = { ...currentSettings };
   currentSettings = { ...currentSettings, ...patch };
   saveSettings();
+
+  // if cooldown/threshold changed — refresh runtime timers without restart
+  const accountCooldownChanged = oldSettings.accountCooldown !== currentSettings.accountCooldown;
+  const thresholdChanged = oldSettings.chargeThreshold !== currentSettings.chargeThreshold;
+  if (accountCooldownChanged || thresholdChanged) {
+    for (const id in templates) {
+      const m = templates[id]; if (!m) continue;
+      if (typeof m._summaryMinIntervalMs === 'number') {
+        const ac = currentSettings.accountCooldown || 0;
+        m._summaryMinIntervalMs = Math.max(2 * ac, 5000);
+      }
+      if (m.running && typeof m.interruptSleep === 'function') m.interruptSleep();
+    }
+  }
+
   res.sendStatus(200);
 });
 

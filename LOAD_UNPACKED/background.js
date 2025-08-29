@@ -17,6 +17,9 @@ const getServerUrl = async (path = '') => {
 };
 
 let LP_ACTIVE = false;
+let TOKEN_IN_PROGRESS = false;
+let LAST_RELOAD_AT = 0;
+const MIN_RELOAD_INTERVAL_MS = 5000;
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -29,7 +32,7 @@ async function startLongPoll() {
             const r = await fetch(url, { cache: "no-store" });
             if (r.ok) {
                 const data = await r.json();
-                if (data.needed) await initiateReload();
+                if (data.needed) await maybeInitiateReload();
             } else {
                 await wait(1000);
             }
@@ -60,22 +63,33 @@ const pollForTokenRequest = async () => {
     }
 };
 
+const maybeInitiateReload = async () => {
+    const now = Date.now();
+    if (TOKEN_IN_PROGRESS) return;
+    if (now - LAST_RELOAD_AT < MIN_RELOAD_INTERVAL_MS) return;
+    TOKEN_IN_PROGRESS = true;
+    await initiateReload();
+    LAST_RELOAD_AT = Date.now();
+};
+
 const initiateReload = async () => {
     try {
-        const tabs = await chrome.tabs.query({ url: "https://wplace.live/*" });
-        if (tabs.length === 0) {
-            console.warn("wplacer: Token requested, but no wplace.live tabs are open.");
-            return;
+        let tabs = await chrome.tabs.query({ url: "https://wplace.live/*" });
+        if (!tabs || tabs.length === 0) {
+            console.warn("wplacer: No wplace.live tabs found. Opening a new one for token acquisition.");
+            const created = await chrome.tabs.create({ url: "https://wplace.live/" });
+            tabs = [created];
         }
         const targetTab = tabs.find(t => t.active) || tabs[0];
         console.log(`wplacer: Sending reload command to tab #${targetTab.id}`);
         await chrome.tabs.sendMessage(targetTab.id, { action: "reloadForToken" });
     } catch (error) {
-        // It's possible the content script isn't loaded yet, so we can try a direct reload as a fallback.
         console.error("wplacer: Error sending reload message to tab, falling back to direct reload.", error);
-        const targetTab = (await chrome.tabs.query({ url: "https://wplace.live/*" }))[0];
-        if (targetTab) {
-            chrome.tabs.reload(targetTab.id);
+        const tabs = await chrome.tabs.query({ url: "https://wplace.live/*" });
+        if (tabs && tabs.length > 0) {
+            chrome.tabs.reload((tabs.find(t => t.active) || tabs[0]).id);
+        } else {
+            await chrome.tabs.create({ url: "https://wplace.live/" });
         }
     }
 };
@@ -166,6 +180,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 body: JSON.stringify({ t: request.token })
             });
         });
+        // token отправлен — следующий триггер разрешён
+        TOKEN_IN_PROGRESS = false;
+        LAST_RELOAD_AT = Date.now();
     }
     return false;
 });
@@ -182,6 +199,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
         console.log("wplacer: Periodic alarm triggered. Sending cookie.");
         sendCookie(response => console.log(`wplacer: Periodic cookie refresh: ${response.success ? 'Success' : 'Failed'}`));
     } else if (alarm.name === POLL_ALARM_NAME) {
+        // keep-alive and ensure long-poll is running, then do a quick poll as fallback
+        if (!LP_ACTIVE) startLongPoll();
         pollForTokenRequest();
     }
 });
@@ -212,3 +231,6 @@ chrome.runtime.onInstalled.addListener(() => {
     initializeAlarms();
     startLongPoll();
 });
+
+// Ensure long-poll starts promptly even if service worker is spun up outside of startup/installed
+startLongPoll();
