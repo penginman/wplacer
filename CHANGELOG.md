@@ -1,13 +1,12 @@
-## Changelog v4.1.1
+## Changelog v4.1.2
 
-- Drawing modes - added new mode "Inside Out"
-- Manage Users: profile editor (Name/Discord/Show last pixel)
-- Added colors section (see/ manually buy needed colors)
-- Add/Edit Template: added colors palette, user sorting
--    Auto-purchases: Added "auto purchase premium colors" option
-- Settings: Added "Max pixels per pass" option
-- Fullscreen preview: transparent pixels handling and mismatch logic
+- Drawing modes: new "Inside Out" (center → edges) mode
+- Manage Users: profile editor (Name / Discord / Show last pixel)
+- Colors: section to view owners and manually buy needed premium colors
+- Add/Edit Template: color palette and user sorting during assignment
+- Auto‑purchases: optional automatic purchase of premium colors
+- Settings: "Max pixels per pass" option
+- Full‑screen preview: correct handling of transparent pixels and mismatch logic
 - UI improvements
-- One‑time disclaimer modal; version check with remote repo
-
+- One‑time disclaimer modal; version check with remote changelog
 
