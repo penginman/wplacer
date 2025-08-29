@@ -1,3 +1,7 @@
+## Changelog v4.1.3
+- Quick improvement of user sorting
+
+
 ## Changelog v4.1.2
 
 - Drawing modes: new "Inside Out" (center → edges) mode

@@ -234,7 +234,7 @@ async function checkVersionAndWarn() {
                 <b>Current:</b> ${data.local}<br>
                 <b>Latest:</b> ${data.latest}<br><br>
                 ${changelog}
-                <div style="margin-top:8px">Please update from <a href="https://github.com/lllexxa/wplacer" target="_blank" rel="noreferrer noopener">GitHub</a>.</div>`;
+                <div style="margin-top:8px">Please update from <a href="https://github.com/lllexxa/wplacer" target="_blank" rel="noreferrer noopener">GitHub</a> or use 'git pull' command.</div>`;
             showMessageBig('Update available', html);
         }
     } catch (_) { /* ignore */ }
@@ -1539,6 +1539,7 @@ openAddTemplate.addEventListener("click", () => {
         const select = document.createElement('select');
         select.id = 'userSortMode';
         select.innerHTML = '<option value="priority">Priority (needed colors)</option><option value="droplets">Droplets</option><option value="id">User ID</option>';
+        select.value = 'droplets';
         right.append(select);
 
         toolbar.append(right);
@@ -1673,6 +1674,8 @@ openAddTemplate.addEventListener("click", () => {
             return;
         }
         setAsOfLabel();
+        const selInit = document.getElementById('userSortMode');
+        if (selInit) selInit.value = 'droplets';
         applySort(users);
         const sel = document.getElementById('userSortMode');
         if (sel && !sel._bound) {
