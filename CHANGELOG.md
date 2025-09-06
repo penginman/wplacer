@@ -1,3 +1,9 @@
+## Changelog v4.1.5 (FIX DRAWING)
+- Re-upload the extension to your browser!
+- Also, in the account settings, I added the option to join the alliance by its UUID (taken from the joining link) 
+P.S. Various other bugs are known and will be fixed when there is time (auto-purchase of colors and others)
+Thanks for fix them @!Protonn @[Sleeping] Chris @rogu3anuerz2 @lulu
+
 
 ## Changelog v4.1.4
 - Quick temporary solution for stable core drawing mechanics (Note: re-upload browser extension also).

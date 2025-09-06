@@ -241,6 +241,44 @@ async function checkVersionAndWarn() {
 }
 document.addEventListener('DOMContentLoaded', checkVersionAndWarn);
 
+// Show changelog once after local update (only if not outdated)
+const CHANGELOG_ACK_KEY = 'wplacer_ack_version';
+async function showChangelogOnFirstLoad() {
+    try {
+        const { data } = await axios.get('/version');
+        const local = String(data?.local || '');
+        const outdated = !!data?.outdated;
+        if (!local || outdated) return; // show only when current and not outdated
+
+        let ack = '';
+        try { ack = String(localStorage.getItem(CHANGELOG_ACK_KEY) || ''); } catch (_) { ack = ''; }
+        if (ack === local) return; // already acknowledged for this version
+
+        let changelog = '';
+        try {
+            const ch = await axios.get('/changelog');
+            const content = (ch.data?.local || '').trim();
+            if (content) {
+                const mdHtml = renderMarkdown(content);
+                changelog = `<div style="max-height:40vh; overflow:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background: rgba(255,255,255,.04); text-align: left;">${mdHtml}</div>`;
+            }
+        } catch (_) { }
+
+        const html = `<b>Updated to</b> ${local}<br><br>${changelog || 'No changelog available.'}`;
+        showMessageBig('Changelog', html);
+        // Replace confirm handler to store ack when user clicks OK
+        try {
+            messageBoxConfirmBig.onclick = () => {
+                try { localStorage.setItem(CHANGELOG_ACK_KEY, local); } catch (_) { }
+                closeMessageBoxBig();
+            };
+            messageBoxCancelBig.classList.add('hidden');
+            messageBoxConfirmBig.textContent = 'OK';
+        } catch (_) { }
+    } catch (_) { }
+}
+document.addEventListener('DOMContentLoaded', showChangelogOnFirstLoad);
+
 previewSpeed?.addEventListener('input', (e) => {
     const v = parseFloat(e.target.value) || 1;
     localStorage.setItem('wplacer_preview_speed', v);
@@ -1196,6 +1234,20 @@ openManageUsers.addEventListener("click", () => {
                             </label>
                         </div>
                         <small class="help">Changes will be saved to your account on wplace.</small>
+                    </div>
+                    <div class="form-card" style="text-align:left; margin-top:8px;">
+                        <div class="settings-card-head">
+                            <h3 class="settings-card-title">Alliance</h3>
+                            <p class="settings-card-sub">Join an alliance by UUID</p>
+                        </div>
+                        <div class="field">
+                            <label for="edit-alliance-uuid-${id}">Alliance UUID</label>
+                            <input id="edit-alliance-uuid-${id}" type="text" placeholder="01xxc1c1-1xxx-7xx6-913a-a84xxxx5a83e" />
+                            <small class="help">Paste the alliance UUID and press Join. Current id: <span id="edit-alliance-current-${id}">–</span></small>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" id="edit-alliance-join-${id}" class="secondary-button"><img src="icons/addUser.svg" alt=""/>Join</button>
+                        </div>
                     </div>`;
 
                 showConfirmation('Edit Account', content, async () => {
@@ -1225,6 +1277,33 @@ openManageUsers.addEventListener("click", () => {
                 });
                 if (messageBoxConfirm) messageBoxConfirm.textContent = 'Save';
 
+                const joinBtn = document.getElementById(`edit-alliance-join-${id}`);
+                joinBtn?.addEventListener('click', async () => {
+                    const uuidEl = document.getElementById(`edit-alliance-uuid-${id}`);
+                    const uuid = (uuidEl?.value || '').trim();
+                    if (!uuid) { showMessage('Alliance', 'Please enter Alliance UUID.'); return; }
+                    try {
+                        joinBtn.disabled = true;
+                        joinBtn.innerHTML = 'Joining...';
+                        const resp = await axios.post(`/user/${id}/alliance/join`, { uuid });
+                        if (resp.status === 200 && resp.data?.success) {
+                            showMessage('Alliance', 'Joined successfully.');
+                            try {
+                                const r = await axios.get(`/user/status/${id}`);
+                                const currEl = document.getElementById(`edit-alliance-current-${id}`);
+                                if (currEl && r?.data?.allianceId) currEl.textContent = r.data.allianceId;
+                            } catch (_) { }
+                        } else {
+                            handleError({ response: { data: resp.data, status: resp.status } });
+                        }
+                    } catch (error) {
+                        handleError(error);
+                    } finally {
+                        joinBtn.disabled = false;
+                        joinBtn.innerHTML = '<img src="icons/addUser.svg" alt=""/>Join';
+                    }
+                });
+
                 (async () => {
                     try {
                         const r = await axios.get(`/user/status/${id}`);
@@ -1235,6 +1314,8 @@ openManageUsers.addEventListener("click", () => {
                         if (typeof u.name === 'string' && nameEl) nameEl.value = u.name.slice(0, 15);
                         if (typeof u.discord === 'string' && discordEl) discordEl.value = u.discord.slice(0, 15);
                         if (showEl && typeof u.showLastPixel === 'boolean') showEl.checked = !!u.showLastPixel;
+                        const currEl = document.getElementById(`edit-alliance-current-${id}`);
+                        if (currEl) currEl.textContent = u.allianceId || '–';
                     } catch (_) { }
                 })();
             });

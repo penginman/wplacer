@@ -157,6 +157,7 @@ class WPlacer {
     this.userInfo = null;
     this.tiles = new Map();
     this.token = null;
+    this.pawtect = null;
     this._lastTilesAt = 0;
 
     // burst seeds persistence
@@ -241,13 +242,15 @@ class WPlacer {
   }
 
   async post(url, body) {
+    const headers = {
+      Accept: "application/json, text/plain, */*",
+      "Content-Type": "text/plain;charset=UTF-8",
+      Referer: "https://wplace.live/"
+    };
+    if (this.pawtect) headers["x-pawtect-token"] = this.pawtect;
     const request = await this.browser.fetch(url, {
       method: "POST",
-      headers: {
-        Accept: "application/json, text/plain, */*",
-        "Content-Type": "text/plain;charset=UTF-8",
-        Referer: "https://wplace.live/"
-      },
+      headers,
       body: JSON.stringify(body),
       redirect: "manual"
     });
@@ -857,6 +860,7 @@ class WPlacer {
       for (const tileKey in bodiesByTile) {
         const [tx, ty] = tileKey.split(",").map(Number);
         const body = { ...bodiesByTile[tileKey], t: this.token };
+        if (globalThis.__wplacer_last_fp) body.fp = globalThis.__wplacer_last_fp;
         const result = await this._executePaint(tx, ty, body);
         if (result.success) {
           totalPainted += result.painted;
@@ -1244,6 +1248,7 @@ class TemplateManager {
           log(buyer.id, w.userInfo.name, `[${this.name}] ⏭️ Skip auto-buy color #${cid}: account already owns this color.`);
           continue;
         }
+        log(buyer.id, w.userInfo.name, `[${this.name}] 💰 Attempting to auto-buy premium color #${cid}. Cost 2000, droplets before: ${before}, reserve: ${reserve}.`);
         await w.buyProduct(100, 1, cid);
         await sleep(purchaseCooldown);
         await w.loadUserInfo().catch(()=>{});
@@ -1283,6 +1288,8 @@ class TemplateManager {
     while (this.running) {
       try {
         wplacer.token = await TokenManager.getToken();
+        // Pull latest pawtect token, if any
+        try { wplacer.pawtect = globalThis.__wplacer_last_pawtect || null; } catch {}
         const painted = await wplacer.paint(currentSettings.drawingMethod);
         // save back burst seeds if used
         this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : null;
@@ -1629,9 +1636,13 @@ app.get("/token-needed", (req, res) => {
   res.json({ needed: TokenManager.isTokenNeeded });
 });
 app.post("/t", (req, res) => {
-  const { t } = req.body;
+  const { t, pawtect, fp } = req.body || {};
   if (!t) return res.sendStatus(400);
   TokenManager.setToken(t);
+  try {
+    if (pawtect && typeof pawtect === "string") globalThis.__wplacer_last_pawtect = pawtect;
+    if (fp && typeof fp === "string") globalThis.__wplacer_last_fp = fp;
+  } catch {}
   res.sendStatus(200);
 });
 
@@ -1758,6 +1769,48 @@ app.put("/user/:id/update-profile", async (req, res) => {
     }
   } catch (error) {
     logUserError(error, id, users[id].name, "update profile");
+    res.status(500).json({ error: error.message });
+  } finally {
+    activeBrowserUsers.delete(id);
+  }
+});
+
+// --- API: alliance join ---
+app.post("/user/:id/alliance/join", async (req, res) => {
+  const { id } = req.params;
+  const { uuid } = req.body || {};
+  if (!users[id] || activeBrowserUsers.has(id)) return res.sendStatus(409);
+  if (typeof uuid !== 'string' || !uuid.trim()) return res.status(400).json({ error: "uuid_required" });
+
+  activeBrowserUsers.add(id);
+  const wplacer = new WPlacer();
+  try {
+    await wplacer.login(users[id].cookies);
+    const url = `https://backend.wplace.live/alliance/join/${encodeURIComponent(uuid.trim())}`;
+    const response = await wplacer.browser.fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "text/html,application/json,*/\*",
+        Referer: "https://wplace.live/"
+      },
+      redirect: "manual"
+    });
+    const status = response.status | 0;
+    const contentType = (response.headers.get("content-type") || "").toLowerCase();
+    const text = await response.text();
+    if (status >= 200 && status < 400) {
+      res.status(200).json({ success: true });
+      log(id, users[id].name, `Alliance join OK (uuid=${uuid}, status=${status}, type=${contentType || 'n/a'})`);
+      console.log(`[Alliance] join success: user #${id} (${users[id].name}) -> uuid=${uuid} status=${status}`);
+    } else {
+      const short = String(text || '').slice(0, 200);
+      log(id, users[id].name, `Alliance join FAILED (uuid=${uuid}, status=${status}) payload: ${short}`);
+      console.error(`[Alliance] join failed: user #${id} (${users[id].name}) uuid=${uuid} status=${status} body: ${short}`);
+      res.status(status || 500).json({ error: "alliance_join_failed", status, body: short });
+    }
+  } catch (error) {
+    logUserError(error, id, users[id].name, "alliance join");
+    console.error(`[Alliance] join exception: user #${id} (${users[id].name}) uuid=${uuid}:`, error?.message || error);
     res.status(500).json({ error: error.message });
   } finally {
     activeBrowserUsers.delete(id);
@@ -2328,3 +2381,5 @@ const keepAlive = async () => {
     setInterval(keepAlive, 20 * 60 * 1000); // every 20 minutes
   });
 })();
+
+

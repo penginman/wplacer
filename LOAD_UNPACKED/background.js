@@ -42,7 +42,6 @@ async function startLongPoll() {
     }
 }
 
-
 // --- Token Refresh Logic ---
 const pollForTokenRequest = async () => {
     console.log("wplacer: Polling server for token request...");
@@ -172,15 +171,235 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (sendResponse) sendResponse({ ok: true });
         return false;
     }
+    if (request.action === "injectPawtect") {
+        // Inject page-world hook to compute pawtect from site resources (CSP-safe)
+        try {
+            if (sender.tab?.id) {
+                chrome.scripting.executeScript({
+                    target: { tabId: sender.tab.id },
+                    world: 'MAIN',
+                    func: () => {
+                        if (window.__wplacerPawtectHooked) return;
+                        window.__wplacerPawtectHooked = true;
+
+                        const backend = 'https://backend.wplace.live';
+                        const importModule = async () => {
+                            const candidates = [
+                                new URL('/_app/immutable/chunks/BBb1ALhY.js', location.origin).href,
+                                'https://wplace.live/_app/immutable/chunks/BBb1ALhY.js'
+                            ];
+                            let lastErr;
+                            for (const url of candidates) {
+                                try { return await import(url); } catch (e) { lastErr = e; }
+                            }
+                            console.warn('pawtect: module import failed', lastErr?.message || lastErr);
+                            return null;
+                        };
+
+                        const computePawtect = async (url, bodyStr) => {
+                            const mod = await importModule();
+                            if (!mod || typeof mod._ !== 'function') return null;
+                            const wasm = await mod._();
+                            try {
+                                const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
+                                if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+                            } catch {}
+                            if (typeof mod.r === 'function') mod.r(url);
+                            const enc = new TextEncoder();
+                            const dec = new TextDecoder();
+                            const bytes = enc.encode(bodyStr);
+                            const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
+                            new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
+                            const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
+                            let token;
+                            if (Array.isArray(out)) {
+                                const [outPtr, outLen] = out;
+                                token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
+                                try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch {}
+                            } else if (typeof out === 'string') {
+                                token = out;
+                            } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
+                                token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
+                                try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch {}
+                            } else {
+                                token = null;
+                            }
+                            window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'pixel' }, '*');
+                            return token;
+                        };
+
+                        const originalFetch = window.fetch.bind(window);
+                        window.fetch = async (...args) => {
+                            try {
+                                const input = args[0];
+                                const init = args[1] || {};
+                                const req = new Request(input, init);
+                                if (req.method === 'POST' && /\/s0\/pixel\//.test(req.url)) {
+                                    const raw = typeof init.body === 'string' ? init.body : null;
+                                    if (raw) {
+                                        computePawtect(req.url, raw);
+                                    } else {
+                                        try {
+                                            const clone = req.clone();
+                                            const text = await clone.text();
+                                            computePawtect(req.url, text);
+                                        } catch {}
+                                    }
+                                }
+                            } catch {}
+                            return originalFetch(...args);
+                        };
+                        try {
+                            const origOpen = XMLHttpRequest.prototype.open;
+                            const origSend = XMLHttpRequest.prototype.send;
+                            XMLHttpRequest.prototype.open = function(method, url) {
+                                try {
+                                    this.__wplacer_url = new URL(url, location.href).href;
+                                    this.__wplacer_method = String(method || '');
+                                } catch {}
+                                return origOpen.apply(this, arguments);
+                            };
+                            XMLHttpRequest.prototype.send = function(body) {
+                                try {
+                                    if ((this.__wplacer_method || '').toUpperCase() === 'POST' && /\/s0\/pixel\//.test(this.__wplacer_url || '')) {
+                                        const url = this.__wplacer_url;
+                                        const maybeCompute = (raw) => { if (raw && typeof raw === 'string') computePawtect(url, raw); };
+                                        if (typeof body === 'string') {
+                                            maybeCompute(body);
+                                        } else if (body instanceof ArrayBuffer) {
+                                            try { const s = new TextDecoder().decode(new Uint8Array(body)); maybeCompute(s); } catch {}
+                                        } else if (body && typeof body === 'object' && 'buffer' in body && body.buffer instanceof ArrayBuffer) {
+                                            try { const s = new TextDecoder().decode(new Uint8Array(body.buffer)); maybeCompute(s); } catch {}
+                                        } else if (body && typeof body.text === 'function') {
+                                            try { body.text().then(s => { maybeCompute(s); }).catch(() => {}); } catch {}
+                                        }
+                                    }
+                                } catch {}
+                                return origSend.apply(this, arguments);
+                            };
+                        } catch {}
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('wplacer: failed to inject pawtect hook', e);
+        }
+        sendResponse({ ok: true });
+        return true;
+    }
+    if (request.action === 'seedPawtect') {
+        try {
+            if (sender.tab?.id) {
+                const bodyStr = String(request.bodyStr || '{"colors":[0],"coords":[1,1],"fp":"seed","t":"seed"}');
+                chrome.scripting.executeScript({
+                    target: { tabId: sender.tab.id },
+                    world: 'MAIN',
+                    func: (rawBody) => {
+                        (async () => {
+                            try {
+                                const backend = 'https://backend.wplace.live';
+                                const url = `${backend}/s0/pixel/1/1`;
+                                const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+                                const wasm = await mod._();
+                                try {
+                                    const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
+                                    if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+                                } catch {}
+                                if (typeof mod.r === 'function') mod.r(url);
+                                const enc = new TextEncoder();
+                                const dec = new TextDecoder();
+                                const bytes = enc.encode(rawBody);
+                                const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
+                                new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
+                                const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
+                                let token;
+                                if (Array.isArray(out)) {
+                                    const [outPtr, outLen] = out;
+                                    token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
+                                    try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch {}
+                                } else if (typeof out === 'string') {
+                                    token = out;
+                                } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
+                                    token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
+                                    try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch {}
+                                }
+                                window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'seed' }, '*');
+                            } catch {}
+                        })();
+                    },
+                    args: [bodyStr]
+                });
+            }
+        } catch {}
+        sendResponse({ ok: true });
+        return true;
+    }
+    if (request.action === 'computePawtectForT') {
+        try {
+            if (sender.tab?.id) {
+                const turnstile = typeof request.bodyStr === 'string' ? (()=>{ try { return JSON.parse(request.bodyStr).t || ''; } catch { return ''; } })() : '';
+                chrome.scripting.executeScript({
+                    target: { tabId: sender.tab.id },
+                    world: 'MAIN',
+                    func: (tValue) => {
+                        (async () => {
+                            try {
+                                const backend = 'https://backend.wplace.live';
+                                const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+                                const wasm = await mod._();
+                                try {
+                                    const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
+                                    if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+                                } catch {}
+                                const url = `${backend}/s0/pixel/1/1`;
+                                if (typeof mod.r === 'function') mod.r(url);
+                                const fp = (window.wplacerFP && String(window.wplacerFP)) || (()=>{
+                                    const b = new Uint8Array(16); crypto.getRandomValues(b); return Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
+                                })();
+                                const rx = Math.floor(Math.random()*1000);
+                                const ry = Math.floor(Math.random()*1000);
+                                const bodyObj = { colors:[0], coords:[rx,ry], fp, t: String(tValue||'') };
+                                const rawBody = JSON.stringify(bodyObj);
+                                const enc = new TextEncoder();
+                                const dec = new TextDecoder();
+                                const bytes = enc.encode(rawBody);
+                                const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
+                                new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
+                                const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
+                                let token;
+                                if (Array.isArray(out)) {
+                                    const [outPtr, outLen] = out;
+                                    token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
+                                    try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch {}
+                                } else if (typeof out === 'string') {
+                                    token = out;
+                                } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
+                                    token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
+                                    try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch {}
+                                }
+                                window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'simple' }, '*');
+                            } catch {}
+                        })();
+                    },
+                    args: [turnstile]
+                });
+            }
+        } catch {}
+        sendResponse({ ok: true });
+        return true;
+    }
     if (request.type === "SEND_TOKEN") {
         getServerUrl("/t").then(url => {
             fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ t: request.token })
+                body: JSON.stringify({
+                    t: request.token,
+                    pawtect: request.pawtect || null,
+                    fp: request.fp || null
+                })
             });
         });
-        // token отправлен — следующий триггер разрешён
         TOKEN_IN_PROGRESS = false;
         LAST_RELOAD_AT = Date.now();
     }
@@ -199,7 +418,6 @@ chrome.alarms.onAlarm.addListener((alarm) => {
         console.log("wplacer: Periodic alarm triggered. Sending cookie.");
         sendCookie(response => console.log(`wplacer: Periodic cookie refresh: ${response.success ? 'Success' : 'Failed'}`));
     } else if (alarm.name === POLL_ALARM_NAME) {
-        // keep-alive and ensure long-poll is running, then do a quick poll as fallback
         if (!LP_ACTIVE) startLongPoll();
         pollForTokenRequest();
     }
@@ -207,12 +425,10 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // --- Initialization ---
 const initializeAlarms = () => {
-    // Poll for token requests every 45 seconds. This is the main keep-alive for the service worker.
     chrome.alarms.create(POLL_ALARM_NAME, {
         delayInMinutes: 0.1,
-        periodInMinutes: 0.75 // 45 seconds
+        periodInMinutes: 0.75
     });
-    // Refresh cookies less frequently.
     chrome.alarms.create(COOKIE_ALARM_NAME, {
         delayInMinutes: 1,
         periodInMinutes: 20
@@ -232,5 +448,6 @@ chrome.runtime.onInstalled.addListener(() => {
     startLongPoll();
 });
 
-// Ensure long-poll starts promptly even if service worker is spun up outside of startup/installed
 startLongPoll();
+
+
