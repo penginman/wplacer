@@ -1,10 +1,7 @@
-// --- Constants ---
 const RELOAD_FLAG = 'wplacer_reload_in_progress';
 
-// --- Main Logic ---
 console.log("✅ wplacer: Content script loaded.");
 
-// Check if this load was triggered by our extension
 if (sessionStorage.getItem(RELOAD_FLAG)) {
     sessionStorage.removeItem(RELOAD_FLAG);
     console.log("wplacer: Page reloaded to capture a new token.");
@@ -22,17 +19,14 @@ const trySendPair = () => {
     pending.pawtect = null;
 };
 
-// Generate a random hex fingerprint (default 32 chars)
 const generateRandomHex = (length = 32) => {
     const bytes = new Uint8Array(Math.ceil(length / 2));
     crypto.getRandomValues(bytes);
     return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, length);
 };
 
-// Random integer in [0, max)
 const randomInt = (max) => Math.floor(Math.random() * Math.max(1, Number(max) || 1));
 
-// Create a per-load fingerprint and expose it for page usage
 try {
     const fp = generateRandomHex(32);
     window.wplacerFP = fp;
@@ -55,9 +49,6 @@ const postToken = (token, pawtectToken) => {
     });
 };
 
-// --- Event Listeners ---
-
-// 1. Listen for messages from the Cloudflare Turnstile iframe (primary method)
 window.addEventListener('message', (event) => {
     if (event.origin !== "https://challenges.cloudflare.com" || !event.data) {
         return;
@@ -66,7 +57,6 @@ window.addEventListener('message', (event) => {
         const token = event.data.token || event.data.response || event.data['cf-turnstile-response'];
         if (token) {
             pending.turnstile = token;
-            // Kick off pawtect compute seeded with this turnstile token
             const fp = window.wplacerFP || sessionStorage.getItem('wplacer_fp') || generateRandomHex(32);
             const body = { colors: [0], coords: [1, 1], fp, t: token };
             try {
@@ -76,20 +66,16 @@ window.addEventListener('message', (event) => {
                     bodyStr: JSON.stringify(body)
                 });
             } catch {}
-            // If a pawtect token already arrived, pair immediately; otherwise, give compute a brief window
             if (window.wplacerPawtectToken) {
                 pending.pawtect = window.wplacerPawtectToken;
                 try { delete window.wplacerPawtectToken; } catch {}
             }
-            // Only send when both are present
             trySendPair();
         }
     } catch {
-        // Ignore errors from parsing message data
     }
 }, true);
 
-// 1b. Listen for pawtect helper token messages (from page context)
 window.addEventListener('message', (event) => {
     try {
         if (event.source !== window) return;
@@ -103,7 +89,6 @@ window.addEventListener('message', (event) => {
     } catch {}
 }, true);
 
-// 2. Listen for commands from the background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "reloadForToken") {
         console.log("wplacer: Received reload command from background script. Reloading now...");

@@ -656,7 +656,7 @@ class WPlacer {
     }
 
     while (true) {
-      // Кэширование тайлов на короткий промежуток, чтобы ускорить последовательные ходы
+      
       const nowTiles = Date.now();
       const TILES_CACHE_MS = 3000;
       if (nowTiles - this._lastTilesAt >= TILES_CACHE_MS || this.tiles.size === 0) {
@@ -842,7 +842,7 @@ class WPlacer {
       const maxPerPass = Number.isFinite(this.settings?.maxPixelsPerPass) ? Math.max(0, Math.floor(this.settings.maxPixelsPerPass)) : 0;
       const limit = maxPerPass > 0 ? Math.min(allowedByCharges, maxPerPass) : allowedByCharges;
       if (limit <= 0) {
-        // Нет зарядов — не тратим время дальше в этом проходе
+        
         return 0;
       }
       const pixelsToPaint = mismatchedPixels.slice(0, limit);
@@ -1035,6 +1035,28 @@ let colorsCheckJob = {
   report: []
 };
 
+// Purchase color job progress state
+let purchaseColorJob = {
+  active: false,
+  total: 0,
+  completed: 0,
+  startedAt: 0,
+  finishedAt: 0,
+  lastUserId: null,
+  lastUserName: null
+};
+
+// Buy Max Upgrades job progress state
+let buyMaxJob = {
+  active: false,
+  total: 0,
+  completed: 0,
+  startedAt: 0,
+  finishedAt: 0,
+  lastUserId: null,
+  lastUserName: null
+};
+
 const longWaiters = new Set();
 const notifyTokenNeeded = () => {
   for (const fn of Array.from(longWaiters)) {
@@ -1099,7 +1121,7 @@ const TokenManager = {
   invalidateToken() {
     this.tokenQueue.shift();
     log("SYSTEM", "wplacer", `🔄 TOKEN_MANAGER: Invalidating token. ${this.tokenQueue.length} tokens remaining.`);
-    // Если токена нет — немедленно сигнализируем, чтобы расширение сразу дернуло выдачу
+    
     if (this.tokenQueue.length === 0) {
       this.isTokenNeeded = true;
       this._lastNeededAt = Date.now();
@@ -1320,27 +1342,63 @@ class TemplateManager {
     log("SYSTEM", "wplacer", `▶️ Starting template "${this.name}"...`);
 
     try {
-      // 1) Перед началом — последовательный прогрев кэша: получаем фактические charges для всех назначенных пользователей
+      
       if (!this._initialScanned) {
         const cooldown = Math.max(0, Number(currentSettings.accountCheckCooldown || 0));
-        log("SYSTEM", "wplacer", `[${this.name}] 🔍 Initial scan: starting (${this.userIds.length} accounts). Cooldown=${cooldown}ms`);
-        for (const uid of this.userIds) {
-          const rec = users[uid]; if (!rec) continue;
-          if (rec.suspendedUntil && Date.now() < rec.suspendedUntil) continue;
-          if (activeBrowserUsers.has(uid)) continue;
-          activeBrowserUsers.add(uid);
-          const w = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
-          try {
-            await w.login(rec.cookies); await w.loadUserInfo();
-            const cnt = Math.floor(Number(w.userInfo?.charges?.count || 0));
-            const mx = Math.floor(Number(w.userInfo?.charges?.max || 0));
-            log(w.userInfo.id, w.userInfo.name, `[${this.name}] 🔁 Cache update: charges ${cnt}/${mx}`);
+        const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+        if (useParallel) {
+          const candidates = this.userIds.filter(uid => {
+            const rec = users[uid];
+            if (!rec) return false;
+            if (rec.suspendedUntil && Date.now() < rec.suspendedUntil) return false;
+            if (activeBrowserUsers.has(uid)) return false;
+            return true;
+          });
+          const concurrency = Math.max(1, Math.min(loadedProxies.length, 16));
+          log("SYSTEM", "wplacer", `[${this.name}] 🔍 Initial scan (parallel): ${candidates.length} accounts (concurrency=${concurrency}, proxies=${loadedProxies.length}).`);
+          let index = 0;
+          const worker = async () => {
+            for (;;) {
+              const myIndex = index++;
+              if (myIndex >= candidates.length) break;
+              const uid = candidates[myIndex];
+              const rec = users[uid];
+              if (!rec) continue;
+              if (activeBrowserUsers.has(uid)) continue;
+              activeBrowserUsers.add(uid);
+              const w = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
+              try {
+                await w.login(rec.cookies); await w.loadUserInfo();
+                const cnt = Math.floor(Number(w.userInfo?.charges?.count || 0));
+                const mx = Math.floor(Number(w.userInfo?.charges?.max || 0));
+                log(w.userInfo.id, w.userInfo.name, `[${this.name}] 🔁 Cache update: charges ${cnt}/${mx}`);
+              }
+              catch (e) { logUserError(e, uid, rec?.name || `#${uid}`, "initial user scan"); }
+              finally { activeBrowserUsers.delete(uid); }
+            }
+          };
+          await Promise.all(Array.from({ length: concurrency }, () => worker()));
+          log("SYSTEM", "wplacer", `[${this.name}] ✅ Initial scan finished (parallel).`);
+        } else {
+          log("SYSTEM", "wplacer", `[${this.name}] 🔍 Initial scan: starting (${this.userIds.length} accounts). Cooldown=${cooldown}ms`);
+          for (const uid of this.userIds) {
+            const rec = users[uid]; if (!rec) continue;
+            if (rec.suspendedUntil && Date.now() < rec.suspendedUntil) continue;
+            if (activeBrowserUsers.has(uid)) continue;
+            activeBrowserUsers.add(uid);
+            const w = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
+            try {
+              await w.login(rec.cookies); await w.loadUserInfo();
+              const cnt = Math.floor(Number(w.userInfo?.charges?.count || 0));
+              const mx = Math.floor(Number(w.userInfo?.charges?.max || 0));
+              log(w.userInfo.id, w.userInfo.name, `[${this.name}] 🔁 Cache update: charges ${cnt}/${mx}`);
+            }
+            catch (e) { logUserError(e, uid, rec?.name || `#${uid}`, "initial user scan"); }
+            finally { activeBrowserUsers.delete(uid); }
+            if (cooldown > 0) await sleep(cooldown);
           }
-          catch (e) { logUserError(e, uid, rec?.name || `#${uid}`, "initial user scan"); }
-          finally { activeBrowserUsers.delete(uid); }
-          if (cooldown > 0) await sleep(cooldown);
+          log("SYSTEM", "wplacer", `[${this.name}] ✅ Initial scan finished.`);
         }
-        log("SYSTEM", "wplacer", `[${this.name}] ✅ Initial scan finished.`);
         this._initialScanned = true;
       }
 
@@ -1460,7 +1518,7 @@ class TemplateManager {
           }
         }
 
-        // Prediction-driven selection: выбрать готового аккаунта с наибольшим количеством зарядов
+        
         if (this.userQueue.length === 0) this.userQueue = [...this.userIds];
 
         let resyncScheduled = false;
@@ -1468,8 +1526,8 @@ class TemplateManager {
         let bestUserId = null;
         let bestPredicted = null;
 
-        // Предварительно отсортируем кандидатов по предсказанному количеству зарядов (убывает)
-        // После первичного сканирования предсказания будут максимально точными
+        
+        
         const candidates = this.userIds
           .filter((uid) => {
             const rec = users[uid];
@@ -1524,7 +1582,7 @@ class TemplateManager {
             await sleep(500);
             continue;
           }
-          // соблюдаем Account Turn Cooldown только при смене аккаунта
+          
           const nowRun = Date.now();
           if (this._lastRunnerId && this._lastRunnerId !== foundUserForTurn) {
             const passed = nowRun - this._lastSwitchAt;
@@ -1560,13 +1618,13 @@ class TemplateManager {
           } finally {
             activeBrowserUsers.delete(foundUserForTurn);
           }
-          // зафиксировать последнего исполнителя и время возможной смены
+          
           if (this._lastRunnerId !== foundUserForTurn) {
             this._lastRunnerId = foundUserForTurn;
             this._lastSwitchAt = Date.now();
           }
         } else {
-          // Optional: attempt auto-buy before waiting (без задержек)
+          
           try { if (this.autoBuyNeededColors) { await this._tryAutoBuyNeededColors(); } } catch {}
 
           // Buy charges if allowed (master only)
@@ -1589,7 +1647,7 @@ class TemplateManager {
             } finally { activeBrowserUsers.delete(this.masterId); }
           }
 
-          // Predict minimal wait time до порога; ограничим верхнюю границу, чтобы не копить лишнюю задержку
+          
           const now2 = Date.now();
           const waits = this.userQueue.map((uid) => {
             const p = ChargeCache.predict(uid, now2);
@@ -1599,7 +1657,7 @@ class TemplateManager {
             return deficit * (p.cooldownMs || 30_000);
           });
           let waitTime = (waits.length ? Math.min(...waits) : 10_000) + 800;
-          // верхний лимит ожидания: не больше 1.5x accountCooldown, чтобы реже уходить в 45-50 секунд
+          
           const maxWait = Math.max(10_000, Math.floor((currentSettings.accountCooldown || 15000) * 1.5));
           waitTime = Math.min(waitTime, maxWait);
           this.status = `Waiting for charges.`;
@@ -1817,63 +1875,128 @@ app.post("/user/:id/alliance/join", async (req, res) => {
   }
 });
 
+// --- API: alliance leave ---
+app.post("/user/:id/alliance/leave", async (req, res) => {
+  const { id } = req.params;
+  if (!users[id] || activeBrowserUsers.has(id)) return res.sendStatus(409);
+
+  activeBrowserUsers.add(id);
+  const wplacer = new WPlacer();
+  try {
+    await wplacer.login(users[id].cookies);
+    const url = `https://backend.wplace.live/alliance/leave`;
+    const response = await wplacer.browser.fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "*/*",
+        Referer: "https://wplace.live/"
+      }
+    });
+    const status = response.status | 0;
+    const contentType = (response.headers.get("content-type") || "").toLowerCase();
+    const text = await response.text();
+    if (status >= 200 && status < 300) {
+      res.status(200).json({ success: true });
+      log(id, users[id].name, `Alliance leave OK (status=${status}, type=${contentType || 'n/a'})`);
+      console.log(`[Alliance] leave success: user #${id} (${users[id].name}) status=${status}`);
+    } else {
+      const short = String(text || '').slice(0, 200);
+      log(id, users[id].name, `Alliance leave FAILED (status=${status}) payload: ${short}`);
+      console.error(`[Alliance] leave failed: user #${id} (${users[id].name}) status=${status} body: ${short}`);
+      res.status(status || 500).json({ error: "alliance_leave_failed", status, body: short });
+    }
+  } catch (error) {
+    logUserError(error, id, users[id].name, "alliance leave");
+    console.error(`[Alliance] leave exception: user #${id} (${users[id].name}):`, error?.message || error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    activeBrowserUsers.delete(id);
+  }
+});
+
 app.post("/users/buy-max-upgrades", async (req, res) => {
+  if (buyMaxJob.active) return res.status(409).json({ error: "buy_max_in_progress" });
   const report = [];
   const cooldown = currentSettings.purchaseCooldown || 5000;
-
   const dummyTemplate = { width: 0, height: 0, data: [] };
   const dummyCoords = [0, 0, 0, 0];
-
   const userIds = Object.keys(users);
 
-  for (const userId of userIds) {
-    const urec = users[userId];
-    if (!urec) continue;
+  buyMaxJob = { active: true, total: userIds.length, completed: 0, startedAt: Date.now(), finishedAt: 0, lastUserId: null, lastUserName: null };
 
-    if (activeBrowserUsers.has(userId)) {
-      report.push({ userId, name: urec.name, skipped: true, reason: "busy" });
-      continue;
-    }
+  const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+  if (useParallel) {
+    const ids = userIds.map(String);
+    const concurrency = Math.max(1, Math.min(loadedProxies.length, 12));
+    console.log(`[BuyMax] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
+    let index = 0;
+    const worker = async () => {
+      for (;;) {
+        const i = index++;
+        if (i >= ids.length) break;
+        const userId = ids[i];
+        const urec = users[userId];
+        if (!urec) { report.push({ userId, name: `#${userId}`, skipped: true, reason: "unknown_user" }); buyMaxJob.completed++; continue; }
+        if (activeBrowserUsers.has(userId)) { report.push({ userId, name: urec.name, skipped: true, reason: "busy" }); buyMaxJob.completed++; continue; }
 
-    activeBrowserUsers.add(userId);
-    const wplacer = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "AdminPurchase");
-
-    try {
-      await wplacer.login(urec.cookies);
-      await wplacer.loadUserInfo();
-
-      const beforeDroplets = wplacer.userInfo.droplets;
-      const reserve = currentSettings.dropletReserve || 0;
-      const affordable = Math.max(0, beforeDroplets - reserve);
-      const amountToBuy = Math.floor(affordable / 500); // #70 = 500 droplets
-
-      if (amountToBuy > 0) {
-        await wplacer.buyProduct(70, amountToBuy);
-        await sleep(cooldown);
-        report.push({
-          userId,
-          name: wplacer.userInfo.name,
-          amount: amountToBuy,
-          beforeDroplets,
-          afterDroplets: beforeDroplets - amountToBuy * 500
-        });
-      } else {
-        report.push({
-          userId,
-          name: wplacer.userInfo.name,
-          amount: 0,
-          skipped: true,
-          reason: "insufficient_droplets_or_reserve"
-        });
+        activeBrowserUsers.add(userId);
+        const wplacer = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "AdminPurchase");
+        try {
+          await wplacer.login(urec.cookies);
+          await wplacer.loadUserInfo();
+          buyMaxJob.lastUserId = userId; buyMaxJob.lastUserName = wplacer.userInfo.name;
+          const beforeDroplets = wplacer.userInfo.droplets;
+          const reserve = currentSettings.dropletReserve || 0;
+          const affordable = Math.max(0, beforeDroplets - reserve);
+          const amountToBuy = Math.floor(affordable / 500);
+          if (amountToBuy > 0) {
+            await wplacer.buyProduct(70, amountToBuy);
+            report.push({ userId, name: wplacer.userInfo.name, amount: amountToBuy, beforeDroplets, afterDroplets: beforeDroplets - amountToBuy * 500 });
+          } else {
+            report.push({ userId, name: wplacer.userInfo.name, amount: 0, skipped: true, reason: "insufficient_droplets_or_reserve" });
+          }
+        } catch (error) {
+          logUserError(error, userId, urec.name, "bulk buy max charge upgrades");
+          report.push({ userId, name: urec.name, error: error?.message || String(error) });
+        } finally {
+          activeBrowserUsers.delete(userId);
+          buyMaxJob.completed++;
+        }
       }
-    } catch (error) {
-      logUserError(error, userId, urec.name, "bulk buy max charge upgrades");
-      report.push({ userId, name: urec.name, error: error?.message || String(error) });
-    } finally {
-      activeBrowserUsers.delete(userId);
+    };
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  } else {
+    for (const userId of userIds) {
+      const urec = users[userId];
+      if (!urec) continue;
+      if (activeBrowserUsers.has(userId)) { report.push({ userId, name: urec.name, skipped: true, reason: "busy" }); continue; }
+      activeBrowserUsers.add(userId);
+      const wplacer = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "AdminPurchase");
+      try {
+        await wplacer.login(urec.cookies); await wplacer.loadUserInfo();
+        buyMaxJob.lastUserId = userId; buyMaxJob.lastUserName = wplacer.userInfo.name;
+        const beforeDroplets = wplacer.userInfo.droplets;
+        const reserve = currentSettings.dropletReserve || 0;
+        const affordable = Math.max(0, beforeDroplets - reserve);
+        const amountToBuy = Math.floor(affordable / 500);
+        if (amountToBuy > 0) {
+          await wplacer.buyProduct(70, amountToBuy);
+          await sleep(cooldown);
+          report.push({ userId, name: wplacer.userInfo.name, amount: amountToBuy, beforeDroplets, afterDroplets: beforeDroplets - amountToBuy * 500 });
+        } else {
+          report.push({ userId, name: wplacer.userInfo.name, amount: 0, skipped: true, reason: "insufficient_droplets_or_reserve" });
+        }
+      } catch (error) {
+        logUserError(error, userId, urec.name, "bulk buy max charge upgrades");
+        report.push({ userId, name: urec.name, error: error?.message || String(error) });
+      } finally {
+        activeBrowserUsers.delete(userId);
+        buyMaxJob.completed++;
+      }
     }
   }
 
+  buyMaxJob.active = false; buyMaxJob.finishedAt = Date.now();
   res.json({ ok: true, cooldownMs: cooldown, reserve: currentSettings.dropletReserve || 0, report });
 });
 
@@ -1896,81 +2019,120 @@ app.post("/users/purchase-color", async (req, res) => {
 
     const report = [];
 
+    if (purchaseColorJob.active) {
+      return res.status(409).json({ error: "purchase_in_progress" });
+    }
+    purchaseColorJob = { active: true, total: userIds.length, completed: 0, startedAt: Date.now(), finishedAt: 0, lastUserId: null, lastUserName: null };
+
     const hasColor = (bitmap, colorId) => {
       const bit = colorId - 32;
       return (bitmap & (1 << bit)) !== 0;
     };
 
-    for (let idx = 0; idx < userIds.length; idx++) {
-      const uid = String(userIds[idx]);
-      const urec = users[uid];
-
-      if (!urec) {
-        report.push({ userId: uid, name: `#${uid}`, skipped: true, reason: "unknown_user" });
-        continue;
-      }
-
-      if (activeBrowserUsers.has(uid)) {
-        report.push({ userId: uid, name: urec.name, skipped: true, reason: "busy" });
-        continue;
-      }
-
-      activeBrowserUsers.add(uid);
-      const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "ColorPurchase");
-
-      try {
-        await w.login(urec.cookies);
-        await w.loadUserInfo();
-
-        const name = w.userInfo.name;
-        const beforeBitmap = Number(w.userInfo.extraColorsBitmap || 0);
-        const beforeDroplets = Number(w.userInfo.droplets || 0);
-
-        if (hasColor(beforeBitmap, cid)) {
-          report.push({ userId: uid, name, skipped: true, reason: "already_has_color" });
-        } else {
+    const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+    if (useParallel) {
+      const ids = userIds.map(String);
+      const concurrency = Math.max(1, Math.min(loadedProxies.length, 12));
+      console.log(`[ColorPurchase] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
+      let index = 0;
+      const worker = async () => {
+        for (;;) {
+          const i = index++;
+          if (i >= ids.length) break;
+          const uid = ids[i];
+          const urec = users[uid];
+          if (!urec) { report.push({ userId: uid, name: `#${uid}`, skipped: true, reason: "unknown_user" }); continue; }
+          if (activeBrowserUsers.has(uid)) { report.push({ userId: uid, name: urec.name, skipped: true, reason: "busy" }); continue; }
+          activeBrowserUsers.add(uid);
+          const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "ColorPurchase");
           try {
-            await w.buyProduct(100, 1, cid);
-            await sleep(cooldown);
-            await w.loadUserInfo().catch(() => {});
-            report.push({
-              userId: uid,
-              name,
-              ok: true,
-              success: true,
-              beforeDroplets,
-              afterDroplets: w.userInfo?.droplets
-            });
-          } catch (err) {
-            if (err?.code === 403 || /FORBIDDEN_OR_INSUFFICIENT/i.test(err?.message)) {
-              report.push({ userId: uid, name, skipped: true, reason: "forbidden_or_insufficient_droplets" });
-            } else if (/(1015)/.test(err?.message)) {
-              report.push({ userId: uid, name, error: "rate_limited" });
+            await w.login(urec.cookies);
+            await w.loadUserInfo();
+            const name = w.userInfo.name;
+            purchaseColorJob.lastUserId = uid; purchaseColorJob.lastUserName = name;
+            const beforeBitmap = Number(w.userInfo.extraColorsBitmap || 0);
+            const beforeDroplets = Number(w.userInfo.droplets || 0);
+            if (hasColor(beforeBitmap, cid)) {
+              report.push({ userId: uid, name, skipped: true, reason: "already_has_color" });
             } else {
-              report.push({ userId: uid, name, error: err?.message || "purchase_failed" });
+              try {
+                await w.buyProduct(100, 1, cid);
+                await w.loadUserInfo().catch(() => {});
+                report.push({ userId: uid, name, ok: true, success: true, beforeDroplets, afterDroplets: w.userInfo?.droplets });
+              } catch (err) {
+                if (err?.code === 403 || /FORBIDDEN_OR_INSUFFICIENT/i.test(err?.message)) {
+                  report.push({ userId: uid, name, skipped: true, reason: "forbidden_or_insufficient_droplets" });
+                } else if (/(1015)/.test(err?.message)) {
+                  report.push({ userId: uid, name, error: "rate_limited" });
+                } else {
+                  report.push({ userId: uid, name, error: err?.message || "purchase_failed" });
+                }
+              }
             }
+          } catch (e) {
+            logUserError(e, uid, urec.name, "purchase color");
+            report.push({ userId: uid, name: urec.name, error: e?.message || "login_failed" });
+          } finally {
+            activeBrowserUsers.delete(uid);
+            purchaseColorJob.completed++;
           }
         }
-      } catch (e) {
-        logUserError(e, uid, urec.name, "purchase color");
-        report.push({ userId: uid, name: urec.name, error: e?.message || "login_failed" });
-      } finally {
-        activeBrowserUsers.delete(uid);
-      }
-
-      if (idx < userIds.length - 1 && cooldown > 0) {
-        await sleep(cooldown);
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    } else {
+      for (let idx = 0; idx < userIds.length; idx++) {
+        const uid = String(userIds[idx]);
+        const urec = users[uid];
+        if (!urec) { report.push({ userId: uid, name: `#${uid}`, skipped: true, reason: "unknown_user" }); continue; }
+        if (activeBrowserUsers.has(uid)) { report.push({ userId: uid, name: urec.name, skipped: true, reason: "busy" }); continue; }
+        activeBrowserUsers.add(uid);
+        const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "ColorPurchase");
+        try {
+          await w.login(urec.cookies);
+          await w.loadUserInfo();
+          const name = w.userInfo.name;
+          purchaseColorJob.lastUserId = uid; purchaseColorJob.lastUserName = name;
+          const beforeBitmap = Number(w.userInfo.extraColorsBitmap || 0);
+          const beforeDroplets = Number(w.userInfo.droplets || 0);
+          if (hasColor(beforeBitmap, cid)) {
+            report.push({ userId: uid, name, skipped: true, reason: "already_has_color" });
+          } else {
+            try {
+              await w.buyProduct(100, 1, cid);
+              await sleep(cooldown);
+              await w.loadUserInfo().catch(() => {});
+              report.push({ userId: uid, name, ok: true, success: true, beforeDroplets, afterDroplets: w.userInfo?.droplets });
+            } catch (err) {
+              if (err?.code === 403 || /FORBIDDEN_OR_INSUFFICIENT/i.test(err?.message)) {
+                report.push({ userId: uid, name, skipped: true, reason: "forbidden_or_insufficient_droplets" });
+              } else if (/(1015)/.test(err?.message)) {
+                report.push({ userId: uid, name, error: "rate_limited" });
+              } else {
+                report.push({ userId: uid, name, error: err?.message || "purchase_failed" });
+              }
+            }
+          }
+        } catch (e) {
+          logUserError(e, uid, urec.name, "purchase color");
+          report.push({ userId: uid, name: urec.name, error: e?.message || "login_failed" });
+        } finally {
+          activeBrowserUsers.delete(uid);
+          purchaseColorJob.completed++;
+        }
+        if (idx < userIds.length - 1 && cooldown > 0) { await sleep(cooldown); }
       }
     }
 
+    purchaseColorJob.active = false; purchaseColorJob.finishedAt = Date.now();
     res.json({ colorId: cid, cooldownMs: cooldown, reserve, report });
   } catch (e) {
+    purchaseColorJob.active = false; purchaseColorJob.finishedAt = Date.now();
     console.error("purchase-color failed:", e);
     res.status(500).json({ error: "Internal error" });
   }
 });
 
-// --- API: users colors check (sequential with cooldown) ---
+// --- API: users colors check (parallel with proxies, else sequential) ---
 app.post("/users/colors-check", async (req, res) => {
   try {
     if (colorsCheckJob.active) {
@@ -1994,58 +2156,87 @@ app.post("/users/colors-check", async (req, res) => {
       report: []
     };
 
-    console.log(`[ColorsCheck] Started: ${ids.length} accounts. Cooldown=${cooldown}ms`);
+    const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+    if (useParallel) {
+      const concurrency = Math.max(1, Math.min(loadedProxies.length, 16));
+      console.log(`[ColorsCheck] Parallel: ${ids.length} accounts (concurrency=${concurrency}, proxies=${loadedProxies.length})`);
+      let index = 0;
+      const worker = async () => {
+        for (;;) {
+          const i = index++;
+          if (i >= ids.length) break;
+          const uid = String(ids[i]);
+          const urec = users[uid];
+          if (!urec) { continue; }
 
-    for (let i = 0; i < ids.length; i++) {
-      const uid = String(ids[i]);
-      const urec = users[uid];
-      if (!urec) { continue; }
+          colorsCheckJob.lastUserId = uid;
+          colorsCheckJob.lastUserName = urec?.name || `#${uid}`;
 
-      colorsCheckJob.lastUserId = uid;
-      colorsCheckJob.lastUserName = urec?.name || `#${uid}`;
-      console.log(`[ColorsCheck] ${i + 1}/${ids.length}: ${colorsCheckJob.lastUserName} (#${uid})`);
+          if (activeBrowserUsers.has(uid)) {
+            colorsCheckJob.report.push({ userId: uid, name: urec.name, skipped: true, reason: "busy" });
+            colorsCheckJob.completed++;
+            continue;
+          }
 
-      if (activeBrowserUsers.has(uid)) {
-        colorsCheckJob.report.push({ userId: uid, name: urec.name, skipped: true, reason: "busy" });
-        colorsCheckJob.completed++;
-        continue;
-      }
+          activeBrowserUsers.add(uid);
+          const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "ColorsCheck");
+          try {
+            await w.login(urec.cookies);
+            await w.loadUserInfo();
+            const u = w.userInfo || {};
+            const charges = { count: Math.floor(Number(u?.charges?.count || 0)), max: Number(u?.charges?.max || 0) };
+            const levelNum = Number(u?.level || 0);
+            const level = Math.floor(levelNum);
+            const progress = Math.round((levelNum % 1) * 100);
+            colorsCheckJob.report.push({ userId: uid, name: u?.name || urec.name, extraColorsBitmap: Number(u?.extraColorsBitmap || 0), droplets: Number(u?.droplets || 0), charges, level, progress });
+          } catch (e) {
+            logUserError(e, uid, urec.name, "colors check");
+            colorsCheckJob.report.push({ userId: uid, name: urec.name, error: e?.message || "login_failed" });
+          } finally {
+            activeBrowserUsers.delete(uid);
+            colorsCheckJob.completed++;
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    } else {
+      console.log(`[ColorsCheck] Sequential: ${ids.length} accounts. Cooldown=${cooldown}ms`);
+      for (let i = 0; i < ids.length; i++) {
+        const uid = String(ids[i]);
+        const urec = users[uid];
+        if (!urec) { continue; }
 
-      activeBrowserUsers.add(uid);
-      const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "ColorsCheck");
+        colorsCheckJob.lastUserId = uid;
+        colorsCheckJob.lastUserName = urec?.name || `#${uid}`;
 
-      try {
-        await w.login(urec.cookies);
-        await w.loadUserInfo();
+        if (activeBrowserUsers.has(uid)) {
+          colorsCheckJob.report.push({ userId: uid, name: urec.name, skipped: true, reason: "busy" });
+          colorsCheckJob.completed++;
+          continue;
+        }
 
-        const u = w.userInfo || {};
-        const charges = {
-          count: Math.floor(Number(u?.charges?.count || 0)),
-          max: Number(u?.charges?.max || 0)
-        };
-        const levelNum = Number(u?.level || 0);
-        const level = Math.floor(levelNum);
-        const progress = Math.round((levelNum % 1) * 100);
+        activeBrowserUsers.add(uid);
+        const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "ColorsCheck");
+        try {
+          await w.login(urec.cookies);
+          await w.loadUserInfo();
+          const u = w.userInfo || {};
+          const charges = { count: Math.floor(Number(u?.charges?.count || 0)), max: Number(u?.charges?.max || 0) };
+          const levelNum = Number(u?.level || 0);
+          const level = Math.floor(levelNum);
+          const progress = Math.round((levelNum % 1) * 100);
+          colorsCheckJob.report.push({ userId: uid, name: u?.name || urec.name, extraColorsBitmap: Number(u?.extraColorsBitmap || 0), droplets: Number(u?.droplets || 0), charges, level, progress });
+        } catch (e) {
+          logUserError(e, uid, urec.name, "colors check");
+          colorsCheckJob.report.push({ userId: uid, name: urec.name, error: e?.message || "login_failed" });
+        } finally {
+          activeBrowserUsers.delete(uid);
+          colorsCheckJob.completed++;
+        }
 
-        colorsCheckJob.report.push({
-          userId: uid,
-          name: u?.name || urec.name,
-          extraColorsBitmap: Number(u?.extraColorsBitmap || 0),
-          droplets: Number(u?.droplets || 0),
-          charges,
-          level,
-          progress
-        });
-      } catch (e) {
-        logUserError(e, uid, urec.name, "colors check");
-        colorsCheckJob.report.push({ userId: uid, name: urec.name, error: e?.message || "login_failed" });
-      } finally {
-        activeBrowserUsers.delete(uid);
-        colorsCheckJob.completed++;
-      }
-
-      if (i < ids.length - 1 && cooldown > 0) {
-        await sleep(cooldown);
+        if (i < ids.length - 1 && cooldown > 0) {
+          await sleep(cooldown);
+        }
       }
     }
 
@@ -2065,6 +2256,18 @@ app.post("/users/colors-check", async (req, res) => {
 // progress endpoint for colors-check
 app.get("/users/colors-check/progress", (req, res) => {
   const { active, total, completed, startedAt, finishedAt, lastUserId, lastUserName } = colorsCheckJob;
+  res.json({ active, total, completed, startedAt, finishedAt, lastUserId, lastUserName });
+});
+
+// progress endpoint for purchase-color
+app.get("/users/purchase-color/progress", (req, res) => {
+  const { active, total, completed, startedAt, finishedAt, lastUserId, lastUserName } = purchaseColorJob;
+  res.json({ active, total, completed, startedAt, finishedAt, lastUserId, lastUserName });
+});
+
+// progress endpoint for buy-max-upgrades
+app.get("/users/buy-max-upgrades/progress", (req, res) => {
+  const { active, total, completed, startedAt, finishedAt, lastUserId, lastUserName } = buyMaxJob;
   res.json({ active, total, completed, startedAt, finishedAt, lastUserId, lastUserName });
 });
 
@@ -2260,9 +2463,24 @@ app.get("/canvas", async (req, res) => {
   if (isNaN(parseInt(tx)) || isNaN(parseInt(ty))) return res.sendStatus(400);
   try {
     const url = `https://backend.wplace.live/files/s0/tiles/${tx}/${ty}.png`;
-    const response = await fetch(url);
-    if (!response.ok) return res.sendStatus(response.status);
-    const buffer = Buffer.from(await response.arrayBuffer());
+    let buffer;
+
+    const useProxy = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+    if (useProxy) {
+      // Fetch via Impit to respect proxy settings (no cookies needed)
+      const impitOptions = { browser: "chrome", ignoreTlsErrors: true };
+      const proxyUrl = getNextProxy();
+      if (proxyUrl) impitOptions.proxyUrl = proxyUrl;
+      const imp = new Impit(impitOptions);
+      const resp = await imp.fetch(url, { headers: { Accept: "image/*" } });
+      if (!resp.ok) return res.sendStatus(resp.status);
+      buffer = Buffer.from(await resp.arrayBuffer());
+    } else {
+      const response = await fetch(url);
+      if (!response.ok) return res.sendStatus(response.status);
+      buffer = Buffer.from(await response.arrayBuffer());
+    }
+
     res.json({ image: `data:image/png;base64,${buffer.toString("base64")}` });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2315,14 +2533,55 @@ app.get("/changelog", async (_req, res) => {
   }
 });
 
-// --- Keep-Alive (kept from new version) ---
+// --- Keep-Alive (parallel with proxies) ---
 const keepAlive = async () => {
   if (activeBrowserUsers.size > 0) {
     log("SYSTEM", "wplacer", "⚙️ Deferring keep-alive check: a browser operation is active.");
     return;
   }
-  log("SYSTEM", "wplacer", "⚙️ Performing periodic cookie keep-alive check for all users...");
-  for (const userId of Object.keys(users)) {
+
+  const allIds = Object.keys(users);
+  const candidates = allIds.filter((uid) => !activeBrowserUsers.has(uid));
+  if (candidates.length === 0) {
+    log("SYSTEM", "wplacer", "⚙️ Keep-alive: no idle users to check.");
+    return;
+  }
+
+  const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+  if (useParallel) {
+    // Run in parallel using a pool roughly equal to proxy count (capped)
+    const concurrency = Math.max(1, Math.min(loadedProxies.length, 16));
+    log("SYSTEM", "wplacer", `⚙️ Performing parallel keep-alive for ${candidates.length} users (concurrency=${concurrency}, proxies=${loadedProxies.length}).`);
+
+    let index = 0;
+    const worker = async () => {
+      for (;;) {
+        const myIndex = index++;
+        if (myIndex >= candidates.length) break;
+        const userId = candidates[myIndex];
+        if (!users[userId]) continue;
+        if (activeBrowserUsers.has(userId)) continue;
+        activeBrowserUsers.add(userId);
+        const wplacer = new WPlacer();
+        try {
+          await wplacer.login(users[userId].cookies);
+          log(userId, users[userId].name, "✅ Cookie keep-alive successful.");
+        } catch (error) {
+          logUserError(error, userId, users[userId].name, "perform keep-alive check");
+        } finally {
+          activeBrowserUsers.delete(userId);
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    log("SYSTEM", "wplacer", "✅ Keep-alive check complete (parallel).");
+    return;
+  }
+
+  // Fallback: sequential with delay between users
+  log("SYSTEM", "wplacer", "⚙️ Performing sequential cookie keep-alive check for all users...");
+  for (const userId of candidates) {
     if (activeBrowserUsers.has(userId)) {
       log(userId, users[userId].name, "⚠️ Skipping keep-alive check: user is currently busy.");
       continue;
@@ -2339,14 +2598,14 @@ const keepAlive = async () => {
     }
     await sleep(currentSettings.keepAliveCooldown);
   }
-  log("SYSTEM", "wplacer", "✅ Keep-alive check complete.");
+  log("SYSTEM", "wplacer", "✅ Keep-alive check complete (sequential).");
 };
 
 // --- Startup ---
 (async () => {
   console.clear();
   const version = JSON.parse(readFileSync("package.json", "utf8")).version;
-  console.log(`\n--- wplacer v${version} by luluwaffless and jinx ---\n`);
+  console.log(`\n--- wplacer v${version} made by luluwaffless and jinx | forked/improved by lllexxa ---\n`);
 
   const loadedTemplates = loadJSON("templates.json");
   for (const id in loadedTemplates) {
@@ -2378,7 +2637,7 @@ const keepAlive = async () => {
   app.listen(port, host, () => {
     console.log(`✅ Server listening on http://localhost:${port}`);
     console.log(`   Open the web UI in your browser to start!`);
-    setInterval(keepAlive, 20 * 60 * 1000); // every 20 minutes
+    setInterval(keepAlive, 20 * 60 * 1000);
   });
 })();
 

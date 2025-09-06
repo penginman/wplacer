@@ -1,3 +1,24 @@
+## Changelog v4.1.6
+Reminder: If drawing stops, inspect console logs in wplace.live for Turnstile errors (or set the pixel manually). If it’s a Turnstile issue, restart your browser or log in via incognito/another browser or profile.
+
+- Added pin/unpin templates at the top of the page.
+- Added per-color pixel preview with remaining counts.
+- Made cache warm-up parallel when proxies are enabled.
+- Improved cookie keep-alive checks with parallel execution when proxies are enabled.
+- Made “Check Colors (All), Check Account Status, Attempt to Buy for Selected, Buy Max Charge Upgrades (All)” run faster with proxies.
+- Added a color purchase and max charge upgrades counters.
+- Frontend now uses proxies (if enabled) to fetch tiles for previews.
+- Fixed CSS of the bulk color purchase info window.
+- Default sort now ranks users with the template’s required premium colors first, auto-updating on upload, toggle, and edit.
+- Added a button to leave the alliance.
+- Added a warning when account cooldown is set to 0 with proxies disabled.
+- Automated cords parsing on paste.
+- Added a 'Changelog' button to the Dashboard that opens the existing changelog.
+- Added statistics fields: Total Droplets and Regen Speed.
+
+If you see your problem in the fix list but it still exists, please report it in the main WPlacer Discord server, and make sure to indicate that you are using the fork to avoid misunderstandings.
+
+
 ## Changelog v4.1.5 (FIX DRAWING)
 - Re-upload the extension to your browser!
 - Also, in the account settings, I added the option to join the alliance by its UUID (taken from the joining link) 

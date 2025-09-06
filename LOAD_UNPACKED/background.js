@@ -1,8 +1,6 @@
-// --- Constants ---
 const POLL_ALARM_NAME = 'wplacer-poll-alarm';
 const COOKIE_ALARM_NAME = 'wplacer-cookie-alarm';
 
-// --- Core Functions ---
 const getSettings = async () => {
     const result = await chrome.storage.local.get(['wplacerPort']);
     return {
@@ -42,7 +40,6 @@ async function startLongPoll() {
     }
 }
 
-// --- Token Refresh Logic ---
 const pollForTokenRequest = async () => {
     console.log("wplacer: Polling server for token request...");
     try {
@@ -93,7 +90,6 @@ const initiateReload = async () => {
     }
 };
 
-// --- User/Cookie Management ---
 const sendCookie = async (callback) => {
     const getCookie = (details) => new Promise(resolve => chrome.cookies.get(details, cookie => resolve(cookie)));
 
@@ -155,7 +151,6 @@ const quickLogout = (callback) => {
     });
 };
 
-// --- Event Listeners ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "sendCookie") {
         sendCookie(sendResponse);
@@ -172,7 +167,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return false;
     }
     if (request.action === "injectPawtect") {
-        // Inject page-world hook to compute pawtect from site resources (CSP-safe)
         try {
             if (sender.tab?.id) {
                 chrome.scripting.executeScript({
@@ -423,7 +417,6 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     }
 });
 
-// --- Initialization ---
 const initializeAlarms = () => {
     chrome.alarms.create(POLL_ALARM_NAME, {
         delayInMinutes: 0.1,

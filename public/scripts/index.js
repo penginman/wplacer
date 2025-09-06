@@ -1,10 +1,11 @@
-// elements
+
 const $ = (id) => document.getElementById(id);
 const main = $("main");
 const openManageUsers = $("openManageUsers");
 const openAddTemplate = $("openAddTemplate");
 const openManageTemplates = $("openManageTemplates");
 const openSettings = $("openSettings");
+const openChangelog = $("openChangelog");
 const userForm = $("userForm");
 const scookie = $("scookie");
 const jcookie = $("jcookie");
@@ -19,7 +20,7 @@ const size = $("size");
 const ink = $("ink");
 const templateCanvas = $("templateCanvas");
 
-// Preview & overlay template
+
 const previewCanvas = $("previewCanvas");
 const previewCanvasButton = $("previewCanvasButton");
 const previewBorder = $("previewBorder");
@@ -44,8 +45,13 @@ const paintTransparent = $("paintTransparent");
 const submitTemplate = $("submitTemplate");
 const manageTemplates = $("manageTemplates");
 const templateList = $("templateList");
+const PINNED_TEMPLATES_KEY = 'wplacer_pinned_templates_v1';
+const getPinned = () => { try { return JSON.parse(localStorage.getItem(PINNED_TEMPLATES_KEY) || '[]') || []; } catch { return []; } };
+const savePinned = (arr) => { try { localStorage.setItem(PINNED_TEMPLATES_KEY, JSON.stringify(Array.from(new Set(arr)))) } catch { } };
 const startAll = $("startAll");
 const stopAll = $("stopAll");
+const totalDropletsEl = $("totalDroplets");
+const regenPphEl = $("regenPph");
 const settings = $("settings");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
@@ -70,9 +76,10 @@ const previewSpeedLabel = $("previewSpeedLabel");
 const showLatestInfo = $("showLatestInfo");
 const buyMaxUpgradesAll = $("buyMaxUpgradesAll");
 
-let pendingUserSelection = null; // array of userIds or null
+let pendingUserSelection = null;
 
 const LAST_STATUS_KEY = 'wplacer_latest_user_status';
+const LAST_TOTALS_KEY = 'wplacer_latest_totals_v1';
 let LAST_USER_STATUS = {};
 try {
     LAST_USER_STATUS = JSON.parse(localStorage.getItem(LAST_STATUS_KEY) || '{}') || {};
@@ -82,13 +89,21 @@ const saveLastStatus = () => {
     try { localStorage.setItem(LAST_STATUS_KEY, JSON.stringify(LAST_USER_STATUS)); } catch (_) { }
 };
 
-// Mode / burst seed inputs
-const seedCountHidden = $("seedCount"); // kept for backward compatibility (hidden in UI)
+const saveLatestTotals = (totals) => {
+    try { localStorage.setItem(LAST_TOTALS_KEY, JSON.stringify(totals || {})); } catch (_) { }
+};
 
-// for Manage Templates live updates
+const loadLatestTotals = () => {
+    try { return JSON.parse(localStorage.getItem(LAST_TOTALS_KEY) || 'null'); } catch (_) { return null; }
+};
+
+
+const seedCountHidden = $("seedCount");
+
+
 let templateUpdateInterval = null;
 
-// Message Box
+
 let confirmCallback = null;
 
 const showMessage = (title, content) => {
@@ -137,7 +152,7 @@ const closeMessageBox = () => {
     confirmCallback = null;
 };
 
-// PROXY UI
+
 const proxyEnabled = $("proxyEnabled");
 const proxyFormContainer = $("proxyFormContainer");
 const proxyRotationMode = $("proxyRotationMode");
@@ -167,7 +182,7 @@ messageBoxCancel.addEventListener('click', () => {
     closeMessageBox();
 });
 
-// One-time disclaimer modal (educational use)
+
 const DISCLAIMER_KEY = 'wplacer_disclaimer_ack_v1';
 function showDisclaimerIfNeeded() {
     try { if (localStorage.getItem(DISCLAIMER_KEY) === '1') return; } catch (_) { }
@@ -184,7 +199,7 @@ function showDisclaimerIfNeeded() {
         </ul>
         <p>If you do not agree, please close this window and stop using the application.</p>
       </div>`;
-    // Show as one-button dialog
+
     messageBoxTitle.textContent = 'Disclaimer';
     messageBoxContent.innerHTML = content;
     messageBoxCancel.classList.add('hidden');
@@ -197,7 +212,7 @@ function showDisclaimerIfNeeded() {
 
 document.addEventListener('DOMContentLoaded', showDisclaimerIfNeeded);
 
-// Version check: warn if local package.json is older than remote
+
 function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 function renderMarkdown(md) {
     const lines = String(md || '').split(/\r?\n/);
@@ -222,7 +237,7 @@ async function checkVersionAndWarn() {
             let changelog = '';
             try {
                 const ch = await axios.get('/changelog');
-                // prefer remote changelog only; fallback to local if remote missing
+
                 const content = (ch.data?.remote || '').trim() || (ch.data?.local || '').trim();
                 if (content) {
                     const mdHtml = renderMarkdown(content);
@@ -237,22 +252,22 @@ async function checkVersionAndWarn() {
                 <div style="margin-top:8px">Please update from <a href="https://github.com/lllexxa/wplacer" target="_blank" rel="noreferrer noopener">GitHub</a> or use 'git pull' command.</div>`;
             showMessageBig('Update available', html);
         }
-    } catch (_) { /* ignore */ }
+    } catch (_) { }
 }
 document.addEventListener('DOMContentLoaded', checkVersionAndWarn);
 
-// Show changelog once after local update (only if not outdated)
+
 const CHANGELOG_ACK_KEY = 'wplacer_ack_version';
 async function showChangelogOnFirstLoad() {
     try {
         const { data } = await axios.get('/version');
         const local = String(data?.local || '');
         const outdated = !!data?.outdated;
-        if (!local || outdated) return; // show only when current and not outdated
+        if (!local || outdated) return;
 
         let ack = '';
         try { ack = String(localStorage.getItem(CHANGELOG_ACK_KEY) || ''); } catch (_) { ack = ''; }
-        if (ack === local) return; // already acknowledged for this version
+        if (ack === local) return;
 
         let changelog = '';
         try {
@@ -266,7 +281,7 @@ async function showChangelogOnFirstLoad() {
 
         const html = `<b>Updated to</b> ${local}<br><br>${changelog || 'No changelog available.'}`;
         showMessageBig('Changelog', html);
-        // Replace confirm handler to store ack when user clicks OK
+
         try {
             messageBoxConfirmBig.onclick = () => {
                 try { localStorage.setItem(CHANGELOG_ACK_KEY, local); } catch (_) { }
@@ -309,7 +324,7 @@ const handleError = (error) => {
     showMessage("Error", message);
 };
 
-// users
+
 const loadUsers = async (f) => {
     try {
         const users = await axios.get("/users");
@@ -325,14 +340,14 @@ userForm.addEventListener('submit', async (e) => {
         if (response.status === 200) {
             showMessage("Success", `Logged in as ${response.data.name} (#${response.data.id})!`);
             userForm.reset();
-            openManageUsers.click(); // Refresh the view
+            openManageUsers.click();
         }
     } catch (error) {
         handleError(error);
     };
 });
 
-// templates: color maps and image decoding 
+
 const basic_colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
 const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
 const colors = { ...basic_colors, ...premium_colors };
@@ -347,7 +362,7 @@ const closest = color => {
     })];
 };
 
-// drawTemplate supports special value -1 (highlight)
+
 const drawTemplate = (template, canvas) => {
     canvas.width = template.width;
     canvas.height = template.height;
@@ -359,7 +374,7 @@ const drawTemplate = (template, canvas) => {
             const color = template.data[x][y];
             if (color === 0) continue;
             const i = (y * template.width + x) * 4;
-            if (color === -1) { // special color for demo/highlight
+            if (color === -1) {
                 imageData.data[i] = 158;
                 imageData.data[i + 1] = 189;
                 imageData.data[i + 2] = 255;
@@ -387,9 +402,9 @@ const loadTemplates = async (f) => {
 
 let previewRenderId = 0;
 
-// ===== preview canvas + overlay template (no conflict highlight) =====
+
 const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
-    const RID = ++previewRenderId; // token of current render
+    const RID = ++previewRenderId;
     const TILE_SIZE = 1000;
     const radius = Math.max(0, parseInt(previewBorder.value, 10) || 0);
 
@@ -405,41 +420,47 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     const endTileX = Math.floor((endX - 1) / TILE_SIZE);
     const endTileY = Math.floor((endY - 1) / TILE_SIZE);
 
-    // draw all tiles into offscreen buffer (template will always be on top)
+
     const buffer = document.createElement('canvas');
     buffer.width = displayWidth;
     buffer.height = displayHeight;
     const bctx = buffer.getContext('2d');
     bctx.imageSmoothingEnabled = false;
 
+    const tileTasks = [];
+    const concurrency = 8;
     for (let txi = startTileX; txi <= endTileX; txi++) {
         for (let tyi = startTileY; tyi <= endTileY; tyi++) {
-            try {
-                const { data } = await axios.get('/canvas', { params: { tx: txi, ty: tyi } });
-                const img = new Image();
-                img.src = data.image;
-                await img.decode();
-                if (RID !== previewRenderId) return; // outdated render — abort
+            tileTasks.push(async () => {
+                try {
+                    const { data } = await axios.get('/canvas', { params: { tx: txi, ty: tyi } });
+                    if (RID !== previewRenderId) return;
+                    const img = new Image();
+                    img.src = data.image;
+                    await img.decode();
+                    if (RID !== previewRenderId) return;
 
-                const sx = (txi === startTileX) ? startX - txi * TILE_SIZE : 0;
-                const sy = (tyi === startTileY) ? startY - tyi * TILE_SIZE : 0;
-                const ex = (txi === endTileX) ? endX - txi * TILE_SIZE : TILE_SIZE;
-                const ey = (tyi === endTileY) ? endY - tyi * TILE_SIZE : TILE_SIZE;
-                const sw = ex - sx;
-                const sh = ey - sy;
-                const dx = txi * TILE_SIZE + sx - startX;
-                const dy = tyi * TILE_SIZE + sy - startY;
+                    const sx = (txi === startTileX) ? startX - txi * TILE_SIZE : 0;
+                    const sy = (tyi === startTileY) ? startY - tyi * TILE_SIZE : 0;
+                    const ex = (txi === endTileX) ? endX - txi * TILE_SIZE : TILE_SIZE;
+                    const ey = (tyi === endTileY) ? endY - tyi * TILE_SIZE : TILE_SIZE;
+                    const sw = ex - sx;
+                    const sh = ey - sy;
+                    const dx = txi * TILE_SIZE + sx - startX;
+                    const dy = tyi * TILE_SIZE + sy - startY;
 
-                bctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw, sh);
-            } catch (error) {
-                handleError(error);
-                return;
-            }
+                    bctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw, sh);
+                } catch (error) {
+                    handleError(error);
+                }
+            });
         }
     }
+    await processInParallel(tileTasks, concurrency);
+    if (RID !== previewRenderId) return;
     if (RID !== previewRenderId) return;
 
-    // copy buffer to visible canvas
+
     previewCanvas.width = displayWidth;
     previewCanvas.height = displayHeight;
     const ctx = previewCanvas.getContext('2d');
@@ -447,13 +468,13 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     ctx.clearRect(0, 0, displayWidth, displayHeight);
     ctx.drawImage(buffer, 0, 0);
 
-    // translucent template overlay (always on top)
+
     ctx.globalAlpha = 0.5;
     ctx.drawImage(templateCanvas, radius, radius);
     ctx.globalAlpha = 1;
 };
 
-// ===== Manage Templates: fullscreen preview =====
+
 let MT_PREVIEW_RENDER_ID = 0;
 
 function ensureMtPreviewOverlay() {
@@ -474,8 +495,12 @@ function ensureMtPreviewOverlay() {
     box.style.cssText = `
         position: relative; background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
         padding: 10px 40px; max-width: 75vw; min-width: 650px; box-shadow: var(--shadow);
-        display: flex; flex-direction: column; gap: 8px;
+        display: flex; flex-direction: column; gap: 8px; max-height: 95vh;
     `;
+
+    const boxcontainer = document.createElement('div');
+    boxcontainer.id = 'mtPreviewBoxContainer';
+    boxcontainer.style.cssText = `display:flex; flex-direction:column; gap:8px; overflow: auto; max-height: 90vh;`;
 
     const head = document.createElement('div');
     head.style.cssText = `display:flex; align-items:center; justify-content:space-between; gap:8px;`;
@@ -498,7 +523,7 @@ function ensureMtPreviewOverlay() {
     const canvas = document.createElement('canvas');
     canvas.id = 'mtPreviewCanvas';
     canvas.style.cssText = `
-        image-rendering: pixelated; width: 100%; height: auto; max-height: 765px; background:#f8f4f0; border-radius: 6px;
+        image-rendering: pixelated; width: 100%; height: auto; max-height: 555px; background:#f8f4f0; border-radius: 6px;
         cursor: default;
     `;
 
@@ -528,11 +553,24 @@ function ensureMtPreviewOverlay() {
     stats.id = 'mtPreviewStats';
     stats.style.cssText = 'color:#ddd; font-size:12px;';
 
+
+    const palWrap = document.createElement('div');
+    palWrap.id = 'mtPreviewPaletteWrap';
+    palWrap.style.cssText = 'margin-top:6px;';
+    const palTitle = document.createElement('div');
+    palTitle.textContent = 'Remaining colors';
+    palTitle.style.cssText = 'color:#ddd; font-size:12px; margin-bottom:4px;';
+    const palGrid = document.createElement('div');
+    palGrid.id = 'mtPreviewPaletteGrid';
+    palGrid.style.cssText = 'display:grid; grid-template-columns: repeat(auto-fill, minmax(44px,1fr)); gap:4px;';
+    palWrap.append(palTitle, palGrid);
+
     const hint = document.createElement('div');
     hint.style.cssText = 'color:#bbb; font-size:12px;';
     hint.textContent = 'Mouse wheel — zoom. Left mouse drag — pan. Esc — close.';
 
-    box.append(head, canvas, bottomControls, stats, hint);
+    boxcontainer.append(canvas, bottomControls, stats, palWrap);
+    box.append(head, boxcontainer, hint);
     overlay.append(box);
     document.body.append(overlay);
 
@@ -586,26 +624,38 @@ async function showManageTemplatePreview(t) {
     try {
         for (let txi = startTileX; txi <= endTileX; txi++) {
             for (let tyi = startTileY; tyi <= endTileY; tyi++) {
-                const { data } = await axios.get('/canvas', { params: { tx: txi, ty: tyi } });
-                if (RID !== MT_PREVIEW_RENDER_ID) return;
 
-                const img = new Image();
-                img.src = data.image;
-                await img.decode();
-                if (RID !== MT_PREVIEW_RENDER_ID) return;
 
-                const sx = (txi === startTileX) ? (startX - txi * TILE_SIZE) : 0;
-                const sy = (tyi === startTileY) ? (startY - tyi * TILE_SIZE) : 0;
-                const ex = (txi === endTileX) ? (endX - txi * TILE_SIZE) : TILE_SIZE;
-                const ey = (tyi === endTileY) ? (endY - tyi * TILE_SIZE) : TILE_SIZE;
-                const sw = ex - sx;
-                const sh = ey - sy;
-                const dx = txi * TILE_SIZE + sx - startX;
-                const dy = tyi * TILE_SIZE + sy - startY;
-
-                bctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw, sh);
             }
         }
+        const tileTasks = [];
+        const concurrency = 8;
+        for (let txi = startTileX; txi <= endTileX; txi++) {
+            for (let tyi = startTileY; tyi <= endTileY; tyi++) {
+                tileTasks.push(async () => {
+                    const { data } = await axios.get('/canvas', { params: { tx: txi, ty: tyi } });
+                    if (RID !== MT_PREVIEW_RENDER_ID) return;
+
+                    const img = new Image();
+                    img.src = data.image;
+                    await img.decode();
+                    if (RID !== MT_PREVIEW_RENDER_ID) return;
+
+                    const sx = (txi === startTileX) ? (startX - txi * TILE_SIZE) : 0;
+                    const sy = (tyi === startTileY) ? (startY - tyi * TILE_SIZE) : 0;
+                    const ex = (txi === endTileX) ? (endX - txi * TILE_SIZE) : TILE_SIZE;
+                    const ey = (tyi === endTileY) ? (endY - tyi * TILE_SIZE) : TILE_SIZE;
+                    const sw = ex - sx;
+                    const sh = ey - sy;
+                    const dx = txi * TILE_SIZE + sx - startX;
+                    const dy = tyi * TILE_SIZE + sy - startY;
+
+                    bctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw, sh);
+                });
+            }
+        }
+        await processInParallel(tileTasks, concurrency);
+        if (RID !== MT_PREVIEW_RENDER_ID) return;
     } catch (error) {
         handleError(error);
         return;
@@ -636,6 +686,49 @@ async function showManageTemplatePreview(t) {
     }
     const pct = totalTpl ? (matched / totalTpl) * 100 : 0;
     statsEl.textContent = `Matches: ${matched} / ${totalTpl} (${(Math.round(pct * 100) / 100).toFixed(2)}%)`;
+
+
+    try {
+        const left = new Map();
+        for (let y = 0; y < displayHeight; y++) {
+            for (let x = 0; x < displayWidth; x++) {
+                const id = t.template?.data?.[x]?.[y] ?? 0;
+                if (id <= 0) continue;
+                const i = (y * displayWidth + x) * 4;
+                const br = src[i], bg = src[i + 1], bb = src[i + 2], ba = src[i + 3];
+                const tplRGB = rgbOfId(id);
+                if (!tplRGB) continue;
+                const ok = (ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]);
+                if (!ok) left.set(id, (left.get(id) || 0) + 1);
+            }
+        }
+        const grid = document.getElementById('mtPreviewPaletteGrid');
+        if (grid) {
+            grid.innerHTML = '';
+            const entries = Array.from(left.entries()).sort((a, b) => (b[1] - a[1]) || (a[0] - b[0]));
+            for (const [cid, cnt] of entries) {
+                const rgbKey = Object.keys(colors).find(k => colors[k] === cid);
+                const [r, g, b] = (rgbKey || '0,0,0').split(',').map(n => parseInt(n, 10) || 0);
+                const textColor = getContrastColor(r, g, b);
+                const cell = document.createElement('div');
+                cell.style.cssText = 'display:flex; flex-direction:column; align-items:center; gap:2px; padding:4px; border:1px solid var(--border); border-radius:6px; background: var(--bg-2)';
+                const sw = document.createElement('div');
+                sw.style.cssText = `width:28px; height:20px; border-radius:4px; background: rgb(${r},${g},${b}); color:${textColor}; display:flex; align-items:center; justify-content:center; font-size:11px;`;
+                sw.textContent = `#${cid}`;
+                const label = document.createElement('div');
+                label.style.cssText = 'font-size:11px; color:#ddd;';
+                label.textContent = String(cnt);
+                cell.append(sw, label);
+                grid.appendChild(cell);
+            }
+            if (entries.length === 0) {
+                const none = document.createElement('div');
+                none.style.cssText = 'color:#aaa; font-size:12px;';
+                none.textContent = 'No remaining pixels.';
+                grid.appendChild(none);
+            }
+        }
+    } catch (_) { }
 
     preview.width = displayWidth * SCALE;
     preview.height = displayHeight * SCALE;
@@ -682,7 +775,7 @@ async function showManageTemplatePreview(t) {
                     pctx.fillStyle = `rgb(${tplRGB[0]},${tplRGB[1]},${tplRGB[2]})`;
                     pctx.fillRect(dx, dy, MINI, MINI);
                 } else if (STATE.paintTransparent) {
-                    // template expects transparent, but tile is not
+
                     if (ba !== 0) {
                         const dx = x * STATE.SCALE + OFF;
                         const dy = y * STATE.SCALE + OFF;
@@ -898,8 +991,8 @@ async function showManageTemplatePreview(t) {
 
 
 
-//
-// smart image decoder taking paid colors option into account
+
+
 const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
     const matrix = Array.from({ length: width }, () => Array(height).fill(0));
@@ -912,7 +1005,7 @@ const nearestimgdecoder = (imageData, width, height) => {
             if (a === 255) {
                 const r = d[i], g = d[i + 1], b = d[i + 2];
                 const rgb = `${r},${g},${b}`;
-                if (rgb === "158,189,255") matrix[x][y] = -1; // service color
+                if (rgb === "158,189,255") matrix[x][y] = -1;
                 else {
                     const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
                     matrix[x][y] = id;
@@ -954,7 +1047,7 @@ const processImageFile = (file, callback) => {
 };
 
 const processEvent = (soft = false) => {
-    // on new image load, detach old edit handler to avoid stale flicker
+
     if (usePaidColors && usePaidColors.__editHandler) {
         try { usePaidColors.removeEventListener('change', usePaidColors.__editHandler); } catch (_) { }
         usePaidColors.__editHandler = null;
@@ -988,20 +1081,23 @@ const processEvent = (soft = false) => {
     templateName.value = file.name.replace(/\.[^/.]+$/, "");
     processImageFile(file, (template) => {
         currentTemplate = template;
-        // in soft mode avoid resetting canvas size; just redraw in place
+
         drawTemplate(template, templateCanvas);
         size.innerHTML = `${template.width}x${template.height}px`;
         ink.innerHTML = template.ink;
         details.style.display = "block";
         renderPalette(template);
+        const sel = document.getElementById('userSortMode');
+        if (sel) { sel.value = 'priority'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+
     });
 };
 
 convertInput.addEventListener('change', processEvent);
 if (usePaidColors) {
     usePaidColors.addEventListener('change', () => {
-        if (!convertInput?.files?.length) return; // in edit mode, the handler is attached separately
-        // soft rebuild without hiding the section
+        if (!convertInput?.files?.length) return;
+
         processEvent(true);
     });
 }
@@ -1016,8 +1112,17 @@ previewCanvasButton?.addEventListener('click', async () => {
         showMessage("Error", "Please convert an image and enter valid coordinates before previewing.");
         return;
     }
-    await fetchCanvas(txVal, tyVal, pxVal, pyVal, currentTemplate.width, currentTemplate.height);
-    previewCanvas.style.display = "block";
+    try {
+        previewCanvasButton.disabled = true;
+        previewCanvasButton.innerHTML = '<img src="icons/eye.svg" alt="" /> Loading...';
+        await fetchCanvas(txVal, tyVal, pxVal, pyVal, currentTemplate.width, currentTemplate.height);
+        previewCanvas.style.display = "block";
+    } catch (e) {
+        handleError(e);
+    } finally {
+        previewCanvasButton.disabled = false;
+        previewCanvasButton.innerHTML = '<img src="icons/eye.svg" alt="" /> Preview Canvas';
+    }
 });
 
 canBuyMaxCharges.addEventListener('change', () => {
@@ -1046,7 +1151,7 @@ autoBuyNeededColors?.addEventListener('change', () => {
     }
 });
 
-// Premium palette usage dependency: if paid colors usage is off in editor, disable auto-buy premium
+
 if (typeof usePaidColors !== 'undefined' && usePaidColors) {
     usePaidColors.addEventListener('change', () => {
         const on = !!usePaidColors.checked;
@@ -1135,7 +1240,7 @@ stopAll.addEventListener('click', async () => {
 });
 
 
-// tabs
+
 let currentTab = main;
 const changeTab = (el) => {
     if (currentTab === settings && typeof MODE_PREVIEW !== 'undefined' && MODE_PREVIEW.stopAll) {
@@ -1163,6 +1268,11 @@ const changeTab = (el) => {
     }
 };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const formatSpaces = (val) => {
+    const n = Number(val);
+    if (!Number.isFinite(n)) return String(val ?? '');
+    return String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+};
 
 openManageUsers.addEventListener("click", () => {
     userList.innerHTML = "";
@@ -1177,7 +1287,7 @@ openManageUsers.addEventListener("click", () => {
             user.className = 'user';
             user.id = `user-${id}`;
 
-            // optional expiration date on backend
+
             const expirationDate = users[id].expirationDate;
             const expirationStr = expirationDate ? new Date(expirationDate * 1000).toLocaleString() : 'N/A';
 
@@ -1212,7 +1322,7 @@ openManageUsers.addEventListener("click", () => {
                 );
             });
 
-            // Edit user modal
+
             const editBtn = user.querySelector('.edit-btn');
             editBtn.addEventListener('click', () => {
                 const content = `
@@ -1245,8 +1355,11 @@ openManageUsers.addEventListener("click", () => {
                             <input id="edit-alliance-uuid-${id}" type="text" placeholder="01xxc1c1-1xxx-7xx6-913a-a84xxxx5a83e" />
                             <small class="help">Paste the alliance UUID and press Join. Current id: <span id="edit-alliance-current-${id}">–</span></small>
                         </div>
-                        <div class="form-actions">
+                        <div id="edit-alliance-join-wrap-${id}" class="form-actions">
                             <button type="button" id="edit-alliance-join-${id}" class="secondary-button"><img src="icons/addUser.svg" alt=""/>Join</button>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" id="edit-alliance-leave-${id}" class="secondary-button"><img src="icons/remove.svg" alt=""/>Leave</button>
                         </div>
                     </div>`;
 
@@ -1278,6 +1391,8 @@ openManageUsers.addEventListener("click", () => {
                 if (messageBoxConfirm) messageBoxConfirm.textContent = 'Save';
 
                 const joinBtn = document.getElementById(`edit-alliance-join-${id}`);
+                const leaveBtn = document.getElementById(`edit-alliance-leave-${id}`);
+                const joinWrap = document.getElementById(`edit-alliance-join-wrap-${id}`);
                 joinBtn?.addEventListener('click', async () => {
                     const uuidEl = document.getElementById(`edit-alliance-uuid-${id}`);
                     const uuid = (uuidEl?.value || '').trim();
@@ -1292,6 +1407,10 @@ openManageUsers.addEventListener("click", () => {
                                 const r = await axios.get(`/user/status/${id}`);
                                 const currEl = document.getElementById(`edit-alliance-current-${id}`);
                                 if (currEl && r?.data?.allianceId) currEl.textContent = r.data.allianceId;
+                                if (r?.data?.allianceId) {
+                                    if (joinWrap) joinWrap.style.display = 'none';
+                                    if (leaveBtn) leaveBtn.style.display = '';
+                                }
                             } catch (_) { }
                         } else {
                             handleError({ response: { data: resp.data, status: resp.status } });
@@ -1301,6 +1420,28 @@ openManageUsers.addEventListener("click", () => {
                     } finally {
                         joinBtn.disabled = false;
                         joinBtn.innerHTML = '<img src="icons/addUser.svg" alt=""/>Join';
+                    }
+                });
+
+                leaveBtn?.addEventListener('click', async () => {
+                    try {
+                        leaveBtn.disabled = true;
+                        leaveBtn.innerHTML = 'Leaving...';
+                        const resp = await axios.post(`/user/${id}/alliance/leave`);
+                        if (resp.status === 200 && resp.data?.success) {
+                            showMessage('Alliance', 'Left alliance successfully.');
+                            const currEl = document.getElementById(`edit-alliance-current-${id}`);
+                            if (currEl) currEl.textContent = '–';
+                            if (joinWrap) joinWrap.style.display = '';
+                            if (leaveBtn) leaveBtn.style.display = 'none';
+                        } else {
+                            handleError({ response: { data: resp.data, status: resp.status } });
+                        }
+                    } catch (error) {
+                        handleError(error);
+                    } finally {
+                        leaveBtn.disabled = false;
+                        leaveBtn.innerHTML = '<img src="icons/remove.svg" alt=""/>Leave';
                     }
                 });
 
@@ -1316,6 +1457,13 @@ openManageUsers.addEventListener("click", () => {
                         if (showEl && typeof u.showLastPixel === 'boolean') showEl.checked = !!u.showLastPixel;
                         const currEl = document.getElementById(`edit-alliance-current-${id}`);
                         if (currEl) currEl.textContent = u.allianceId || '–';
+                        if (u.allianceId) {
+                            if (joinWrap) joinWrap.style.display = 'none';
+                            if (leaveBtn) leaveBtn.style.display = '';
+                        } else {
+                            if (joinWrap) joinWrap.style.display = '';
+                            if (leaveBtn) leaveBtn.style.display = 'none';
+                        }
                     } catch (_) { }
                 })();
             });
@@ -1347,7 +1495,7 @@ openManageUsers.addEventListener("click", () => {
                         <div class=\"tiny-swatches\">${paidSwatches || '<span class=\"muted\">none</span>'}</div><br>
                         Copy RAW JSON to clipboard?
                     `;
-                    // update local caches for this user
+
                     try {
                         const nowTs = Date.now();
                         const byId = new Map((COLORS_CACHE?.report || []).map(r => [String(r.userId), r]));
@@ -1375,6 +1523,14 @@ openManageUsers.addEventListener("click", () => {
                 }
             });
             userList.appendChild(user);
+        }
+
+        const totals = loadLatestTotals();
+        if (totals) {
+            if (totalCharges) totalCharges.textContent = formatSpaces(totals.charges ?? totalCharges.textContent);
+            if (totalMaxCharges) totalMaxCharges.textContent = formatSpaces(totals.max ?? totalMaxCharges.textContent);
+            if (totalDropletsEl) totalDropletsEl.textContent = formatSpaces(totals.droplets ?? totalDropletsEl.textContent);
+            if (regenPphEl) regenPphEl.textContent = formatSpaces(totals.regen ?? regenPphEl.textContent);
         }
     });
     changeTab(manageUsers);
@@ -1405,14 +1561,15 @@ checkUserStatus.addEventListener("click", async () => {
 
     let totalCurrent = 0;
     let totalMax = 0;
+    let totalDroplets = 0;
     const colorReport = [];
 
-    // consider accountCheckCooldown setting
+
     let settingsAccountCheckCooldown = 0;
     try {
         const { data: s } = await axios.get('/settings');
         settingsAccountCheckCooldown = s.accountCheckCooldown || 0;
-    } catch (_) { /* ignore */ }
+    } catch (_) { }
 
     const doOne = async (userEl) => {
         const id = userEl.id.split('-')[1];
@@ -1437,7 +1594,7 @@ checkUserStatus.addEventListener("click", async () => {
             LAST_USER_STATUS[id] = { charges, max, droplets, level, progress, extraColorsBitmap: userInfo.extraColorsBitmap | 0 };
             saveLastStatus();
 
-            // aggregate color report for COLORS_CACHE merging
+
             colorReport.push({
                 userId: String(id),
                 name: userInfo.name,
@@ -1452,9 +1609,9 @@ checkUserStatus.addEventListener("click", async () => {
             maxChargesEl.textContent = max;
             currentLevelEl.textContent = level;
             levelProgressEl.textContent = `(${progress}%)`;
-            currentDroplets.textContent = droplets;
+            currentDroplets.textContent = formatSpaces(droplets);
 
-            // update USERS_COLOR_STATE for palette usage
+
             USERS_COLOR_STATE[id] = {
                 name: userInfo.name || `#${id}`,
                 extraColorsBitmap: userInfo.extraColorsBitmap | 0,
@@ -1462,6 +1619,7 @@ checkUserStatus.addEventListener("click", async () => {
             };
             totalCurrent += charges;
             totalMax += max;
+            totalDroplets += Number(droplets) || 0;
 
             infoSpans.forEach(span => span.style.color = 'var(--success-color)');
         } catch (error) {
@@ -1478,20 +1636,27 @@ checkUserStatus.addEventListener("click", async () => {
     };
 
     if (settingsAccountCheckCooldown > 0) {
-        // sequential
+
         for (const el of userElements) {
             await doOne(el);
         }
     } else {
-        // parallel
+
         const tasks = userElements.map(el => () => doOne(el));
         await processInParallel(tasks, 5);
     }
 
-    totalCharges.textContent = totalCurrent;
-    totalMaxCharges.textContent = totalMax;
+    totalCharges.textContent = formatSpaces(totalCurrent);
+    totalMaxCharges.textContent = formatSpaces(totalMax);
+    if (totalDropletsEl) totalDropletsEl.textContent = formatSpaces(totalDroplets);
+    if (regenPphEl) {
+        const accountsCount = userElements.length;
+        const regen = 120 * accountsCount;
+        regenPphEl.textContent = formatSpaces(regen);
+        saveLatestTotals({ charges: totalCurrent, max: totalMax, droplets: totalDroplets, regen });
+    }
 
-    // merge colorReport into COLORS_CACHE and update labels
+
     try {
         const nowTs = Date.now();
         const byId = new Map((COLORS_CACHE?.report || []).map(r => [String(r.userId), r]));
@@ -1516,6 +1681,18 @@ buyMaxUpgradesAll?.addEventListener("click", () => {
             try {
                 buyMaxUpgradesAll.disabled = true;
                 buyMaxUpgradesAll.innerHTML = "Processing...";
+
+
+                window.__bm_timer = setInterval(async () => {
+                    try {
+                        const { data } = await axios.get('/users/buy-max-upgrades/progress');
+                        const total = data?.total || 0;
+                        const completed = data?.completed || 0;
+                        if (data?.active && total > 0) {
+                            buyMaxUpgradesAll.innerHTML = `Processing... ${completed}/${total}`;
+                        }
+                    } catch (_) { }
+                }, 500);
 
                 const { data } = await axios.post("/users/buy-max-upgrades", {});
                 const rep = data?.report || [];
@@ -1547,6 +1724,7 @@ buyMaxUpgradesAll?.addEventListener("click", () => {
             } finally {
                 buyMaxUpgradesAll.disabled = false;
                 buyMaxUpgradesAll.innerHTML = '<img src="icons/playAll.svg" alt=""/> Buy Max Charge Upgrades (All)';
+                try { const t = window.__bm_timer; if (t) clearInterval(t); window.__bm_timer = null; } catch (_) { }
             }
         }
     );
@@ -1565,6 +1743,7 @@ showLatestInfo.addEventListener("click", () => {
 
     let sumCharges = 0;
     let sumMax = 0;
+    let sumDroplets = 0;
     let touched = false;
 
     userElements.forEach(userEl => {
@@ -1582,17 +1761,25 @@ showLatestInfo.addEventListener("click", () => {
         if (maxChargesEl) maxChargesEl.textContent = s.max;
         if (currentLevelEl) currentLevelEl.textContent = s.level;
         if (levelProgressEl) levelProgressEl.textContent = `(${s.progress}%)`;
-        if (currentDroplets) currentDroplets.textContent = s.droplets;
+        if (currentDroplets) currentDroplets.textContent = formatSpaces(s.droplets);
 
         sumCharges += Math.floor(s.charges);
         sumMax += Math.floor(s.max);
+        sumDroplets += Number(s.droplets) || 0;
         touched = true;
     });
 
     if (touched) {
-        if (totalCharges) totalCharges.textContent = String(sumCharges);
-        if (totalMaxCharges) totalMaxCharges.textContent = String(sumMax);
-        // Update "Last Check" label in Manage Users
+        if (totalCharges) totalCharges.textContent = formatSpaces(sumCharges);
+        if (totalMaxCharges) totalMaxCharges.textContent = formatSpaces(sumMax);
+        if (totalDropletsEl) totalDropletsEl.textContent = formatSpaces(sumDroplets);
+        if (regenPphEl) {
+            const accountsCount = Object.keys(LAST_USER_STATUS || {}).length;
+            const regen = 120 * accountsCount;
+            regenPphEl.textContent = formatSpaces(regen);
+            saveLatestTotals({ charges: sumCharges, max: sumMax, droplets: sumDroplets, regen });
+        }
+
         try {
             if (usersColorsLastCheckLabel) {
                 const ts = (typeof COLORS_CACHE?.ts === 'number') ? COLORS_CACHE.ts : Date.now();
@@ -1608,7 +1795,7 @@ showLatestInfo.addEventListener("click", () => {
 openAddTemplate.addEventListener("click", () => {
     resetTemplateForm();
     userSelectList.innerHTML = "";
-    // toolbar with sort; label + toolbar are placed in one flex row
+
     const toolbarId = 'userSelectToolbar';
     let toolbar = document.getElementById(toolbarId);
     if (!toolbar) {
@@ -1626,7 +1813,7 @@ openAddTemplate.addEventListener("click", () => {
         toolbar.append(right);
     }
 
-    // Ensure (As of ...) span exists inside the existing Users label in HTML
+
     const usersLabel = document.querySelector('label[for="userSelectList"]');
     if (usersLabel) {
         let asOf = usersLabel.querySelector('#usersDataAsOfLabel');
@@ -1638,7 +1825,7 @@ openAddTemplate.addEventListener("click", () => {
         }
     }
 
-    // Place label and toolbar into one flex row container
+
     const parentField = userSelectList.parentElement;
     if (usersLabel && toolbar && parentField) {
         let headerRow = document.getElementById('userUsersHeaderRow');
@@ -1646,7 +1833,7 @@ openAddTemplate.addEventListener("click", () => {
             headerRow = document.createElement('div');
             headerRow.id = 'userUsersHeaderRow';
             headerRow.style.cssText = 'display:flex; align-items:end; justify-content:space-between; gap:8px; margin:6px 0px;';
-            // insert above the list (before label)
+
             parentField.insertBefore(headerRow, usersLabel);
         }
         if (usersLabel.parentElement !== headerRow) headerRow.appendChild(usersLabel);
@@ -1708,7 +1895,7 @@ openAddTemplate.addEventListener("click", () => {
         const req = computeRequiredPremiumSet();
         const entries = Object.keys(usersObj).map(id => {
             const u = info[id];
-            // priority metric: count of owned required premium
+
             let ownedCount = 0; const ownedList = [];
             const bm = u.bitmap | 0;
             for (const cid of req) { if ((bm & (1 << (cid - 32))) !== 0) { ownedCount++; ownedList.push(cid); } }
@@ -1756,12 +1943,25 @@ openAddTemplate.addEventListener("click", () => {
         }
         setAsOfLabel();
         const selInit = document.getElementById('userSortMode');
-        if (selInit) selInit.value = 'droplets';
+        if (selInit) {
+            selInit.value = (Array.isArray(pendingUserSelection) && pendingUserSelection.length)
+                ? 'priority'
+                : 'droplets';
+        }
         applySort(users);
+
         const sel = document.getElementById('userSortMode');
         if (sel && !sel._bound) {
             sel.addEventListener('change', () => applySort(users));
             sel._bound = true;
+        }
+        if (usePaidColors && !usePaidColors._boundForUserSort) {
+            usePaidColors.addEventListener('change', () => {
+                const sel = document.getElementById('userSortMode');
+                if (sel) sel.value = 'priority';
+                applySort(users);
+            });
+            usePaidColors._boundForUserSort = true;
         }
         pendingUserSelection = null;
     });
@@ -1804,7 +2004,7 @@ let createToggleButton = (template, id, buttonsContainer, statusSpan) => {
             template.running = !isRunning;
             const newButton = createToggleButton(template, id, buttonsContainer, statusSpan);
             button.replaceWith(newButton);
-            // statusSpan.textContent = `Status: ${!isRunning ? 'Started' : 'Stopped'}`;
+
         } catch (error) {
             handleError(error);
         }
@@ -1812,7 +2012,7 @@ let createToggleButton = (template, id, buttonsContainer, statusSpan) => {
     return button;
 };
 
-// live update progress
+
 const updateTemplateStatus = async () => {
     try {
         const { data: templates } = await axios.get("/templates");
@@ -1858,7 +2058,12 @@ openManageTemplates.addEventListener("click", () => {
 
     loadUsers(users => {
         loadTemplates(templates => {
-            for (const id of Object.keys(templates)) {
+            const pinned = new Set(getPinned().map(String));
+            const ids = Object.keys(templates);
+            const pinnedIds = ids.filter(id => pinned.has(id));
+            const otherIds = ids.filter(id => !pinned.has(id));
+            const ordered = [...pinnedIds, ...otherIds];
+            for (const id of ordered) {
                 const t = templates[id];
 
                 const template = document.createElement('div');
@@ -1910,7 +2115,7 @@ openManageTemplates.addEventListener("click", () => {
 
                 const meta = document.createElement('div');
                 meta.className = 't-meta';
-                // Palette line (Basic/Premium)
+
                 const hasPremium = (() => {
                     try {
                         const tpl = t.template; if (!tpl?.data) return false;
@@ -1924,7 +2129,7 @@ openManageTemplates.addEventListener("click", () => {
                 })();
                 const paletteLine = `<div><span class="t-templates-enabled">Palette:</span> <span class="${hasPremium ? 'premium' : 'basic'}">${hasPremium ? 'Premium' : 'Basic'}</span></div>`;
 
-                // Enabled features line
+
                 const enabled = [];
                 if (t.canBuyCharges) enabled.push('Buy charges');
                 if (t.canBuyMaxCharges) enabled.push('Buy max charges');
@@ -1981,14 +2186,34 @@ openManageTemplates.addEventListener("click", () => {
                 const buttonsRow = document.createElement('div');
                 buttonsRow.className = "template-actions-row";
 
+                const pinBtn = document.createElement('button');
+                pinBtn.className = 'secondary-button button-templates';
+                const pinnedNow = pinned.has(id);
+                pinBtn.innerHTML = pinnedNow ? '<img src="icons/pin.svg">Unpin' : '<img src="icons/pin.svg">Pin';
+                pinBtn.addEventListener('click', () => {
+                    const curr = new Set(getPinned().map(String));
+                    if (curr.has(id)) curr.delete(id); else curr.add(id);
+                    savePinned(Array.from(curr));
+                    openManageTemplates.click();
+                });
+
                 const toggleButton = createToggleButton(t, id, buttonsRow, infoSpan.querySelector('.status-text'));
                 buttonsRow.appendChild(toggleButton);
 
-                // Preview
+
                 const previewButton = document.createElement('button');
                 previewButton.className = 'secondary-button button-templates';
                 previewButton.innerHTML = '<img src="icons/eye.svg">Preview';
-                previewButton.addEventListener('click', () => showManageTemplatePreview(t));
+                previewButton.addEventListener('click', async () => {
+                    try {
+                        previewButton.disabled = true;
+                        previewButton.innerHTML = '<img src="icons/eye.svg">Loading...';
+                        await showManageTemplatePreview(t);
+                    } finally {
+                        previewButton.disabled = false;
+                        previewButton.innerHTML = '<img src="icons/eye.svg">Preview';
+                    }
+                });
                 buttonsRow.appendChild(previewButton);
 
                 const editButton = document.createElement('button');
@@ -2010,7 +2235,7 @@ openManageTemplates.addEventListener("click", () => {
                     antiGriefMode.checked = t.antiGriefMode;
                     paintTransparent.checked = !!t.paintTransparentPixels;
 
-                    // enforce exclusivity on load
+
                     if (autoBuyNeededColors?.checked) { canBuyCharges.checked = false; canBuyMaxCharges.checked = false; }
                     if (canBuyCharges.checked) { canBuyMaxCharges.checked = false; if (autoBuyNeededColors) autoBuyNeededColors.checked = false; }
                     if (canBuyMaxCharges.checked) { canBuyCharges.checked = false; if (autoBuyNeededColors) autoBuyNeededColors.checked = false; }
@@ -2042,11 +2267,11 @@ openManageTemplates.addEventListener("click", () => {
                     );
                 });
 
-                buttonsRow.append(editButton, delButton);
+                buttonsRow.append(pinBtn, editButton, delButton);
                 actions.appendChild(buttonsRow);
 
                 infoSpan.appendChild(actions);
-                templateList.append(template);
+                if (pinned.has(id)) templateList.prepend(template); else templateList.append(template);
             }
             templateUpdateInterval = setInterval(updateTemplateStatus, 2000);
         });
@@ -2063,7 +2288,7 @@ openSettings.addEventListener("click", async () => {
         const response = await axios.get('/settings');
         const currentSettings = response.data;
 
-        // set mode preview selection (cards)
+
         setModeSelectionUI(currentSettings.drawingMethod);
 
         turnstileNotifications.checked = currentSettings.turnstileNotifications;
@@ -2080,9 +2305,9 @@ openSettings.addEventListener("click", async () => {
         }
         seedCountHidden.value = currentSettings.seedCount ?? 2;
         window.BURST_SEED_COUNT = currentSettings.seedCount ?? 2;
-        // Show/hide the threshold input depending on the toggle
+
         chargeThresholdContainer.style.display = alwaysDrawOnCharge.checked ? 'none' : 'block';
-        // init preview speed (local)
+
         const speed0 = parseFloat(localStorage.getItem('wplacer_preview_speed') || '1');
         if (previewSpeed) {
             previewSpeed.value = speed0;
@@ -2096,13 +2321,23 @@ openSettings.addEventListener("click", async () => {
         proxyCount.textContent = String(currentSettings.proxyCount ?? 0);
         proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
 
+
+        try {
+            const cdTurn = parseInt(accountCooldown.value, 10) || 0;
+            const cdCheck = parseInt(accountCheckCooldown.value, 10) || 0;
+            const cdPurchase = parseInt(purchaseCooldown.value, 10) || 0;
+            if (!proxyEnabled.checked && (cdTurn === 0 || cdCheck === 0 || cdPurchase === 0)) {
+                showMessage("Warning", "One of cooldowns is 0 while proxies are disabled. This may cause rate limiting or blocks.");
+            }
+        } catch (_) { }
+
     } catch (error) {
         handleError(error);
     }
     changeTab(settings);
 });
 
-// helper: set UI selection for modes
+
 function setModeSelectionUI(method) {
     document.querySelectorAll('.mode-card').forEach(card => {
         const mode = card.dataset.mode;
@@ -2111,7 +2346,7 @@ function setModeSelectionUI(method) {
     });
 }
 
-// handle clicks on mode cards
+
 document.addEventListener('click', async (e) => {
     const card = e.target.closest('.mode-card');
     if (!card || !card.dataset.mode) return;
@@ -2130,7 +2365,7 @@ document.addEventListener('click', async (e) => {
 });
 
 
-// sync the hidden seedCount (in settings card) as well
+
 if (seedCountHidden) {
     seedCountHidden.addEventListener('change', async () => {
         try {
@@ -2152,7 +2387,7 @@ if (seedCountHidden) {
 }
 
 
-// Settings change events (remaining handlers — mostly unchanged)
+
 turnstileNotifications.addEventListener('change', async () => {
     try {
         await axios.put('/settings', { turnstileNotifications: turnstileNotifications.checked });
@@ -2170,7 +2405,14 @@ accountCooldown.addEventListener('change', async () => {
             return;
         }
         await axios.put('/settings', { accountCooldown: newCooldown });
-        showMessage("Success", "Account cooldown saved!");
+        const cdTurn = parseInt(accountCooldown.value, 10) || 0;
+        const cdCheck = parseInt(accountCheckCooldown.value, 10) || 0;
+        const cdPurchase = parseInt(purchaseCooldown.value, 10) || 0;
+        if (!proxyEnabled.checked && (cdTurn === 0 || cdCheck === 0 || cdPurchase === 0)) {
+            showMessage("Warning", "One of cooldowns is 0 while proxies are disabled.  This may cause rate limiting or blocks.");
+        } else {
+            showMessage("Success", "Account check cooldown saved!");
+        }
     } catch (error) {
         handleError(error);
     }
@@ -2184,7 +2426,14 @@ purchaseCooldown.addEventListener('change', async () => {
             return;
         }
         await axios.put('/settings', { purchaseCooldown: newCooldown });
-        showMessage("Success", "Purchase cooldown saved!");
+        const cdTurn = parseInt(accountCooldown.value, 10) || 0;
+        const cdCheck = parseInt(accountCheckCooldown.value, 10) || 0;
+        const cdPurchase = parseInt(purchaseCooldown.value, 10) || 0;
+        if (!proxyEnabled.checked && (cdTurn === 0 || cdCheck === 0 || cdPurchase === 0)) {
+            showMessage("Warning", "One of cooldowns is 0 while proxies are disabled.  This may cause rate limiting or blocks.");
+        } else {
+            showMessage("Success", "Purchase cooldown saved!");
+        }
     } catch (error) {
         handleError(error);
     }
@@ -2198,7 +2447,14 @@ accountCheckCooldown.addEventListener('change', async () => {
             return;
         }
         await axios.put('/settings', { accountCheckCooldown: v });
-        showMessage("Success", "Account check cooldown saved!");
+        const cdTurn = parseInt(accountCooldown.value, 10) || 0;
+        const cdCheck = parseInt(accountCheckCooldown.value, 10) || 0;
+        const cdPurchase = parseInt(purchaseCooldown.value, 10) || 0;
+        if (!proxyEnabled.checked && (cdTurn === 0 || cdCheck === 0 || cdPurchase === 0)) {
+            showMessage("Warning", "One of cooldowns is 0 while proxies are disabled.  This may cause rate limiting or blocks.");
+        } else {
+            showMessage("Success", "Account check cooldown saved!");
+        }
     } catch (error) {
         handleError(error);
     }
@@ -2246,19 +2502,19 @@ chargeThreshold.addEventListener('change', async () => {
     }
 });
 
-// alwaysDrawOnCharge toggle
+
 alwaysDrawOnCharge.addEventListener('change', async () => {
     try {
         await axios.put('/settings', { alwaysDrawOnCharge: alwaysDrawOnCharge.checked });
         showMessage("Success", "Always-draw-on-charge setting saved!");
-        // Hide the threshold input if immediate-draw is enabled, show otherwise
+
         chargeThresholdContainer.style.display = alwaysDrawOnCharge.checked ? 'none' : 'block';
     } catch (error) {
         handleError(error);
     }
 });
 
-// maxPixelsPerPass change
+
 maxPixelsPerPass?.addEventListener('change', async () => {
     try {
         const raw = parseInt(maxPixelsPerPass.value, 10);
@@ -2271,21 +2527,21 @@ maxPixelsPerPass?.addEventListener('change', async () => {
     }
 });
 
-// tx parsing helpers
-tx.addEventListener('blur', () => {
+
+const parseTxInput = () => {
     const raw = (tx.value || '').trim();
 
-    // 1) URL format .../pixel/{tx}/{ty}?x={px}&y={py}
+
     const urlMatch = raw.match(/pixel\/(\d+)\/(\d+)\?x=(\d+)&y=(\d+)/i);
     if (urlMatch) {
         tx.value = urlMatch[1];
         ty.value = urlMatch[2];
         px.value = urlMatch[3];
         py.value = urlMatch[4];
-        return;
+        return true;
     }
 
-    // 2) Labeled format: (Tl X: XXXX, Tl Y: XXXX, Px X: XXX, Px Y: XXX)
+
     const cleaned = raw.replace(/[()]/g, '');
     const labeledMatch = cleaned.match(
         /Tl\s*X\s*:\s*(\d+)\s*,?\s*Tl\s*Y\s*:\s*(\d+)\s*,?\s*Px\s*X\s*:\s*(\d+)\s*,?\s*Px\s*Y\s*:\s*(\d+)/i
@@ -2295,17 +2551,25 @@ tx.addEventListener('blur', () => {
         ty.value = labeledMatch[2];
         px.value = labeledMatch[3];
         py.value = labeledMatch[4];
-        return;
+        return true;
     }
 
-    // 3) Four numbers separated by non-digits
+
     const nums = cleaned.match(/\d+/g);
     if (nums && nums.length >= 4) {
         [tx.value, ty.value, px.value, py.value] = nums.slice(0, 4);
+        return true;
     } else {
-        // fallback: strip non-digits
+
         tx.value = raw.replace(/[^0-9]/g, '');
     }
+    return false;
+};
+
+tx.addEventListener('blur', parseTxInput);
+tx.addEventListener('paste', (e) => {
+
+    setTimeout(parseTxInput, 0);
 });
 
 [ty, px, py].forEach(input => {
@@ -2314,7 +2578,7 @@ tx.addEventListener('blur', () => {
     });
 });
 
-/// ===== Active templates bar (unchanged) =====
+
 const activeTemplatesBar = $("activeTemplatesBar");
 const activeTemplatesBarContent = $("activeTemplatesBarContent");
 
@@ -2439,7 +2703,7 @@ openManageTemplates.addEventListener("click", () => setTimeout(refreshActiveBar,
 document.addEventListener("DOMContentLoaded", refreshActiveBar);
 
 
-///// ==== Mode previews — MULTI SCENES with thumbnails (uses window.BURST_SEED_COUNT) ====
+
 const MODE_PREVIEW = (() => {
     // ---------- helpers ----------
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -3155,12 +3419,39 @@ const MODE_PREVIEW = (() => {
     return { start, stopAll, drawReference, setScene, ensureUI, drawThumb, redrawThumbs, setSpeed };
 })();
 
+// Open changelog on demand
+openChangelog?.addEventListener('click', async () => {
+    try {
+        const [{ data: vers }, ch] = await Promise.all([
+            axios.get('/version'),
+            axios.get('/changelog')
+        ]);
+        let changelog = '';
+        try {
+            const content = (ch.data?.local || '').trim();
+            if (content) {
+                const mdHtml = renderMarkdown(content);
+                changelog = `<div style="max-height:40vh; overflow:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background: rgba(255,255,255,.04); text-align: left;">${mdHtml}</div>`;
+            }
+        } catch (_) { }
+        const html = `<b>Current version</b> ${vers?.local || '?'}<br><br>${changelog || 'No changelog available.'}`;
+        showMessageBig('Changelog', html);
+    } catch (error) {
+        handleError(error);
+    }
+});
+
 // --- Proxy toggles & actions ---
 proxyEnabled?.addEventListener('change', async () => {
     try {
         await axios.put('/settings', { proxyEnabled: proxyEnabled.checked });
         proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
-        showMessage("Success", "Proxy setting saved!");
+        const cdSec = parseInt(accountCooldown.value, 10) || 0;
+        if (!proxyEnabled.checked && cdSec === 0) {
+            showMessage("Warning", "Account cooldown is 0 while proxies are disabled. This may cause rate limiting or blocks.");
+        } else {
+            showMessage("Success", "Proxy setting saved!");
+        }
     } catch (error) { handleError(error); }
 });
 
@@ -3437,17 +3728,41 @@ function fillEditorFromTemplate(t) {
     };
 
     apply(usePaidColors && usePaidColors.checked ? paidVariant : basicVariant);
+    resortUsersAfterPalette();
+
+    const selInit = document.getElementById('userSortMode');
+    if (selInit) {
+        selInit.value = 'priority';
+        selInit.dispatchEvent(new Event('change', { bubbles: true }));
+    }
 
     // === 5) Toggle while editing — just apply needed variant ===
     if (usePaidColors) {
         usePaidColors.__editHandler = () => {
             apply(usePaidColors.checked ? paidVariant : basicVariant);
+            requestAnimationFrame(() => {
+                const sel = document.getElementById('userSortMode');
+                if (sel) { sel.value = 'priority'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+            });
         };
         usePaidColors.addEventListener('change', usePaidColors.__editHandler);
     }
+
 }
 
-
+function resortUsersAfterPalette(maxTries = 40, delay = 50) {
+    let tries = 0;
+    (function tick() {
+      const sel = document.getElementById('userSortMode');
+      if (sel && sel._bound) {
+        sel.value = 'priority';
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        return;
+      }
+      if (++tries < maxTries) setTimeout(tick, delay);
+    })();
+  }
+  
 
 // colorsManager
 const colorsManager = $("colorsManager");
@@ -3686,9 +4001,24 @@ purchaseColorBtn?.addEventListener('click', async () => {
         return;
     }
 
+    let timer = null;
     try {
         purchaseColorBtn.disabled = true;
         purchaseColorBtn.textContent = "Processing...";
+
+        // progress polling like in Colors Check (All)
+        const updateProgress = async () => {
+            try {
+                const { data } = await axios.get('/users/purchase-color/progress');
+                const total = data?.total || 0;
+                const completed = data?.completed || 0;
+                if (data?.active && total > 0) {
+                    purchaseColorBtn.textContent = `Processing... ${completed}/${total}`;
+                }
+            } catch (_) { /* ignore */ }
+        };
+        timer = setInterval(updateProgress, 500);
+        updateProgress().catch(() => { });
 
         const { data } = await axios.post('/users/purchase-color', {
             colorId,
@@ -3745,6 +4075,7 @@ purchaseColorBtn?.addEventListener('click', async () => {
     } catch (error) {
         handleError(error);
     } finally {
+        if (timer) clearInterval(timer);
         purchaseColorBtn.disabled = false;
         purchaseColorBtn.textContent = "Attempt to Buy for Selected";
     }

@@ -73,7 +73,7 @@
                 <span>Manage Templates</span>
             </button>
             <button class="nav-btn" onclick="changeTab(colorsManager)">
-                <img src="icons/manageTemplates.svg" alt="" />
+                <img src="icons/palette.svg" alt="" />
                 <span>Colors</span>
             </button>
             <button class="nav-btn" onclick="document.getElementById('openSettings').click()">
@@ -125,6 +125,14 @@
                                 <div class="qa-label">
                                     <span>Settings</span>
                                     <small>Modes, cooldowns</small>
+                                </div>
+                            </button>
+
+                            <button id="openChangelog" class="primary-button card-button">
+                                <img src="icons/code.svg" alt="" />
+                                <div class="qa-label">
+                                    <span>Changelog</span>
+                                    <small>What’s new</small>
                                 </div>
                             </button>
                         </div>
@@ -184,6 +192,8 @@
                         <div class="summary-line">
                             <span><b>Total Available Charges:</b> <span id="totalCharges">?</span></span>
                             <span><b>Total Max Charges:</b> <span id="totalMaxCharges">?</span></span>
+                            <span><b>Total Droplets:</b> <span id="totalDroplets">?</span></span>
+                            <span><b>Regen Speed:</b> <span id="regenPph">?</span> px/h</span>
                         </div>
                     </div>
 
