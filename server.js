@@ -25,6 +25,19 @@ const log = async (id, name, data, error) => {
   }
 };
 
+// Pixel logs (for heatmap)
+const pixelLogsPath = path.join(dataDir, "pixel_logs.jsonl");
+if (!existsSync(pixelLogsPath)) {
+  try { writeFileSync(pixelLogsPath, ""); } catch (_) {}
+}
+const appendPixelLogs = (entries) => {
+  try {
+    if (!entries || !entries.length) return;
+    const lines = entries.map((e) => JSON.stringify(e)).join("\n") + "\n";
+    appendFileSync(pixelLogsPath, lines);
+  } catch (_) {}
+};
+
 const duration = (durationMs) => {
   if (durationMs <= 0) return "0s";
   const totalSeconds = Math.floor(durationMs / 1000);
@@ -961,6 +974,35 @@ class WPlacer {
         const result = await this._executePaint(tx, ty, body);
         if (result.success) {
           totalPainted += result.painted;
+          // append pixel logs for heatmap
+          try {
+            const now = Date.now();
+            const [sx, sy, spx, spy] = this.coords;
+            const coords = body.coords;
+            const colors = body.colors;
+            const entries = [];
+            for (let i = 0; i < colors.length; i++) {
+              const lp = i * 2;
+              const localPx = coords[lp];
+              const localPy = coords[lp + 1];
+              const gx = tx * 1000 + localPx;
+              const gy = ty * 1000 + localPy;
+              const relX = gx - (sx * 1000 + spx);
+              const relY = gy - (sy * 1000 + spy);
+              entries.push({
+                ts: now,
+                templateName: this.templateName,
+                userId: this.userInfo?.id,
+                userName: this.userInfo?.name,
+                color: colors[i],
+                gx,
+                gy,
+                relX,
+                relY
+              });
+            }
+            appendPixelLogs(entries);
+          } catch (_) {}
         } else {
           // token refresh or temp error — let caller handle
           needsRetry = true;
@@ -1202,20 +1244,6 @@ const TokenManager = {
       this.tokenPromise = new Promise((resolve) => {
         this.resolvePromise = resolve;
       });
-      // Notify UI if token not received within 60s
-      const startedAt = Date.now();
-      const checkTimer = setInterval(() => {
-        try {
-          if (!this.tokenPromise) { clearInterval(checkTimer); return; }
-          const waitedMs = Date.now() - startedAt;
-          if (waitedMs >= 60_000) {
-            clearInterval(checkTimer);
-            try {
-              log("SYSTEM", "wplacer", "TURNSTILE: Possible token acquisition issue (>60s). Ask clients to reload extension and restart the browser. Likely [Cloudflare Turnstile] Error: 300030.");
-            } catch {}
-          }
-        } catch { clearInterval(checkTimer); }
-      }, 5_000);
     }
     return this.tokenPromise;
   },
@@ -2676,6 +2704,34 @@ app.get("/canvas", async (req, res) => {
     res.json({ image: `data:image/png;base64,${buffer.toString("base64")}` });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// --- API: heatmap pixel logs ---
+// Returns last X entries for specified template name (optional) within its relative bounding box
+// Query: id (template name, optional), limit (default 2000, max 20000)
+app.get("/heatmap", async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(20000, parseInt(req.query.limit, 10) || 2000));
+    const id = (req.query.id ? String(req.query.id) : "").trim();
+
+    // Fast path: read the end of file. Since file is JSONL, we can read last ~N lines.
+    const raw = readFileSync(pixelLogsPath, "utf8");
+    if (!raw) return res.json({ entries: [] });
+    const lines = raw.trim().split(/\r?\n/);
+    const out = [];
+    for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
+      const line = lines[i];
+      if (!line) continue;
+      try {
+        const obj = JSON.parse(line);
+        if (id && obj.templateName !== id) continue;
+        out.push(obj);
+      } catch (_) { }
+    }
+    res.json({ entries: out.reverse() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

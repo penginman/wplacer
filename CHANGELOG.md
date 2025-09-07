@@ -1,3 +1,8 @@
+## Changelog v4.2.0
+- Trying to fix token issue
+- Heatmap preview added
+
+
 ## Changelog v4.1.9
 - Fixed cooldown handling so settings-based delays are respected between all parallel requests (cache warm-up, keep-alive, colors check, purchases) both with and without proxies, and added a proxy concurrency setting to control the number of parallel workers (except drawing).
 - Active bar: added per-template Preview button and progress bar.

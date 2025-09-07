@@ -566,7 +566,30 @@ function ensureMtPreviewOverlay() {
         background: var(--bg-2); border:1px solid var(--border); color:#ddd; padding:6px 10px; border-radius:6px; cursor:pointer;
     `;
 
-    bottomControls.append(btnOverlay, btnMismatch);
+    const btnHeatmap = document.createElement('button');
+    btnHeatmap.id = 'mtToggleHeatmap';
+    btnHeatmap.type = 'button';
+    btnHeatmap.textContent = 'Show heatmap';
+    btnHeatmap.style.cssText = `
+        background: var(--bg-2); border:1px solid var(--border); color:#ddd; padding:6px 10px; border-radius:6px; cursor:pointer;
+    `;
+
+    const heatmapLimitWrap = document.createElement('div');
+    heatmapLimitWrap.style.cssText = 'display:flex; align-items:center; gap:6px; color:#ddd; font-size:12px;';
+    const heatmapLimitLabel = document.createElement('label');
+    heatmapLimitLabel.setAttribute('for', 'mtHeatmapLimit');
+    heatmapLimitLabel.style.cssText = 'margin:0px;';
+    heatmapLimitLabel.textContent = 'Last X:';
+    const heatmapLimitInput = document.createElement('input');
+    heatmapLimitInput.type = 'number';
+    heatmapLimitInput.id = 'mtHeatmapLimit';
+    heatmapLimitInput.min = '1';
+    heatmapLimitInput.max = '20000';
+    heatmapLimitInput.value = String(parseInt(localStorage.getItem('wplacer_heatmap_limit') || '3000', 10));
+    heatmapLimitInput.style.cssText = 'width:88px; background: var(--bg-2); color:#ddd; border:1px solid var(--border); border-radius:6px; padding:4px 6px;';
+    heatmapLimitWrap.append(heatmapLimitLabel, heatmapLimitInput);
+
+    bottomControls.append(btnOverlay, btnMismatch, btnHeatmap, heatmapLimitWrap);
 
     const stats = document.createElement('div');
     stats.id = 'mtPreviewStats';
@@ -608,6 +631,8 @@ async function showManageTemplatePreview(t) {
     const statsEl = document.getElementById('mtPreviewStats');
     const btnOverlay = document.getElementById('mtToggleOverlay');
     const btnMismatch = document.getElementById('mtToggleMismatch');
+    const btnHeatmap = document.getElementById('mtToggleHeatmap');
+    const heatmapLimitInput = document.getElementById('mtHeatmapLimit');
     titleEl.textContent = `Preview: ${t.name}`;
 
     const RID = ++MT_PREVIEW_RENDER_ID;
@@ -792,7 +817,9 @@ async function showManageTemplatePreview(t) {
         viewStartY: 0,
         showOverlay: true,
         highlightMismatch: false,
-        paintTransparent: !!t.paintTransparentPixels
+        paintTransparent: !!t.paintTransparentPixels,
+        showHeatmap: false,
+        heatmapEntries: null
     };
 
     function drawOverlayMiniFit() {
@@ -898,8 +925,56 @@ async function showManageTemplatePreview(t) {
         }
     }
 
+    function drawHeatmapFit() {
+        if (!STATE.showHeatmap || !Array.isArray(STATE.heatmapEntries)) return;
+        pctx.save();
+        pctx.globalCompositeOperation = 'source-over';
+        const entries = STATE.heatmapEntries;
+        const n = entries.length;
+        for (let i = 0; i < n; i++) {
+            const e = entries[i];
+            const ratio = n > 1 ? (i / (n - 1)) : 1;
+            const a = Math.max(0.1, Math.min(1, 0.1 + 0.9 * ratio));
+            const dx = Math.floor(e.relX) * STATE.SCALE;
+            const dy = Math.floor(e.relY) * STATE.SCALE;
+            pctx.fillStyle = 'rgb(255,0,0)';
+            pctx.globalAlpha = a;
+            pctx.fillRect(dx, dy, STATE.SCALE, STATE.SCALE);
+        }
+        pctx.globalAlpha = 1;
+        pctx.restore();
+    }
+
+    function drawHeatmapZoom(sx, sy, vw, vh, cellW, cellH) {
+        if (!STATE.showHeatmap || !Array.isArray(STATE.heatmapEntries)) return;
+        pctx.save();
+        pctx.globalCompositeOperation = 'source-over';
+        const entries = STATE.heatmapEntries;
+        const n = entries.length;
+        for (let i = 0; i < n; i++) {
+            const e = entries[i];
+            const x = e.relX, y = e.relY;
+            if (x < sx || y < sy || x >= sx + vw || y >= sy + vh) continue;
+            const ratio = n > 1 ? (i / (n - 1)) : 1;
+            const a = Math.max(0.1, Math.min(1, 0.1 + 0.9 * ratio));
+            const cx = (x - sx) * cellW;
+            const cy = (y - sy) * cellH;
+            pctx.fillStyle = 'rgb(255,0,0)';
+            pctx.globalAlpha = a;
+            pctx.fillRect(Math.floor(cx), Math.floor(cy), Math.ceil(cellW), Math.ceil(cellH));
+        }
+        pctx.globalAlpha = 1;
+        pctx.restore();
+    }
+
     function drawFit() {
         pctx.clearRect(0, 0, preview.width, preview.height);
+        if (STATE.showHeatmap) {
+            pctx.fillStyle = '#000';
+            pctx.fillRect(0, 0, preview.width, preview.height);
+            drawHeatmapFit();
+            return;
+        }
         pctx.drawImage(STATE.buffer, 0, 0, STATE.w, STATE.h, 0, 0, preview.width, preview.height);
         if (STATE.highlightMismatch) drawOverlayRedFit();
         else if (STATE.showOverlay) drawOverlayMiniFit();
@@ -918,8 +993,13 @@ async function showManageTemplatePreview(t) {
         const sy = Math.floor(STATE.viewY);
 
         pctx.clearRect(0, 0, preview.width, preview.height);
+        if (STATE.showHeatmap) {
+            pctx.fillStyle = '#000';
+            pctx.fillRect(0, 0, preview.width, preview.height);
+            drawHeatmapZoom(sx, sy, vw, vh, cellW, cellH);
+            return;
+        }
         pctx.drawImage(STATE.buffer, sx, sy, vw, vh, 0, 0, preview.width, preview.height);
-
         if (STATE.highlightMismatch) drawOverlayRedZoom(sx, sy, vw, vh, cellW, cellH);
         else if (STATE.showOverlay) drawOverlayMiniZoom(sx, sy, vw, vh, cellW, cellH);
     }
@@ -1015,10 +1095,38 @@ async function showManageTemplatePreview(t) {
     function updateButtons() {
         btnOverlay.textContent = STATE.showOverlay ? 'Hide template overlay' : 'Show template overlay';
         btnMismatch.textContent = STATE.highlightMismatch ? 'Hide mismatches highlight' : 'Highlight mismatches';
+        if (btnHeatmap) btnHeatmap.textContent = STATE.showHeatmap ? 'Hide heatmap' : 'Show heatmap';
     }
 
     btnOverlay.onclick = () => { STATE.showOverlay = !STATE.showOverlay; updateButtons(); render(); };
     btnMismatch.onclick = () => { STATE.highlightMismatch = !STATE.highlightMismatch; updateButtons(); render(); };
+    if (btnHeatmap) btnHeatmap.onclick = async () => {
+        STATE.showHeatmap = !STATE.showHeatmap;
+        if (STATE.showHeatmap && !STATE.heatmapEntries) {
+            try {
+                const limit = parseInt(localStorage.getItem('wplacer_heatmap_limit') || '3000', 10);
+                const { data } = await axios.get('/heatmap', { params: { id: t.name, limit } });
+                STATE.heatmapEntries = Array.isArray(data?.entries) ? data.entries : [];
+            } catch (_) { STATE.heatmapEntries = []; }
+        }
+        try { preview.style.background = STATE.showHeatmap ? '#000' : '#f8f4f0'; } catch (_) {}
+        updateButtons();
+        render();
+    };
+
+    if (heatmapLimitInput) heatmapLimitInput.addEventListener('change', async () => {
+        let v = parseInt(heatmapLimitInput.value, 10);
+        if (!Number.isFinite(v) || v < 1) v = 1; if (v > 20000) v = 20000;
+        heatmapLimitInput.value = String(v);
+        localStorage.setItem('wplacer_heatmap_limit', String(v));
+        if (STATE.showHeatmap) {
+            try {
+                const { data } = await axios.get('/heatmap', { params: { id: t.name, limit: v } });
+                STATE.heatmapEntries = Array.isArray(data?.entries) ? data.entries : [];
+            } catch (_) { STATE.heatmapEntries = []; }
+            render();
+        }
+    });
 
     updateButtons();
     render();
