@@ -189,11 +189,13 @@
                     </div>
 
                     <div id="chargeSummary" class="summary">
-                        <div class="summary-line">
-                            <span><b>Total Available Charges:</b> <span id="totalCharges">?</span></span>
-                            <span><b>Total Max Charges:</b> <span id="totalMaxCharges">?</span></span>
-                            <span><b>Total Droplets:</b> <span id="totalDroplets">?</span></span>
-                            <span><b>Regen Speed:</b> <span id="regenPph">?</span> px/h</span>
+                        <div class="exist-users-summary-line">
+                            <span class="exist-users-info-section"><b>Total Charges:</b> <span
+                                    id="totalCharges">?</span> px /<span id="totalMaxCharges">?</span> px</span>
+                            <span class="exist-users-info-section"><b>Regen Speed:</b> <span id="regenPph">?</span>
+                                px/h</span>
+                            <span class="exist-users-info-section"><b>Total Droplets:</b> <span
+                                    id="totalDroplets">?</span></span>
                         </div>
                     </div>
 
@@ -238,7 +240,8 @@
                                     <label class="label-margin0">Image palette</label>
                                     <small class="help">Used colors and pixel counts. Basic: ID 0–31, Premium:
                                         32–63.</small>
-                                    <small class="help" id="editTmpltMsg" style="display: none;">NOTE: For already uploaded
+                                    <small class="help" id="editTmpltMsg" style="display: none;">NOTE: For already
+                                        uploaded
                                         images you can only switch the palette from premium to basic, not the other way
                                         around. To switch in the opposite direction, please re-upload the image.</small>
                                 </div>
@@ -341,11 +344,14 @@
                         <div class="settings-card" style="margin-top:10px; box-shadow: none;">
                             <div class="settings-card-head">
                                 <h3 class="settings-card-title">Auto-purchases</h3>
-                                <p class="settings-card-sub">Prices: Buy paint charges — 500, Buy max charge upgrades — 500, Premium color — 2000; Don't forget about the droplets reserve specified in the settings.</p>
+                                <p class="settings-card-sub">Prices: Buy paint charges — 500, Buy max charge upgrades —
+                                    500, Premium color — 2000; Don't forget about the droplets reserve specified in the
+                                    settings.</p>
                             </div>
                             <div class="toggles">
                                 <div class="setting-toggle">
-                                    <label for="canBuyMaxCharges" class="label-margin0">Buy max charge upgrades <span class="muted">(500)</span></label>
+                                    <label for="canBuyMaxCharges" class="label-margin0">Buy max charge upgrades <span
+                                            class="muted">(500)</span></label>
                                     <label class="switch" class="label-margin0">
                                         <input id="canBuyMaxCharges" name="canBuyMaxCharges" type="checkbox" />
                                         <span class="slider"></span>
@@ -353,7 +359,8 @@
                                 </div>
 
                                 <div class="setting-toggle">
-                                    <label for="canBuyCharges" class="label-margin0">Buy paint charges when running out <span class="muted">(500)</span></label>
+                                    <label for="canBuyCharges" class="label-margin0">Buy paint charges when running out
+                                        <span class="muted">(500)</span></label>
                                     <label class="switch" class="label-margin0">
                                         <input id="canBuyCharges" name="canBuyCharges" type="checkbox" />
                                         <span class="slider"></span>
@@ -361,14 +368,17 @@
                                 </div>
 
                                 <div class="setting-toggle">
-                                    <label for="autoBuyNeededColors" class="label-margin0">Auto-purchase needed premium colors <span class="muted">(2000)</span></label>
+                                    <label for="autoBuyNeededColors" class="label-margin0">Auto-purchase needed premium
+                                        colors <span class="muted">(2000)</span></label>
                                     <label class="switch" class="label-margin0">
                                         <input id="autoBuyNeededColors" name="autoBuyNeededColors" type="checkbox" />
                                         <span class="slider"></span>
                                     </label>
                                 </div>
                             </div>
-                            <small class="help">If enabled, the bot balances premium color ownership across assigned accounts: buys needed premium colors for accounts with fewer premium colors first, if they have enough droplets. Works only when the template uses premium colors.</small>
+                            <small class="help">If enabled, the bot balances premium color ownership across assigned
+                                accounts: buys needed premium colors for accounts with fewer premium colors first, if
+                                they have enough droplets. Works only when the template uses premium colors.</small>
                         </div>
 
                         <div class="form-actions">
@@ -683,7 +693,8 @@
                             <div>
                                 <div class="field">
                                     <div class="setting-toggle">
-                                        <label for="alwaysDrawOnCharge" class="label-margin0">Always draw when at least one charge is available</label>
+                                        <label for="alwaysDrawOnCharge" class="label-margin0">Always draw when at least
+                                            one charge is available</label>
                                         <label class="switch" class="label-margin0">
                                             <input id="alwaysDrawOnCharge" name="alwaysDrawOnCharge" type="checkbox" />
                                             <span class="slider"></span>
@@ -709,7 +720,8 @@
                                         <input type="number" id="maxPixelsPerPass" min="0" value="0" />
                                         <span class="suffix">px</span>
                                     </div>
-                                    <small class="help">0 = no limit. If > 0, limits how many pixels a user paints per run.</small>
+                                    <small class="help">0 = no limit. If > 0, limits how many pixels a user paints per
+                                        run.</small>
                                 </div>
                             </div>
                         </div>
@@ -814,6 +826,15 @@
                                     style="margin-top:8px">
                                     Reload proxies.txt
                                 </button>
+                                <div class="field" style="margin-top:8px">
+                                    <label for="parallelWorkers">Concurrent workers (with proxy)</label>
+                                    <div class="input-affix">
+                                        <input type="number" id="parallelWorkers" min="1" max="32" value="4" />
+                                        <span class="suffix">workers</span>
+                                    </div>
+                                    <small class="help">Max number of parallel accounts when proxies are enabled (except
+                                        drawing).</small>
+                                </div>
                             </div>
                         </div>
 

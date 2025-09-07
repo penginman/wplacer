@@ -1,5 +1,13 @@
-## Changelog v4.1.8
+## Changelog v4.1.9
+- Fixed cooldown handling so settings-based delays are respected between all parallel requests (cache warm-up, keep-alive, colors check, purchases) both with and without proxies, and added a proxy concurrency setting to control the number of parallel workers (except drawing).
+- Active bar: added per-template Preview button and progress bar.
+- Manage Users: total charges now shown as X/Y pixels.
+- Regen Speed: fixed.
+- Add/Edit Template: sorting by available charges added; shows X/max near drops.
+- Token wait notice: after 1 minute without token, show hint to reload extension (Cloudflare Turnstile 300030).
 
+
+## Changelog v4.1.8
 - Added support for multiple proxy formats (parsing and usage):
   - http(s)://user:pass@host:port, socks4://..., socks5://...
   - user:pass@host:port (supports [ipv6])

@@ -193,7 +193,7 @@ const loadProxies = () => {
   for (const line of lines) {
     const p = parseOne(line);
     if (!p) {
-      console.log(`[SYSTEM] WARNING: Invalid proxy format skipped: "${line}"`);
+      console.log(`[SYSTEM] WARNING: Invalid proxy format skipped: "${line}" - expected format: http://ip:port or user:pass@ip:port`);
       continue;
     }
     const key = `${p.protocol}://${p.username}:${p.password}@${p.host}:${p.port}`;
@@ -202,6 +202,9 @@ const loadProxies = () => {
     proxies.push(p);
   }
   loadedProxies = proxies;
+  if (lines.length > 0 && proxies.length === 0) {
+    console.log(`[SYSTEM] ERROR: No valid proxies loaded from ${lines.length} lines - check proxies.txt format`);
+  }
 };
 
 let nextProxyIndex = 0;
@@ -272,6 +275,8 @@ class WPlacer {
       if (currentSettings.logProxyUsage) {
         log("SYSTEM", "wplacer", `Using proxy: ${proxyUrl.split("@").pop()}`);
       }
+    } else if (currentSettings.proxyEnabled && loadedProxies.length === 0) {
+      log("SYSTEM", "wplacer", `⚠️ Proxy enabled but no valid proxies loaded - check proxies.txt format`);
     }
     this.browser = new Impit(impitOptions);
     await this.loadUserInfo();
@@ -1105,7 +1110,8 @@ let currentSettings = {
   seedCount: 2,
   proxyEnabled: false,
   proxyRotationMode: "sequential",
-  logProxyUsage: false
+  logProxyUsage: false,
+  parallelWorkers: 4
 };
 if (existsSync(path.join(dataDir, "settings.json"))) {
   currentSettings = { ...currentSettings, ...loadJSON("settings.json") };
@@ -1196,6 +1202,20 @@ const TokenManager = {
       this.tokenPromise = new Promise((resolve) => {
         this.resolvePromise = resolve;
       });
+      // Notify UI if token not received within 60s
+      const startedAt = Date.now();
+      const checkTimer = setInterval(() => {
+        try {
+          if (!this.tokenPromise) { clearInterval(checkTimer); return; }
+          const waitedMs = Date.now() - startedAt;
+          if (waitedMs >= 60_000) {
+            clearInterval(checkTimer);
+            try {
+              log("SYSTEM", "wplacer", "TURNSTILE: Possible token acquisition issue (>60s). Ask clients to reload extension and restart the browser. Likely [Cloudflare Turnstile] Error: 300030.");
+            } catch {}
+          }
+        } catch { clearInterval(checkTimer); }
+      }, 5_000);
     }
     return this.tokenPromise;
   },
@@ -1225,6 +1245,21 @@ const TokenManager = {
 // --- Error logging wrapper ---
 function logUserError(error, id, name, context) {
   const message = error?.message || "An unknown error occurred.";
+  
+  // Handle proxy connection errors
+  if (message.includes("reqwest::Error") || message.includes("hyper_util::client::legacy::Error") || 
+      message.includes("Connection refused") || message.includes("timeout") || 
+      message.includes("ENOTFOUND") || message.includes("ECONNREFUSED")) {
+    log(id, name, `❌ Proxy connection failed - check proxy IP/port or try different proxy (or IP not whitelisted)`);
+    return;
+  }
+  
+  // Handle network-related errors
+  if (message.includes("Network error") || message.includes("Failed to fetch") || 
+      message.includes("socket hang up") || message.includes("ECONNRESET")) {
+    log(id, name, `❌ Network error - check proxy IP/port or try different proxy (or IP not whitelisted)`);
+    return;
+  }
   
   // Simplify error messages for common auth issues
   if (message.includes("(401/403)") || message.includes("Unauthorized") || message.includes("cookies are invalid")) {
@@ -1272,6 +1307,7 @@ class TemplateManager {
     this.burstSeeds = null; // persist across runs
 
     this.running = false;
+    this._sleepResolver = null;
     this.status = "Waiting to be started.";
     this.masterId = this.userIds[0];
     this.masterName = users[this.masterId]?.name || "Unknown";
@@ -1295,6 +1331,19 @@ class TemplateManager {
     this._lastSwitchAt = 0;
     this._initialScanned = false;
   }
+  interruptSleep() {
+    try { if (this._sleepResolver) this._sleepResolver(); } catch (_) {}
+  }
+
+  async _sleepInterruptible(ms) {
+    if (!Number.isFinite(ms) || ms <= 0) return;
+    await new Promise((resolve) => {
+      this._sleepResolver = resolve;
+      setTimeout(resolve, ms);
+    });
+    this._sleepResolver = null;
+  }
+
 
   _computeTemplatePremiumColors() {
     try {
@@ -1471,11 +1520,13 @@ class TemplateManager {
             if (activeBrowserUsers.has(uid)) return false;
             return true;
           });
-          const concurrency = Math.max(1, Math.min(loadedProxies.length, 16));
+          const desired = Math.max(1, Math.floor(Number(currentSettings.parallelWorkers || 0)) || 1);
+          const concurrency = Math.max(1, Math.min(desired, loadedProxies.length || desired, 32));
           log("SYSTEM", "wplacer", `[${this.name}] 🔍 Initial scan (parallel): ${candidates.length} accounts (concurrency=${concurrency}, proxies=${loadedProxies.length}).`);
           let index = 0;
           const worker = async () => {
             for (;;) {
+              if (!this.running) break;
               const myIndex = index++;
               if (myIndex >= candidates.length) break;
               const uid = candidates[myIndex];
@@ -1492,6 +1543,8 @@ class TemplateManager {
               }
               catch (e) { logUserError(e, uid, rec?.name || `#${uid}`, "initial user scan"); }
               finally { activeBrowserUsers.delete(uid); }
+              if (!this.running) break;
+              if (cooldown > 0) await this._sleepInterruptible(cooldown);
             }
           };
           await Promise.all(Array.from({ length: concurrency }, () => worker()));
@@ -1499,6 +1552,7 @@ class TemplateManager {
         } else {
           log("SYSTEM", "wplacer", `[${this.name}] 🔍 Initial scan: starting (${this.userIds.length} accounts). Cooldown=${cooldown}ms`);
           for (const uid of this.userIds) {
+            if (!this.running) break;
             const rec = users[uid]; if (!rec) continue;
             if (rec.suspendedUntil && Date.now() < rec.suspendedUntil) continue;
             if (activeBrowserUsers.has(uid)) continue;
@@ -1512,7 +1566,8 @@ class TemplateManager {
             }
             catch (e) { logUserError(e, uid, rec?.name || `#${uid}`, "initial user scan"); }
             finally { activeBrowserUsers.delete(uid); }
-            if (cooldown > 0) await sleep(cooldown);
+            if (!this.running) break;
+            if (cooldown > 0) await this._sleepInterruptible(cooldown);
           }
           log("SYSTEM", "wplacer", `[${this.name}] ✅ Initial scan finished.`);
         }
@@ -1582,7 +1637,7 @@ class TemplateManager {
             }
           } catch (error) {
             logUserError(error, this.masterId, this.masterName, "check pixels left");
-            await sleep(60000);
+            await this._sleepInterruptible(60000);
             continue;
           }
         } else {
@@ -1625,7 +1680,7 @@ class TemplateManager {
           if (this.antiGriefMode) {
             this.status = "Monitoring for changes.";
             log("SYSTEM", "wplacer", `[${this.name}] 🖼 Template complete. Monitoring... Next check in ${currentSettings.antiGriefStandby / 60000} min.`);
-            await sleep(currentSettings.antiGriefStandby);
+            await this._sleepInterruptible(currentSettings.antiGriefStandby);
             continue;
           } else {
             log("SYSTEM", "wplacer", `[${this.name}] 🖼 Template finished!`);
@@ -1707,7 +1762,7 @@ class TemplateManager {
             if (passed < ac) {
               const remain = ac - passed;
               log("SYSTEM", "wplacer", `[${this.name}] ⏱️ Switching account cooldown: waiting ${duration(remain)}.`);
-              await sleep(remain);
+              await this._sleepInterruptible(remain);
             }
           }
           // Update _lastSwitchAt when switching accounts or on first run
@@ -1788,7 +1843,7 @@ class TemplateManager {
           waitTime = Math.min(waitTime, maxWait);
           this.status = `Waiting for charges.`;
           log("SYSTEM", "wplacer", `[${this.name}] ⏳ No users ready. Waiting for ${duration(waitTime)}.`);
-          await sleep(waitTime);
+          await this._sleepInterruptible(waitTime);
         }
       }
     } finally {
@@ -2053,7 +2108,8 @@ app.post("/users/buy-max-upgrades", async (req, res) => {
   const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
   if (useParallel) {
     const ids = userIds.map(String);
-    const concurrency = Math.max(1, Math.min(loadedProxies.length, 12));
+    const desired = Math.max(1, Math.floor(Number(currentSettings.parallelWorkers || 0)) || 1);
+    const concurrency = Math.max(1, Math.min(desired, loadedProxies.length || desired, 32));
     console.log(`[BuyMax] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
     let index = 0;
     const worker = async () => {
@@ -2088,11 +2144,14 @@ app.post("/users/buy-max-upgrades", async (req, res) => {
           activeBrowserUsers.delete(userId);
           buyMaxJob.completed++;
         }
+        const cd = Math.max(0, Number(currentSettings.purchaseCooldown || 0));
+        if (cd > 0) await sleep(cd);
       }
     };
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
   } else {
-    for (const userId of userIds) {
+    for (let i = 0; i < userIds.length; i++) {
+      const userId = userIds[i];
       const urec = users[userId];
       if (!urec) continue;
       if (activeBrowserUsers.has(userId)) { report.push({ userId, name: urec.name, skipped: true, reason: "busy" }); continue; }
@@ -2107,7 +2166,6 @@ app.post("/users/buy-max-upgrades", async (req, res) => {
         const amountToBuy = Math.floor(affordable / 500);
         if (amountToBuy > 0) {
           await wplacer.buyProduct(70, amountToBuy);
-          await sleep(cooldown);
           report.push({ userId, name: wplacer.userInfo.name, amount: amountToBuy, beforeDroplets, afterDroplets: beforeDroplets - amountToBuy * 500 });
         } else {
           report.push({ userId, name: wplacer.userInfo.name, amount: 0, skipped: true, reason: "insufficient_droplets_or_reserve" });
@@ -2119,6 +2177,7 @@ app.post("/users/buy-max-upgrades", async (req, res) => {
         activeBrowserUsers.delete(userId);
         buyMaxJob.completed++;
       }
+      if (i < userIds.length - 1 && cooldown > 0) { await sleep(cooldown); }
     }
   }
 
@@ -2158,7 +2217,8 @@ app.post("/users/purchase-color", async (req, res) => {
     const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
     if (useParallel) {
       const ids = userIds.map(String);
-      const concurrency = Math.max(1, Math.min(loadedProxies.length, 12));
+      const desired = Math.max(1, Math.floor(Number(currentSettings.parallelWorkers || 0)) || 1);
+      const concurrency = Math.max(1, Math.min(desired, loadedProxies.length || desired, 32));
       console.log(`[ColorPurchase] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
       let index = 0;
       const worker = async () => {
@@ -2202,6 +2262,8 @@ app.post("/users/purchase-color", async (req, res) => {
             activeBrowserUsers.delete(uid);
             purchaseColorJob.completed++;
           }
+          const cd = Math.max(0, Number(currentSettings.purchaseCooldown || 0));
+          if (cd > 0) await sleep(cd);
         }
       };
       await Promise.all(Array.from({ length: concurrency }, () => worker()));
@@ -2284,7 +2346,8 @@ app.post("/users/colors-check", async (req, res) => {
 
     const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
     if (useParallel) {
-      const concurrency = Math.max(1, Math.min(loadedProxies.length, 16));
+      const desired = Math.max(1, Math.floor(Number(currentSettings.parallelWorkers || 0)) || 1);
+      const concurrency = Math.max(1, Math.min(desired, loadedProxies.length || desired, 32));
       console.log(`[ColorsCheck] Parallel: ${ids.length} accounts (concurrency=${concurrency}, proxies=${loadedProxies.length})`);
       let index = 0;
       const worker = async () => {
@@ -2322,6 +2385,8 @@ app.post("/users/colors-check", async (req, res) => {
             activeBrowserUsers.delete(uid);
             colorsCheckJob.completed++;
           }
+          const cd = Math.max(0, Number(currentSettings.accountCheckCooldown || 0));
+          if (cd > 0) await sleep(cd);
         }
       };
       await Promise.all(Array.from({ length: concurrency }, () => worker()));
@@ -2525,6 +2590,7 @@ app.put("/template/:id", async (req, res) => {
       log("SYSTEM", "wplacer", `[${manager.name}] ⏹️ Template manually stopped by user.`);
     }
     manager.running = false;
+    try { if (typeof manager.interruptSleep === 'function') manager.interruptSleep(); } catch (_) {}
   }
   res.sendStatus(200);
 });
@@ -2676,7 +2742,8 @@ const keepAlive = async () => {
   const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
   if (useParallel) {
     // Run in parallel using a pool roughly equal to proxy count (capped)
-    const concurrency = Math.max(1, Math.min(loadedProxies.length, 16));
+    const desired = Math.max(1, Math.floor(Number(currentSettings.parallelWorkers || 0)) || 1);
+    const concurrency = Math.max(1, Math.min(desired, loadedProxies.length || desired, 32));
     log("SYSTEM", "wplacer", `⚙️ Performing parallel keep-alive for ${candidates.length} users (concurrency=${concurrency}, proxies=${loadedProxies.length}).`);
 
     let index = 0;
@@ -2702,6 +2769,8 @@ const keepAlive = async () => {
         } finally {
           activeBrowserUsers.delete(userId);
         }
+        const cd = Math.max(0, Number(currentSettings.keepAliveCooldown || 0));
+        if (cd > 0) await sleep(cd);
       }
     };
 

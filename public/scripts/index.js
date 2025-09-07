@@ -158,6 +158,7 @@ const proxyFormContainer = $("proxyFormContainer");
 const proxyRotationMode = $("proxyRotationMode");
 const proxyCount = $("proxyCount");
 const reloadProxiesBtn = $("reloadProxiesBtn");
+const parallelWorkers = $("parallelWorkers");
 const logProxyUsage = $("logProxyUsage");
 
 messageBoxConfirmBig.addEventListener('click', () => {
@@ -217,7 +218,7 @@ function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;'
 function renderMarkdown(md) {
     const lines = String(md || '').split(/\r?\n/);
     let html = '';
-    let listDepth = 0; // tracks how many <ul> are currently open
+    let listDepth = 0; 
     const openList = () => { html += '<ul>'; listDepth += 1; };
     const closeList = () => { html += '</ul>'; listDepth -= 1; };
     const flushAllLists = () => { while (listDepth > 0) closeList(); };
@@ -234,8 +235,7 @@ function renderMarkdown(md) {
         if (m) {
             const indent = m[1] || '';
             const content = m[2] || '';
-            // 2 spaces per nesting level: 0 => top-level, 2 => level 2, etc.
-            const targetDepth = Math.max(0, Math.floor(indent.length / 2) + 1); // depth is number of open <ul> needed
+            const targetDepth = Math.max(0, Math.floor(indent.length / 2) + 1); 
             while (listDepth < targetDepth) openList();
             while (listDepth > targetDepth) closeList();
             html += `<li>${escapeHtml(content)}</li>`;
@@ -1603,9 +1603,14 @@ checkUserStatus.addEventListener("click", async () => {
 
 
     let settingsAccountCheckCooldown = 0;
+    let settingsProxyEnabled = false;
+    let settingsParallelWorkers = 5;
     try {
         const { data: s } = await axios.get('/settings');
         settingsAccountCheckCooldown = s.accountCheckCooldown || 0;
+        settingsProxyEnabled = !!s.proxyEnabled;
+        const pw = Number(s.parallelWorkers);
+        settingsParallelWorkers = Number.isFinite(pw) && pw > 0 ? pw : 5;
     } catch (_) { }
 
     const doOne = async (userEl) => {
@@ -1678,17 +1683,23 @@ checkUserStatus.addEventListener("click", async () => {
             await doOne(el);
         }
     } else {
-
         const tasks = userElements.map(el => () => doOne(el));
-        await processInParallel(tasks, 5);
+        const concurrency = settingsProxyEnabled ? settingsParallelWorkers : 5;
+        await processInParallel(tasks, concurrency);
     }
 
     totalCharges.textContent = formatSpaces(totalCurrent);
     totalMaxCharges.textContent = formatSpaces(totalMax);
     if (totalDropletsEl) totalDropletsEl.textContent = formatSpaces(totalDroplets);
     if (regenPphEl) {
-        const accountsCount = userElements.length;
-        const regen = 120 * accountsCount;
+        const userElementsArr = Array.from(document.querySelectorAll('.user'));
+        let regen = 0;
+        userElementsArr.forEach(el => {
+            const id = el.id.split('-')[1];
+            const s = LAST_USER_STATUS[id] || {};
+            const max = Math.floor(s.max || 0);
+            regen += Math.min(120, max);
+        });
         regenPphEl.textContent = formatSpaces(regen);
         saveLatestTotals({ charges: totalCurrent, max: totalMax, droplets: totalDroplets, regen });
     }
@@ -1811,8 +1822,11 @@ showLatestInfo.addEventListener("click", () => {
         if (totalMaxCharges) totalMaxCharges.textContent = formatSpaces(sumMax);
         if (totalDropletsEl) totalDropletsEl.textContent = formatSpaces(sumDroplets);
         if (regenPphEl) {
-            const accountsCount = Object.keys(LAST_USER_STATUS || {}).length;
-            const regen = 120 * accountsCount;
+            let regen = 0;
+            Object.values(LAST_USER_STATUS || {}).forEach(s => {
+                const max = Math.floor(s.max || 0);
+                regen += Math.min(120, max);
+            });
             regenPphEl.textContent = formatSpaces(regen);
             saveLatestTotals({ charges: sumCharges, max: sumMax, droplets: sumDroplets, regen });
         }
@@ -1843,8 +1857,8 @@ openAddTemplate.addEventListener("click", () => {
         right.style.cssText = 'display:flex; align-items:center; gap:6px;';
         const select = document.createElement('select');
         select.id = 'userSortMode';
-        select.innerHTML = '<option value="priority">Priority (needed colors)</option><option value="droplets">Droplets</option><option value="id">User ID</option>';
-        select.value = 'droplets';
+        select.innerHTML = '<option value="priority">Priority (needed colors)</option><option value="droplets">Droplets</option><option value="available">Available charges</option><option value="id">User ID</option>';
+        select.value = 'available';
         right.append(select);
 
         toolbar.append(right);
@@ -1921,7 +1935,9 @@ openAddTemplate.addEventListener("click", () => {
                 id,
                 name: usersObj[id].name,
                 droplets: (typeof s.droplets === 'number') ? s.droplets : (c.droplets | 0),
-                bitmap: (typeof s.extraColorsBitmap === 'number') ? s.extraColorsBitmap : (c.extraColorsBitmap | 0)
+                bitmap: (typeof s.extraColorsBitmap === 'number') ? s.extraColorsBitmap : (c.extraColorsBitmap | 0),
+                charges: (typeof s.charges === 'number') ? Math.floor(s.charges) : Math.floor(c?.charges?.count || 0),
+                max: (typeof s.max === 'number') ? Math.floor(s.max) : Math.floor(c?.charges?.max || 0)
             };
         }
         return out;
@@ -1936,11 +1952,12 @@ openAddTemplate.addEventListener("click", () => {
             let ownedCount = 0; const ownedList = [];
             const bm = u.bitmap | 0;
             for (const cid of req) { if ((bm & (1 << (cid - 32))) !== 0) { ownedCount++; ownedList.push(cid); } }
-            return { id, name: u.name, droplets: u.droplets | 0, bitmap: bm, ownedCount, ownedList };
+            return { id, name: u.name, droplets: u.droplets | 0, bitmap: bm, ownedCount, ownedList, charges: u.charges | 0, max: u.max | 0 };
         });
 
         if (sortMode === 'priority') entries.sort((a, b) => b.ownedCount - a.ownedCount || b.droplets - a.droplets || (Number(b.id) - Number(a.id)));
         else if (sortMode === 'droplets') entries.sort((a, b) => b.droplets - a.droplets || (Number(a.id) - Number(b.id)));
+        else if (sortMode === 'available') entries.sort((a, b) => (b.charges - a.charges) || (b.max - a.max) || (Number(a.id) - Number(b.id)));
         else entries.sort((a, b) => (Number(a.id) - Number(b.id)));
 
         userSelectList.innerHTML = '';
@@ -1959,7 +1976,8 @@ openAddTemplate.addEventListener("click", () => {
             label.htmlFor = `user_${e.id}`;
             const swatches = e.ownedList.slice(0, 12).map(tinySwatch).join('');
             const more = e.ownedList.length > 12 ? ` +${e.ownedList.length - 12}` : '';
-            label.innerHTML = `${e.name} <span class="muted-user-id">(#${e.id})</span> <span class="drops-badge" title="Droplets">${e.droplets} drops</span> ${swatches}${more}`;
+            const chargesStr = (Number.isFinite(e.charges) && Number.isFinite(e.max)) ? `${e.charges}/${e.max}` : '–/–';
+            label.innerHTML = `${e.name} <span class="muted-user-id">(#${e.id})</span> <span class="drops-badge" title="Charges">${chargesStr}</span> <span class="drops-badge" title="Droplets">${e.droplets} drops</span> ${swatches}${more}`;
 
             userDiv.appendChild(checkbox);
             userDiv.appendChild(label);
@@ -1983,7 +2001,7 @@ openAddTemplate.addEventListener("click", () => {
         if (selInit) {
             selInit.value = (Array.isArray(pendingUserSelection) && pendingUserSelection.length)
                 ? 'priority'
-                : 'droplets';
+                : 'available';
         }
         applySort(users);
 
@@ -2357,6 +2375,7 @@ openSettings.addEventListener("click", async () => {
         logProxyUsage.checked = !!currentSettings.logProxyUsage;
         proxyCount.textContent = String(currentSettings.proxyCount ?? 0);
         proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
+        if (parallelWorkers) parallelWorkers.value = String(currentSettings.parallelWorkers ?? 4);
 
 
         try {
@@ -2433,6 +2452,18 @@ turnstileNotifications.addEventListener('change', async () => {
         handleError(error);
     }
 });
+
+// Passive notification if server is currently waiting for a token
+try {
+    setTimeout(async () => {
+        try {
+            const { data } = await axios.get('/token-needed');
+            if (data?.needed && turnstileNotifications?.checked) {
+                showMessage("Turnstile", "Проблема с получением токена. Попробуйте перезагрузить расширение и закрыть/открыть браузер. Возможна ошибка Cloudflare Turnstile (300030).");
+            }
+        } catch (_) { }
+    }, 1000);
+} catch (_) { }
 
 accountCooldown.addEventListener('change', async () => {
     try {
@@ -2620,7 +2651,7 @@ const activeTemplatesBar = $("activeTemplatesBar");
 const activeTemplatesBarContent = $("activeTemplatesBarContent");
 
 const drawTemplatePreview = (t, canvas) => {
-    const maxSize = 56;
+    const maxSize = 70;
     const scale = Math.min(maxSize / t.width, maxSize / t.height, 1);
     const w = Math.max(1, Math.round(t.width * scale));
     const h = Math.max(1, Math.round(t.height * scale));
@@ -2666,6 +2697,23 @@ async function refreshActiveBar() {
             const actions = document.createElement("div");
             actions.className = "actions";
 
+            // progress bar for active item
+            const total = t.totalPixels || (t.template?.width * t.template?.height) || 1;
+            const remaining = (typeof t.pixelsRemaining === 'number') ? t.pixelsRemaining : total;
+            const completed = Math.max(0, total - remaining);
+            const percent = Math.floor((completed / total) * 100);
+            const pbc = document.createElement('div');
+            pbc.className = 'progress-bar-container-mini';
+            const pb = document.createElement('div');
+            pb.className = 'progress-bar';
+            pb.style.width = `${percent}%`;
+            if (t.status === "Finished." || t.status === "Finished") pb.classList.add('finished');
+            else if (!t.running) pb.classList.add('stopped');
+            const pbt = document.createElement('span');
+            pbt.className = 'progress-bar-text';
+            pbt.textContent = `${percent}%`;
+            pbc.append(pb, pbt);
+
             const stopBtn = document.createElement("button");
             stopBtn.className = "mini-btn destructive";
             stopBtn.innerHTML = '<img src="icons/pause.svg">Stop';
@@ -2678,6 +2726,20 @@ async function refreshActiveBar() {
                 } finally {
                     refreshActiveBar();
                     if (currentTab === manageTemplates) openManageTemplates.click();
+                }
+            });
+
+            const previewBtn = document.createElement("button");
+            previewBtn.className = "mini-btn";
+            previewBtn.innerHTML = '<img src="icons/eye.svg">Preview';
+            previewBtn.addEventListener('click', async () => {
+                try {
+                    previewBtn.disabled = true;
+                    previewBtn.innerHTML = '<img src="icons/eye.svg">Loading...';
+                    await showManageTemplatePreview(t);
+                } finally {
+                    previewBtn.disabled = false;
+                    previewBtn.innerHTML = '<img src="icons/eye.svg">Preview';
                 }
             });
 
@@ -2710,8 +2772,10 @@ async function refreshActiveBar() {
 
             actions.appendChild(stopBtn);
             actions.appendChild(editBtn);
+            actions.appendChild(previewBtn);
 
             meta.appendChild(title);
+            meta.appendChild(pbc);
             meta.appendChild(actions);
 
             item.appendChild(preview);
@@ -3520,6 +3584,17 @@ reloadProxiesBtn?.addEventListener('click', async () => {
     } finally {
         reloadProxiesBtn.disabled = false;
         reloadProxiesBtn.textContent = "Reload proxies.txt";
+    }
+});
+
+parallelWorkers?.addEventListener('change', async () => {
+    try {
+        const v = Math.max(1, Math.min(32, parseInt(parallelWorkers.value, 10) || 4));
+        parallelWorkers.value = String(v);
+        await axios.put('/settings', { parallelWorkers: v });
+        showMessage('Success', 'Concurrent workers saved!');
+    } catch (e) {
+        handleError(e);
     }
 });
 
