@@ -1,3 +1,15 @@
+## Changelog v4.1.8
+
+- Added support for multiple proxy formats (parsing and usage):
+  - http(s)://user:pass@host:port, socks4://..., socks5://...
+  - user:pass@host:port (supports [ipv6])
+  - \[ipv6]:port
+  - host:port
+  - user:pass:host:port
+  - Inline comments in data/proxies.txt via `#` or `//` are ignored
+- Fixed the issue with stretched images in previews.
+- 401/403 errors now take up less space in terminal.
+
 
 ## Changelog v4.1.7 HARD-CODE FIX OF THE DRAWING
 - Re-upload the extension to your browser!

@@ -1,10 +1,7 @@
 <h1 align="center"><p style="display: inline-flex; align-items: center; gap: 0.25em"><img style="width: 1.5em; height: 1.5em;" src="public/icons/favicon.png">wplacer</p></h1>
 
-<p align="center"><img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer">
-<a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer"></a>
+<a href="LICENSE"><img src="https://img.shields.io/github/license/lllexxa/wplacer"></a>
 <a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
-<a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a>
-<a href="LISEZMOI.md"><img src="https://img.shields.io/badge/traduction-français-blue"></a></p>
 
 A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
@@ -93,33 +90,15 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 > [!CAUTION]
 > This bot is not affiliated with [wplace.live](https://wplace.live/) and its use may be against the site's rules. The developers are not responsible for any punishments against your accounts. Use at your own risk.
 
-### Running in Docker / non-interactive (non-TTY) environments
-
-Interactive console features (progress bars, cursor movement) are now guarded and will only run when `process.stdout.isTTY` is `true`. In Docker or other non-TTY contexts, these calls are skipped to prevent crashes (for example, `TypeError: process.stdout.clearLine is not a function`).
-
-No interactive features were removed; they simply don't render when there is no TTY.
-
-### Docker start command
-The Dockerfile starts the app with `CMD ["node", "."]`.
-To pass environment variables when running the container:
-  - Use `docker run --env-file .env ...`
-  - Or pass specific vars: `docker run -e HOST=0.0.0.0 -e PORT=3000 ...`
-  - Or bake defaults via `ENV` in a custom Dockerfile.
-
-- Example docker run command:
-`docker run -d --restart always -p 3000:3000 `
-  -v "E:\.github\wplacer\data\users.json:/usr/src/app/users.json" `
-  -v "E:\.github\wplacer\data\templates.json:/usr/src/app/templates.json" `
-  -v "E:\.github\wplacer\data\settings.json:/usr/src/app/settings.json" `
-  --name wplacer luluwaffless/wplacer`
-Note: HOST and PORT can be omitted if you passed them in the .env file or the Dockerfile.
-
-
 ### Credits 🙏
 
 -   [luluwaffless](https://github.com/luluwaffless)
 -   [Jinx](https://github.com/JinxTheCatto)
 -   Fork maintainer: [lllexxa](https://github.com/lllexxa)
+
+### Original wplacer repository
+
+https://github.com/luluwaffless/wplacer
 
 ### License 📜
 

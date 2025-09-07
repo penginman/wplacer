@@ -92,22 +92,114 @@ const loadProxies = () => {
     loadedProxies = [];
     return;
   }
-  const lines = readFileSync(proxyPath, "utf8").split("\n").filter(line => line.trim() !== "");
-  const proxies = [];
-  const proxyRegex = /^(http|https|socks4|socks5):\/\/(?:([^:]+):([^@]+)@)?([^:]+):(\d+)$/;
-  for (const line of lines) {
-    const match = line.trim().match(proxyRegex);
-    if (match) {
-      proxies.push({
-        protocol: match[1],
-        username: match[2] || "",
-        password: match[3] || "",
-        host: match[4],
-        port: parseInt(match[5], 10)
-      });
-    } else {
-      console.log(`[SYSTEM] WARNING: Invalid proxy format skipped: "${line}"`);
+
+  const raw = readFileSync(proxyPath, "utf8");
+  const lines = raw
+    .split(/\r?\n/)
+    .map(l => l.replace(/\s+#.*$|\s+\/\/.*$|^\s*#.*$|^\s*\/\/.*$/g, '').trim())
+    .filter(Boolean);
+
+  const protoMap = new Map([
+    ["http", "http"],
+    ["https", "https"],
+    ["socks4", "socks4"],
+    ["socks5", "socks5"]
+  ]);
+
+  const inRange = p => Number.isInteger(p) && p >= 1 && p <= 65535;
+  const looksHostname = host => {
+    if (!host || typeof host !== "string") return false;
+    // IPv4
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) return true;
+    // Domain
+    if (/^[a-zA-Z0-9.-]+$/.test(host)) return true;
+    // allow IPv6 content (without brackets) as a last resort
+    if (/^[0-9a-fA-F:]+$/.test(host)) return true;
+    return false;
+  };
+
+  const parseOne = line => {
+    // url-like: scheme://user:pass@host:port
+    const urlLike = line.match(/^(\w+):\/\//);
+    if (urlLike) {
+      const scheme = urlLike[1].toLowerCase();
+      const protocol = protoMap.get(scheme);
+      if (!protocol) return null;
+      try {
+        const u = new URL(line);
+        const host = u.hostname;
+        const port = u.port ? parseInt(u.port, 10) : NaN;
+        const username = decodeURIComponent(u.username || "");
+        const password = decodeURIComponent(u.password || "");
+        if (!looksHostname(host) || !inRange(port)) return null;
+        return { protocol, host, port, username, password };
+      } catch {
+        return null;
+      }
     }
+
+    // user:pass@host:port (host may be [ipv6])
+    const authHost = line.match(/^([^:@\s]+):([^@\s]+)@(.+)$/);
+    if (authHost) {
+      const username = authHost[1];
+      const password = authHost[2];
+      const rest = authHost[3];
+      const m6 = rest.match(/^\[([^\]]+)\]:(\d+)$/);
+      const m4 = rest.match(/^([^:\s]+):(\d+)$/);
+      let host = '';
+      let port = NaN;
+      if (m6) {
+        host = m6[1];
+        port = parseInt(m6[2], 10);
+      } else if (m4) {
+        host = m4[1];
+        port = parseInt(m4[2], 10);
+      } else return null;
+      if (!looksHostname(host) || !inRange(port)) return null;
+      return { protocol: 'http', host, port, username, password };
+    }
+
+    // [ipv6]:port
+    const bare6 = line.match(/^\[([^\]]+)\]:(\d+)$/);
+    if (bare6) {
+      const host = bare6[1];
+      const port = parseInt(bare6[2], 10);
+      if (!inRange(port)) return null;
+      return { protocol: 'http', host, port, username: '', password: '' };
+    }
+
+    // host:port
+    const bare = line.match(/^([^:\s]+):(\d+)$/);
+    if (bare) {
+      const host = bare[1];
+      const port = parseInt(bare[2], 10);
+      if (!looksHostname(host) || !inRange(port)) return null;
+      return { protocol: 'http', host, port, username: '', password: '' };
+    }
+
+    // user:pass:host:port
+    const uphp = line.split(":");
+    if (uphp.length === 4 && /^\d+$/.test(uphp[3])) {
+      const [username, password, host, portStr] = uphp;
+      const port = parseInt(portStr, 10);
+      if (looksHostname(host) && inRange(port)) return { protocol: 'http', host, port, username, password };
+    }
+
+    return null;
+  };
+
+  const seen = new Set();
+  const proxies = [];
+  for (const line of lines) {
+    const p = parseOne(line);
+    if (!p) {
+      console.log(`[SYSTEM] WARNING: Invalid proxy format skipped: "${line}"`);
+      continue;
+    }
+    const key = `${p.protocol}://${p.username}:${p.password}@${p.host}:${p.port}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    proxies.push(p);
   }
   loadedProxies = proxies;
 };
@@ -200,16 +292,16 @@ class WPlacer {
     const contentType = (me.headers.get("content-type") || "").toLowerCase();
     const bodyText = await me.text();
     if (status === 401 || status === 403) {
-      throw new Error(`(401/403) Unauthorized: cookies are invalid or expired.`);
+      throw new Error(`Authentication expired (${status}) - please update cookies or try later`);
     }
     if (status === 429) {
-      throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
+      throw new Error("Rate limited (429) - waiting before retry");
     }
     if (status === 502) {
-      throw new Error(`(502) Bad Gateway: The server is temporarily unavailable. Please try again later.`);
+      throw new Error(`Server temporarily unavailable (502) - retrying later`);
     }
     if (status >= 300 && status < 400) {
-      throw new Error(`(3xx) Redirected (likely to login). Cookies are invalid or expired.`);
+      throw new Error(`Authentication expired (${status}) - please update cookies or try later`);
     }
     if (contentType.includes("application/json")) {
       let userInfo;
@@ -332,17 +424,17 @@ class WPlacer {
     if (response.data.painted && response.data.painted === body.colors.length) {
       log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`);
       return { painted: body.colors.length, success: true };
-    } else if (response.status === 403 && (response.data.error === "refresh" || response.data.error === "Unauthorized")) {
-      // token needs refresh; let TemplateManager handle it
-      return { painted: 0, success: false, reason: "refresh" };
+    } else if (response.status === 401 || response.status === 403) {
+      // Authentication expired - mark for cookie refresh
+      return { painted: 0, success: false, reason: "auth_expired" };
     } else if (response.status === 451 && response.data.suspension) {
-      throw new SuspensionError(`Account is suspended.`, response.data.durationMs || 0);
+      throw new SuspensionError(`Account is suspended (451).`, response.data.durationMs || 0);
     } else if (response.status === 500) {
-      log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Server error (500). Waiting 40s before retrying...`);
+      log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Server error (500) - waiting before retry...`);
       await sleep(40000);
-      return { painted: 0, success: false, reason: "ratelimit" };
+      return { painted: 0, success: false, reason: "server_error" };
     } else if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-      throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
+      throw new Error("Rate limited (429/1015) - waiting before retry");
     }
     throw new Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
   }
@@ -1133,11 +1225,31 @@ const TokenManager = {
 // --- Error logging wrapper ---
 function logUserError(error, id, name, context) {
   const message = error?.message || "An unknown error occurred.";
-  if (message.includes("(500)") || message.includes("(1015)") || message.includes("(502)") || error?.name === "SuspensionError") {
-    log(id, name, `❌ Failed to ${context}: ${message}`);
-  } else {
-    log(id, name, `❌ Failed to ${context}`, error);
+  
+  // Simplify error messages for common auth issues
+  if (message.includes("(401/403)") || message.includes("Unauthorized") || message.includes("cookies are invalid")) {
+    log(id, name, `❌ Authentication expired (401/403) - please update cookies or try later`);
+    return;
   }
+  
+  if (message.includes("(1015)") || message.includes("rate-limited")) {
+    log(id, name, `❌ Rate limited (1015) - waiting before retry`);
+    return;
+  }
+  
+  if (message.includes("(500)") || message.includes("(502)")) {
+    log(id, name, `❌ Server error (500/502) - retrying later`);
+    return;
+  }
+  
+  if (error?.name === "SuspensionError") {
+    log(id, name, `❌ Account suspended (451)`);
+    return;
+  }
+  
+  // For other errors, show simplified message
+  const simpleMessage = message.replace(/\([^)]+\)/g, '').replace(/Error:/g, '').trim();
+  log(id, name, `❌ ${simpleMessage}`);
 }
 
 // --- Template Manager ---
@@ -1330,6 +1442,11 @@ class TemplateManager {
           TokenManager.invalidateToken();
           await sleep(1000);
           continue;
+        }
+        // Handle authentication errors
+        if (error.message && error.message.includes("Authentication expired")) {
+          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔑 Authentication expired (401/403) - please update cookies or try later`);
+          return 0; // End turn for this user
         }
         throw error;
       }
@@ -1593,6 +1710,10 @@ class TemplateManager {
               await sleep(remain);
             }
           }
+          // Update _lastSwitchAt when switching accounts or on first run
+          if (this._lastRunnerId !== foundUserForTurn) {
+            this._lastSwitchAt = Date.now();
+          }
           activeBrowserUsers.add(foundUserForTurn);
           const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
           try {
@@ -1614,7 +1735,12 @@ class TemplateManager {
             saveTemplates();
             await this.handleUpgrades(wplacer);
           } catch (error) {
-            logUserError(error, foundUserForTurn, users[foundUserForTurn]?.name || `#${foundUserForTurn}`, "perform paint turn");
+            // Handle authentication errors gracefully
+            if (error.message && error.message.includes("Authentication expired")) {
+              log(foundUserForTurn, users[foundUserForTurn]?.name || `#${foundUserForTurn}`, `[${this.name}] 🔑 Authentication expired (401/403) - please update cookies or try later`);
+            } else {
+              logUserError(error, foundUserForTurn, users[foundUserForTurn]?.name || `#${foundUserForTurn}`, "perform paint turn");
+            }
           } finally {
             activeBrowserUsers.delete(foundUserForTurn);
           }
@@ -2567,7 +2693,12 @@ const keepAlive = async () => {
           await wplacer.login(users[userId].cookies);
           log(userId, users[userId].name, "✅ Cookie keep-alive successful.");
         } catch (error) {
-          logUserError(error, userId, users[userId].name, "perform keep-alive check");
+          // Don't log auth errors as they're expected when cookies expire
+          if (error.message && error.message.includes("Authentication expired")) {
+            log(userId, users[userId].name, "🔑 Cookies expired (401/403) - please update");
+          } else {
+            logUserError(error, userId, users[userId].name, "perform keep-alive check");
+          }
         } finally {
           activeBrowserUsers.delete(userId);
         }
@@ -2592,7 +2723,12 @@ const keepAlive = async () => {
       await wplacer.login(users[userId].cookies);
       log(userId, users[userId].name, "✅ Cookie keep-alive successful.");
     } catch (error) {
-      logUserError(error, userId, users[userId].name, "perform keep-alive check");
+      // Don't log auth errors as they're expected when cookies expire
+      if (error.message && error.message.includes("Authentication expired")) {
+        log(userId, users[userId].name, "🔑 Cookies expired (401/403) - please update");
+      } else {
+        logUserError(error, userId, users[userId].name, "perform keep-alive check");
+      }
     } finally {
       activeBrowserUsers.delete(userId);
     }

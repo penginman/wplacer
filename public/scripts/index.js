@@ -494,7 +494,7 @@ function ensureMtPreviewOverlay() {
     box.id = 'mtPreviewBox';
     box.style.cssText = `
         position: relative; background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
-        padding: 10px 40px; max-width: 75vw; min-width: 650px; box-shadow: var(--shadow);
+        padding: 10px 40px; max-width: 75vw; min-width: 800px; box-shadow: var(--shadow);
         display: flex; flex-direction: column; gap: 8px; max-height: 95vh;
     `;
 
@@ -523,7 +523,7 @@ function ensureMtPreviewOverlay() {
     const canvas = document.createElement('canvas');
     canvas.id = 'mtPreviewCanvas';
     canvas.style.cssText = `
-        image-rendering: pixelated; width: 100%; height: auto; max-height: 555px; background:#f8f4f0; border-radius: 6px;
+        image-rendering: pixelated; height: auto; max-height: 555px; background:#f8f4f0; border-radius: 6px;
         cursor: default;
     `;
 
@@ -732,6 +732,24 @@ async function showManageTemplatePreview(t) {
 
     preview.width = displayWidth * SCALE;
     preview.height = displayHeight * SCALE;
+    
+    const maxHeight = 555;
+    const maxWidth = 700;
+    const canvasHeight = displayHeight * SCALE;
+    const canvasWidth = displayWidth * SCALE;
+    
+    const scaleByHeight = maxHeight / canvasHeight;
+    const scaleByWidth = maxWidth / canvasWidth;
+    
+    const scaleFactor = Math.min(scaleByHeight, scaleByWidth);
+    
+    if (scaleFactor <= 1) {
+        preview.style.width = 'max-content';
+    } else {
+        const scaledWidth = canvasWidth * scaleFactor;
+        preview.style.width = `${scaledWidth}px`;
+    }
+    
     const pctx = preview.getContext('2d');
     pctx.imageSmoothingEnabled = false;
 
