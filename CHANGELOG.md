@@ -1,3 +1,7 @@
+
+## Changelog v4.1.7 HARD-CODE FIX OF THE DRAWING
+- Re-upload the extension to your browser!
+
 ## Changelog v4.1.6
 Reminder: If drawing stops, inspect console logs in wplace.live for Turnstile errors (or set the pixel manually). If it’s a Turnstile issue, restart your browser or log in via incognito/another browser or profile.
 
