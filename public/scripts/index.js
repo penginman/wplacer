@@ -216,18 +216,37 @@ document.addEventListener('DOMContentLoaded', showDisclaimerIfNeeded);
 function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 function renderMarkdown(md) {
     const lines = String(md || '').split(/\r?\n/);
-    let html = '', inList = false;
-    const flush = () => { if (inList) { html += '</ul>'; inList = false; } };
+    let html = '';
+    let listDepth = 0; // tracks how many <ul> are currently open
+    const openList = () => { html += '<ul>'; listDepth += 1; };
+    const closeList = () => { html += '</ul>'; listDepth -= 1; };
+    const flushAllLists = () => { while (listDepth > 0) closeList(); };
+
     for (const raw of lines) {
-        const line = raw.trimEnd();
-        if (!line.trim()) { flush(); continue; }
-        if (line.startsWith('### ')) { flush(); html += `<h3>${escapeHtml(line.slice(4))}</h3>`; continue; }
-        if (line.startsWith('## ')) { flush(); html += `<h2>${escapeHtml(line.slice(3))}</h2>`; continue; }
-        if (line.startsWith('# ')) { flush(); html += `<h1>${escapeHtml(line.slice(2))}</h1>`; continue; }
-        if (line.startsWith('- ')) { if (!inList) { html += '<ul>'; inList = true; } html += `<li>${escapeHtml(line.slice(2))}</li>`; continue; }
-        flush(); html += `<p>${escapeHtml(line)}</p>`;
+        const line = raw.replace(/\s+$/, '');
+        if (!line.trim()) { flushAllLists(); continue; }
+
+        if (line.startsWith('### ')) { flushAllLists(); html += `<h3>${escapeHtml(line.slice(4))}</h3>`; continue; }
+        if (line.startsWith('## '))  { flushAllLists(); html += `<h2>${escapeHtml(line.slice(3))}</h2>`; continue; }
+        if (line.startsWith('# '))   { flushAllLists(); html += `<h1>${escapeHtml(line.slice(2))}</h1>`; continue; }
+
+        const m = line.match(/^(\s*)-\s+(.*)$/);
+        if (m) {
+            const indent = m[1] || '';
+            const content = m[2] || '';
+            // 2 spaces per nesting level: 0 => top-level, 2 => level 2, etc.
+            const targetDepth = Math.max(0, Math.floor(indent.length / 2) + 1); // depth is number of open <ul> needed
+            while (listDepth < targetDepth) openList();
+            while (listDepth > targetDepth) closeList();
+            html += `<li>${escapeHtml(content)}</li>`;
+            continue;
+        }
+
+        flushAllLists();
+        html += `<p>${escapeHtml(line)}</p>`;
     }
-    flush();
+
+    flushAllLists();
     return html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>');
 }
 async function checkVersionAndWarn() {
