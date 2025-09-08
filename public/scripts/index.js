@@ -251,7 +251,16 @@ function renderMarkdown(md) {
 async function checkVersionAndWarn() {
     try {
         const { data } = await axios.get('/version');
-        if (data?.outdated) {
+        const latest = String(data?.latest || '');
+        const outdated = !!data?.outdated;
+
+        // Skip if user chose to ignore this specific latest version
+        try {
+            const ignored = String(localStorage.getItem('wplacer_ignore_version') || '');
+            if (outdated && latest && ignored === latest) return;
+        } catch (_) { }
+
+        if (outdated) {
             let changelog = '';
             try {
                 const ch = await axios.get('/changelog');
@@ -269,6 +278,23 @@ async function checkVersionAndWarn() {
                 ${changelog}
                 <div style="margin-top:8px">Please update from <a href="https://github.com/lllexxa/wplacer" target="_blank" rel="noreferrer noopener">GitHub</a> or use 'git pull' command.</div>`;
             showMessageBig('Update available', html);
+
+            // Allow user to ignore this specific latest version
+            try {
+                if (typeof messageBoxCancelBig !== 'undefined' && typeof messageBoxConfirmBig !== 'undefined') {
+                    messageBoxCancelBig.classList.remove('hidden');
+                    messageBoxConfirmBig.textContent = 'OK';
+                    messageBoxCancelBig.textContent = latest ? `Don't remind for ${latest}` : `Don't remind for this version`;
+
+                    messageBoxConfirmBig.onclick = () => {
+                        closeMessageBoxBig();
+                    };
+                    messageBoxCancelBig.onclick = () => {
+                        try { localStorage.setItem('wplacer_ignore_version', latest || ''); } catch (_) { }
+                        closeMessageBoxBig();
+                    };
+                }
+            } catch (_) { }
         }
     } catch (_) { }
 }
