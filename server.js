@@ -310,45 +310,45 @@ class WPlacer {
     const contentType = (me.headers.get("content-type") || "").toLowerCase();
     const bodyText = await me.text();
     if (status === 401 || status === 403) {
-      throw new Error(`Authentication expired (${status}) - please update cookies or try later`);
+      throw new Error(`❌ Authentication expired (${status}) - please update cookies or try later`);
     }
     if (status === 429) {
-      throw new Error("Rate limited (429) - waiting before retry");
+      throw new Error("❌ Rate limited (429) - waiting before retry");
     }
     if (status === 502) {
-      throw new Error(`Server temporarily unavailable (502) - retrying later`);
+      throw new Error(`❌ Server temporarily unavailable (502) - retrying later`);
     }
     if (status >= 300 && status < 400) {
-      throw new Error(`Authentication expired (${status}) - please update cookies or try later`);
+      throw new Error(`❌ Authentication expired (${status}) - please update cookies or try later`);
     }
     if (contentType.includes("application/json")) {
       let userInfo;
       try {
         userInfo = JSON.parse(bodyText);
       } catch {
-        throw new Error(`Failed to parse JSON from /me (status ${status}).`);
+        throw new Error(`❌ Failed to parse JSON from /me (status ${status}).`);
       }
       if (userInfo?.error) {
-        throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
+        throw new Error(`❌ (500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
       }
       if (userInfo?.id && userInfo?.name) {
         this.userInfo = userInfo;
         try { ChargeCache.markFromUserInfo(userInfo); } catch {}
         return true;
       }
-      throw new Error(`Unexpected JSON from /me (status ${status}): ${JSON.stringify(userInfo).slice(0, 200)}...`);
+      throw new Error(`❌ Unexpected JSON from /me (status ${status}): ${JSON.stringify(userInfo).slice(0, 200)}...`);
     }
     const short = bodyText.substring(0, 200);
     if (/error\s*1015/i.test(bodyText) || /rate.?limit/i.test(bodyText)) {
-      throw new Error("(1015) You are being rate-limited by the server. Please wait a moment and try again.");
+      throw new Error("❌ (1015) You are being rate-limited by the server. Please wait a moment and try again.");
     }
     if (/cloudflare|attention required|access denied/i.test(bodyText)) {
-      throw new Error(`Cloudflare blocked the request (status ${status}). Consider proxy/rotate IP.`);
+      throw new Error(`❌ Cloudflare blocked the request (status ${status}). Consider proxy/rotate IP.`);
     }
     if (/<!doctype html>/i.test(bodyText) || /<html/i.test(bodyText)) {
-      throw new Error(`Failed to parse server response (HTML, status ${status}). Likely a login page → cookies invalid or expired. Snippet: "${short}..."`);
+      throw new Error(`❌ Failed to parse server response (HTML, status ${status}). Likely a login page → cookies invalid or expired. Snippet: "${short}..."`);
     }
-    throw new Error(`Failed to parse server response (status ${status}). Response: "${short}..."`);
+    throw new Error(`❌ Failed to parse server response (status ${status}). Response: "${short}..."`);
   }
 
   async post(url, body) {
@@ -370,10 +370,10 @@ class WPlacer {
     if (!contentType.includes("application/json")) {
       const short = text.substring(0, 200);
       if (/error\s*1015/i.test(text) || /rate.?limit/i.test(text) || status === 429) {
-        throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
+        throw new Error("❌ (1015) You are being rate-limited. Please wait a moment and try again.");
       }
       if (status === 502) {
-        throw new Error(`(502) Bad Gateway: The server is temporarily unavailable. Please try again later.`);
+        throw new Error(`❌ (502) Bad Gateway: The server is temporarily unavailable. Please try again later.`);
       }
       if (status === 401 || status === 403) {
         return { status, data: { error: "Unauthorized" } };
@@ -446,15 +446,15 @@ class WPlacer {
       // Authentication expired - mark for cookie refresh
       return { painted: 0, success: false, reason: "auth_expired" };
     } else if (response.status === 451 && response.data.suspension) {
-      throw new SuspensionError(`Account is suspended (451).`, response.data.durationMs || 0);
+      throw new SuspensionError(`❌Account is suspended (451).`, response.data.durationMs || 0);
     } else if (response.status === 500) {
-      log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Server error (500) - waiting before retry...`);
+      log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ❌ Server error (500) - waiting before retry...`);
       await sleep(40000);
       return { painted: 0, success: false, reason: "server_error" };
     } else if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-      throw new Error("Rate limited (429/1015) - waiting before retry");
+      throw new Error("❌ Rate limited (429/1015) - waiting before retry");
     }
-    throw new Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
+    throw new Error(`❌ Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
   }
 
   // ----- Helpers for "old" painting logic -----
@@ -723,43 +723,43 @@ class WPlacer {
 
     switch (method) {
       case "linear":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Top to Bottom)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Top to Bottom)...`);
         break;
       case "linear-reversed":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Bottom to Top)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Bottom to Top)...`);
         break;
       case "linear-ltr":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Left to Right)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Left to Right)...`);
         break;
       case "linear-rtl":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Right to Left)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Right to Left)...`);
         break;
       case "radial-inward":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎯 Painting (Radial inward)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Radial inward)...`);
         break;
       case "radial-outward":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎯 Painting (Radial outward)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Radial outward)...`);
         break;
       case "singleColorRandom":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Random Color)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Random Color)...`);
         break;
       case "colorByColor":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Color by Color)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Color by Color)...`);
         break;
       case "colors-burst-rare":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 💥 Painting (Colors burst, rare first)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Colors burst, rare first)...`);
         break;
       case "random":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎲 Painting (Random Scatter)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Random Scatter)...`);
         break;
       case "burst":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 💥 Painting (Burst / Multi-source)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Burst / Multi-source)...`);
         break;
       case "outline-then-burst":
         log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Outline then Burst)...`);
         break;
       case "burst-mixed":
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🔀 Painting (Burst Mixed: burst/outline/rare)...`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🧱 Painting (Burst Mixed)...`);
         break;
       default:
         throw new Error(`Unknown paint method: ${method}`);
@@ -1237,7 +1237,7 @@ const TokenManager = {
       return Promise.resolve(head && head.token ? head.token : head);
     }
     if (!this.tokenPromise) {
-      log("SYSTEM", "wplacer", "TOKEN_MANAGER: A task is waiting for a token. Flagging for clients.");
+      log("SYSTEM", "wplacer", "🛡️ TOKEN_MANAGER: A task is waiting for a token. Flagging for clients.");
       this.isTokenNeeded = true;
       this._lastNeededAt = Date.now();
       notifyTokenNeeded();
@@ -1248,7 +1248,7 @@ const TokenManager = {
     return this.tokenPromise;
   },
   setToken(t) {
-    log("SYSTEM", "wplacer", `✅ TOKEN_MANAGER: Token received. Queue size: ${this.tokenQueue.length + 1}`);
+    log("SYSTEM", "wplacer", `🛡️ TOKEN_MANAGER: Token received. Queue size: ${this.tokenQueue.length + 1}`);
     this.isTokenNeeded = false;
     this.tokenQueue.push({ token: t, receivedAt: Date.now() });
     if (this.resolvePromise) {
@@ -1260,8 +1260,19 @@ const TokenManager = {
   },
   invalidateToken() {
     this.tokenQueue.shift();
-    log("SYSTEM", "wplacer", `🔄 TOKEN_MANAGER: Invalidating token. ${this.tokenQueue.length} tokens remaining.`);
+    log("SYSTEM", "wplacer", `🛡️ TOKEN_MANAGER: Invalidating token. ${this.tokenQueue.length} tokens remaining.`);
     
+    if (this.tokenQueue.length === 0) {
+      this.isTokenNeeded = true;
+      this._lastNeededAt = Date.now();
+      notifyTokenNeeded();
+    }
+  },
+  consumeToken() {
+    if (this.tokenQueue.length > 0) {
+      this.tokenQueue.shift();
+      log("SYSTEM", "wplacer", `🛡️ TOKEN_MANAGER: Consumed token after success. ${this.tokenQueue.length} tokens remaining.`);
+    }
     if (this.tokenQueue.length === 0) {
       this.isTokenNeeded = true;
       this._lastNeededAt = Date.now();
@@ -1306,7 +1317,7 @@ function logUserError(error, id, name, context) {
   }
   
   if (error?.name === "SuspensionError") {
-    log(id, name, `❌ Account suspended (451)`);
+    log(id, name, `🛑 Account suspended (451)`);
     return;
   }
   
@@ -1505,6 +1516,7 @@ class TemplateManager {
         // save back burst seeds if used
         this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : null;
         saveTemplates();
+        try { TokenManager.consumeToken(); } catch {}
         return painted;
       } catch (error) {
         if (error.name === "SuspensionError") {
@@ -1522,7 +1534,7 @@ class TemplateManager {
         }
         // Handle authentication errors
         if (error.message && error.message.includes("Authentication expired")) {
-          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔑 Authentication expired (401/403) - please update cookies or try later`);
+          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] ❌ Authentication expired (401/403) - please update cookies or try later`);
           return 0; // End turn for this user
         }
         throw error;
@@ -1741,7 +1753,7 @@ class TemplateManager {
           .sort((a, b) => b.count - a.count || b.max - a.max);
 
         if (candidates.length) {
-          const top = candidates.slice(0, Math.min(3, candidates.length)).map(c => `${c.uid}:${c.count}/${c.max}`).join(', ');
+          const top = candidates.slice(0, Math.min(3, candidates.length)).map(c => `#${c.uid} (${c.count}/${c.max})`).join(', ');
           log("SYSTEM", "wplacer", `[${this.name}] 📊 Queue preview (top): ${top}`);
         } else {
           log("SYSTEM", "wplacer", `[${this.name}] 📊 Queue preview: empty candidates.`);
@@ -1820,7 +1832,7 @@ class TemplateManager {
           } catch (error) {
             // Handle authentication errors gracefully
             if (error.message && error.message.includes("Authentication expired")) {
-              log(foundUserForTurn, users[foundUserForTurn]?.name || `#${foundUserForTurn}`, `[${this.name}] 🔑 Authentication expired (401/403) - please update cookies or try later`);
+              log(foundUserForTurn, users[foundUserForTurn]?.name || `#${foundUserForTurn}`, `[${this.name}] ❌ Authentication expired (401/403) - please update cookies or try later`);
             } else {
               logUserError(error, foundUserForTurn, users[foundUserForTurn]?.name || `#${foundUserForTurn}`, "perform paint turn");
             }
@@ -2013,9 +2025,24 @@ app.put("/user/:id/update-profile", async (req, res) => {
   const name = typeof req.body?.name === "string" ? String(req.body.name).trim() : "";
   const discord = typeof req.body?.discord === "string" ? String(req.body.discord).trim() : "";
   const showLastPixel = typeof req.body?.showLastPixel === "boolean" ? !!req.body.showLastPixel : !!users[id]?.showLastPixel;
+  const shortLabelRaw = typeof req.body?.shortLabel === "string" ? String(req.body.shortLabel) : "";
+  const shortLabel = shortLabelRaw.trim().slice(0, 20);
 
   if (name && name.length > 15) return res.status(400).json({ error: "Name must be at most 15 characters" });
   if (discord && discord.length > 15) return res.status(400).json({ error: "Discord must be at most 15 characters" });
+
+  // Always persist local-only field if provided
+  if (typeof req.body?.shortLabel === "string") {
+    users[id].shortLabel = shortLabel;
+  }
+
+  // Determine if remote update is needed
+  const willUpdateRemote = (name && name !== users[id].name) || (discord !== users[id].discord) || (showLastPixel !== !!users[id].showLastPixel);
+
+  if (!willUpdateRemote) {
+    saveUsers();
+    return res.status(200).json({ success: true, localOnly: true });
+  }
 
   activeBrowserUsers.add(id);
   const wplacer = new WPlacer();
@@ -2818,7 +2845,7 @@ const keepAlive = async () => {
         } catch (error) {
           // Don't log auth errors as they're expected when cookies expire
           if (error.message && error.message.includes("Authentication expired")) {
-            log(userId, users[userId].name, "🔑 Cookies expired (401/403) - please update");
+            log(userId, users[userId].name, "❌ Cookies expired (401/403) - please update");
           } else {
             logUserError(error, userId, users[userId].name, "perform keep-alive check");
           }
@@ -2850,7 +2877,7 @@ const keepAlive = async () => {
     } catch (error) {
       // Don't log auth errors as they're expected when cookies expire
       if (error.message && error.message.includes("Authentication expired")) {
-        log(userId, users[userId].name, "🔑 Cookies expired (401/403) - please update");
+        log(userId, users[userId].name, "🛑 Cookies expired (401/403) - please update");
       } else {
         logUserError(error, userId, users[userId].name, "perform keep-alive check");
       }

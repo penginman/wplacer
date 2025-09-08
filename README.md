@@ -8,50 +8,28 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 ## Features ✅
 
 ### Web UI (Fully Reworked)
-- **Simple Navigation Panel:** One-click access to **Users**, **Add Template**, **Manage Templates**, **Settings**.
-- **Manage Users:**
-  - Add accounts using **JWT cookie (`j`)** + optional **session cookie (`s`)**.
-  - **Account Status Checker:** Parallel/sequential checks (respecting UI cooldown) show **charges / max / level / % / droplets**.
-  - **Show Latest Info:** Re-applies last fetched stats (kept in local storage) without refetching.
-  - **Hide Sensitive Info:** Masks names/IDs/actions for streams & screenshots.
-  - **Quick JSON Peek:** Pretty popup with user info + one-click **Copy raw JSON**.
-  - **Bulk “Buy Max Upgrades (All)”**: Purchases **Max Charge** upgrades for every account that can afford them; displays a compact report.
-- **Add Template:**
-  - **Image → Template converter** (palette mapping to wplace color IDs).
-  - **Use paid colors** toggle: exact premium matches allowed; otherwise **nearest basic** color used.
-  - **Coordinates parser:** Paste a full URL (`.../pixel/{tx}/{ty}?x={px}&y={py}`) or labeled string — fields **auto-fill**.
-  - **Canvas Preview:** Fetches live canvas tiles and overlays the **translucent template** with adjustable preview distance; mismatch highlight respects transparent pixels.
-  - Per-template toggles: **Paint transparent pixels**, **Buy charges**, **Buy Max upgrades**, **Anti‑grief mode**, **Auto purchase premium colors**.
-  - **Assign users** (multi-select + **Select All**).
-- **Manage Templates:**
-  - Cards showing **palette type** (Basic/Premium), **coords**, **assigned accounts**, **progress bar**, **pixel counts**, and the list of enabled options (**Enabled**).
-  - **Start/Stop** per template, plus **Start All / Stop All** actions.
-  - **Edit** (opens prefilled Add Template form) and **Delete** (with confirmation).
-  - **Full-screen Preview:** Zoom/pan, **toggle overlay**, **highlight mismatches**, and **match % summary**.
-- **Active Templates bar:** Floating bar listing running templates with a miniature preview and quick **Stop/Edit** actions.
-- **Settings:**
-  - **Drawing mode gallery** with animated previews for every mode.
-  - **Reference scenes** (Space / Portrait / Typo / Landscape / Dungeon / Emblem), **preview speed** slider, and **seed count** on Burst.
-  - Behaviour: **Always draw when ≥1 charge** (or use **Charge Threshold**), optional **Turnstile notifications**.
-  - Timings: **Account turn cooldown**, **Purchase cooldown**, **Account check cooldown**, **Anti-grief standby**, **Droplet reserve**.
-  - **Proxy panel:** Enable proxying, **rotation mode** (sequential/random), **log proxy usage**, **reload `proxies.txt`**, and **loaded count**.
+
+| Core | Highlights |
+| --- | --- |
+| Navigation | One-click access to Users, Add Template, Manage Templates, Settings |
+| User manager | Add via JWT `j` + optional session `s`; status checker (parallel/sequential) for charges / max / level / % / droplets; re-show last stats from local storage; hide sensitive info; quick JSON peek + copy; bulk “Buy Max Upgrades (All)” |
+| Add Template | Image→Template converter (palette mapping to wplace IDs); paid colors toggle (exact premium, else nearest basic); coordinates parser from URL; canvas preview overlay with distance and mismatch highlight (respects transparency); per-template toggles: paint transparent, buy charges, buy Max, anti‑grief, auto premium colors; assign users (multi-select / Select All) |
+| Manage Templates | Cards with palette type, coords, assigned accounts, progress, pixel counts, enabled options; Start/Stop and Start All/Stop All; Edit/Delete; full-screen preview (zoom/pan, overlay toggle, mismatch highlight, match %) |
+| Active Templates bar | Floating mini-preview with quick Stop/Edit actions |
+| Settings | Drawing mode gallery with animated previews; reference scenes (Space / Portrait / Typo / Landscape / Dungeon / Emblem); preview speed; Burst seed count; behavior: always draw when ≥1 charge or use charge threshold; Turnstile notifications; timings: account turn/purchase/check cooldowns, anti‑grief standby, droplet reserve |
+| Proxy | Enable proxying, rotation mode (sequential/random), log usage, reload `proxies.txt`, show loaded count |
 
 
 ### Painting Engine & Modes
-- **Palette-accurate rendering:** Supports 63 wplace colors (basic + premium). Skips premium colors a specific user doesn’t own.
-- **Transparent handling:** `0` means “transparent” in templates. Toggle **Paint transparent pixels** to allow overwriting background.
-- **Precise mismatch detection:** Loads remote tiles, decodes pixels to palette IDs, compares against template.
-- **Multiple strategies to fit any artwork:**
-  - **Linear:** `linear` (Top→Bottom), `linear-reversed` (Bottom→Top), `linear-ltr` (Left→Right), `linear-rtl` (Right→Left).
-  - **Spatial:** `radial-inward` (edges to center), `radial-outward` (Inside Out, center to edges).
-  - **Color-centric:** `singleColorRandom` (random color grouping), `colorByColor` (group by color).
-  - **Scatter:** `random`.
-  - **Advanced burst family:**
-    - **`burst`** — multi-seed BFS with dynamic queue speeds and directional “dash” streaks; seeds persist per template.
-    - **`outline-then-burst`** — trace outlines first, then fill interiors.
-    - **`colors-burst-rare`** — sort colors by **rarity** ascending, burst each color.
-    - **`burst-mixed`** — splits work into segments and randomly mixes *outline / burst / rare* every segment.
-- **Seeds:** Global **seed count (1–16)**; **burst seeds persist** across turns and reset on image/coordinate change.
+
+| Core | Highlights |
+| --- | --- |
+| Palette | Accurate rendering of 63 wplace colors (basic + premium); premium colors are skipped for users who don’t own them |
+| Transparency | In templates, `0` = transparent; “Paint transparent pixels” lets you overwrite background |
+| Mismatch detection | Loads remote tiles, decodes pixels to palette IDs, compares against template |
+| Strategies | Linear: `linear`, `linear-reversed`, `linear-ltr`, `linear-rtl`; Spatial: `radial-inward`, `radial-outward`; Color-centric: `singleColorRandom`, `colorByColor`; Scatter: `random` |
+| Burst family | `burst` — multi-seed BFS with dynamic queue speeds and directional dashes; `outline-then-burst` — outlines first, then fill; `colors-burst-rare` — order by color rarity; `burst-mixed` — segmented mix of outline/burst/rare |
+| Seeds | Global 1–16; burst seeds persist across turns and reset on image/coordinate changes |
 
 ## Previews
 
@@ -98,7 +76,7 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
 ### Original wplacer repository
 
-https://github.com/luluwaffless/wplacer
+https://github.com/wplacer/wplacer
 
 ### License 📜
 

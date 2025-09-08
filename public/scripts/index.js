@@ -1,4 +1,3 @@
-
 const $ = (id) => document.getElementById(id);
 const main = $("main");
 const openManageUsers = $("openManageUsers");
@@ -190,7 +189,7 @@ function showDisclaimerIfNeeded() {
     const content = `
       <div style="text-align:left; max-height:80vh; overflow:auto; line-height:1.45">
         <p><b>Important notice</b></p>
-        <p>This software is provided <b>for educational and research purposes only</b>. You must use it responsibly and in full compliance with the rules, Terms of Service, and policies of the target website/platform. Any actions that violate the platform’s rules, disrupt services, harm other users, or seek unfair advantage are <b>strictly discouraged</b>.</p>
+        <p>This software is provided <b>for educational and research purposes only</b>. You must use it responsibly and in full compliance with the rules, Terms of Service, and policies of the target website/platform. Any actions that violate the platform's rules, disrupt services, harm other users, or seek unfair advantage are <b>strictly discouraged</b>.</p>
         <p>By proceeding, you confirm that:</p>
         <ul>
           <li>You will strictly follow the rules of the <b>wplace</b> website and will not attempt to bypass or violate them.</li>
@@ -218,7 +217,7 @@ function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;'
 function renderMarkdown(md) {
     const lines = String(md || '').split(/\r?\n/);
     let html = '';
-    let listDepth = 0; 
+    let listDepth = 0;
     const openList = () => { html += '<ul>'; listDepth += 1; };
     const closeList = () => { html += '</ul>'; listDepth -= 1; };
     const flushAllLists = () => { while (listDepth > 0) closeList(); };
@@ -228,14 +227,14 @@ function renderMarkdown(md) {
         if (!line.trim()) { flushAllLists(); continue; }
 
         if (line.startsWith('### ')) { flushAllLists(); html += `<h3>${escapeHtml(line.slice(4))}</h3>`; continue; }
-        if (line.startsWith('## '))  { flushAllLists(); html += `<h2>${escapeHtml(line.slice(3))}</h2>`; continue; }
-        if (line.startsWith('# '))   { flushAllLists(); html += `<h1>${escapeHtml(line.slice(2))}</h1>`; continue; }
+        if (line.startsWith('## ')) { flushAllLists(); html += `<h2>${escapeHtml(line.slice(3))}</h2>`; continue; }
+        if (line.startsWith('# ')) { flushAllLists(); html += `<h1>${escapeHtml(line.slice(2))}</h1>`; continue; }
 
         const m = line.match(/^(\s*)-\s+(.*)$/);
         if (m) {
             const indent = m[1] || '';
             const content = m[2] || '';
-            const targetDepth = Math.max(0, Math.floor(indent.length / 2) + 1); 
+            const targetDepth = Math.max(0, Math.floor(indent.length / 2) + 1);
             while (listDepth < targetDepth) openList();
             while (listDepth > targetDepth) closeList();
             html += `<li>${escapeHtml(content)}</li>`;
@@ -776,24 +775,24 @@ async function showManageTemplatePreview(t) {
 
     preview.width = displayWidth * SCALE;
     preview.height = displayHeight * SCALE;
-    
+
     const maxHeight = 555;
     const maxWidth = 700;
     const canvasHeight = displayHeight * SCALE;
     const canvasWidth = displayWidth * SCALE;
-    
+
     const scaleByHeight = maxHeight / canvasHeight;
     const scaleByWidth = maxWidth / canvasWidth;
-    
+
     const scaleFactor = Math.min(scaleByHeight, scaleByWidth);
-    
+
     if (scaleFactor <= 1) {
         preview.style.width = 'max-content';
     } else {
         const scaledWidth = canvasWidth * scaleFactor;
         preview.style.width = `${scaledWidth}px`;
     }
-    
+
     const pctx = preview.getContext('2d');
     pctx.imageSmoothingEnabled = false;
 
@@ -933,8 +932,9 @@ async function showManageTemplatePreview(t) {
         const n = entries.length;
         for (let i = 0; i < n; i++) {
             const e = entries[i];
-            const ratio = n > 1 ? (i / (n - 1)) : 1;
-            const a = Math.max(0.1, Math.min(1, 0.1 + 0.9 * ratio));
+            const w = n > 1 ? (i / (n - 1)) : 1;
+            const a = Math.max(0, Math.min(1, 1 - w));
+            if (a <= 0) continue;
             const dx = Math.floor(e.relX) * STATE.SCALE;
             const dy = Math.floor(e.relY) * STATE.SCALE;
             pctx.fillStyle = 'rgb(255,0,0)';
@@ -955,8 +955,9 @@ async function showManageTemplatePreview(t) {
             const e = entries[i];
             const x = e.relX, y = e.relY;
             if (x < sx || y < sy || x >= sx + vw || y >= sy + vh) continue;
-            const ratio = n > 1 ? (i / (n - 1)) : 1;
-            const a = Math.max(0.1, Math.min(1, 0.1 + 0.9 * ratio));
+            const w = n > 1 ? (i / (n - 1)) : 1; // 0=oldest,1=newest
+            const a = Math.max(0, Math.min(1, 1 - w));
+            if (a <= 0) continue;
             const cx = (x - sx) * cellW;
             const cy = (y - sy) * cellH;
             pctx.fillStyle = 'rgb(255,0,0)';
@@ -1106,10 +1107,13 @@ async function showManageTemplatePreview(t) {
             try {
                 const limit = parseInt(localStorage.getItem('wplacer_heatmap_limit') || '3000', 10);
                 const { data } = await axios.get('/heatmap', { params: { id: t.name, limit } });
-                STATE.heatmapEntries = Array.isArray(data?.entries) ? data.entries : [];
+                let arr = Array.isArray(data?.entries) ? data.entries : [];
+                arr.sort((a, b) => (Number(a?.ts || 0) - Number(b?.ts || 0)));
+                if (arr.length > limit) arr = arr.slice(arr.length - limit);
+                STATE.heatmapEntries = arr;
             } catch (_) { STATE.heatmapEntries = []; }
         }
-        try { preview.style.background = STATE.showHeatmap ? '#000' : '#f8f4f0'; } catch (_) {}
+        try { preview.style.background = STATE.showHeatmap ? '#000' : '#f8f4f0'; } catch (_) { }
         updateButtons();
         render();
     };
@@ -1122,7 +1126,10 @@ async function showManageTemplatePreview(t) {
         if (STATE.showHeatmap) {
             try {
                 const { data } = await axios.get('/heatmap', { params: { id: t.name, limit: v } });
-                STATE.heatmapEntries = Array.isArray(data?.entries) ? data.entries : [];
+                let arr = Array.isArray(data?.entries) ? data.entries : [];
+                arr.sort((a, b) => (Number(a?.ts || 0) - Number(b?.ts || 0)));
+                if (arr.length > v) arr = arr.slice(arr.length - v);
+                STATE.heatmapEntries = arr;
             } catch (_) { STATE.heatmapEntries = []; }
             render();
         }
@@ -1362,15 +1369,21 @@ templateForm.addEventListener('submit', async (e) => {
     };
 });
 startAll.addEventListener('click', async () => {
-    for (const child of templateList.children) {
-        try {
-            await axios.put(`/template/${child.id}`, { running: true });
-        } catch (error) {
-            handleError(error);
+    // Always ask for confirmation before starting all templates
+    showConfirmation('Start all templates', 'Are you sure you want to start all templates?', async () => {
+        for (const child of templateList.children) {
+            try {
+                await axios.put(`/template/${child.id}`, { running: true });
+            } catch (error) {
+                handleError(error);
+            };
         };
-    };
-    showMessage("Success", "Finished! Check console for details.");
-    openManageTemplates.click();
+        showMessage("Success", "Finished! Check console for details.");
+        openManageTemplates.click();
+    });
+    if (typeof messageBoxConfirm !== 'undefined' && messageBoxConfirm) messageBoxConfirm.textContent = 'Start';
+    if (typeof messageBoxCancel !== 'undefined' && messageBoxCancel) messageBoxCancel.textContent = 'Cancel';
+    return;
 });
 stopAll.addEventListener('click', async () => {
     for (const child of templateList.children) {
@@ -1436,9 +1449,12 @@ openManageUsers.addEventListener("click", () => {
             const expirationDate = users[id].expirationDate;
             const expirationStr = expirationDate ? new Date(expirationDate * 1000).toLocaleString() : 'N/A';
 
+            const shortLabel = (users[id].shortLabel || '').trim();
+            const shortLabelSafe = escapeHtml(shortLabel);
+            const shortLabelCut = shortLabelSafe ? (shortLabelSafe.length > 20 ? shortLabelSafe.slice(0, 20) + '…' : shortLabelSafe) : '';
             user.innerHTML = `
                 <div class="user-info">
-                    <span class="user-info-username">${users[id].name}</span>
+                    <span class="user-info-username">${users[id].name}${shortLabelCut ? ` <span class="user-info-id">(${shortLabelCut})</span>` : ''}</span>
                     <span class="user-info-id">(#${id})</span>
                     <div class="user-stats">
                         Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span> | Droplets: <b>?</b> 
@@ -1469,26 +1485,44 @@ openManageUsers.addEventListener("click", () => {
 
 
             const editBtn = user.querySelector('.edit-btn');
-            editBtn.addEventListener('click', () => {
+            editBtn.addEventListener('click', async () => {
+                let u = {};
+                try {
+                    const r = await axios.get(`/user/status/${id}`);
+                    u = r.data || {};
+                } catch (_) { u = {}; }
+
+                const nameInit = String(u.name || users[id].name || '').slice(0, 15);
+                const discordInit = String(typeof u.discord === 'string' ? u.discord : (users[id].discord || '')).slice(0, 15);
+                const showInit = typeof u.showLastPixel === 'boolean' ? !!u.showLastPixel : !!users[id].showLastPixel;
+                const allianceIdInit = u.allianceId || '–';
+
                 const content = `
                     <div class="form-card" style="text-align:left; margin:0;">
                         <div class="muted-user-id">ID: #${id}</div>
                         <div class="field">
                             <label for="edit-name-${id}">Name (max 15)</label>
-                            <input id="edit-name-${id}" type="text" maxlength="15" value="${(users[id].name || '').replace(/"/g, '&quot;')}" />
+                            <input id="edit-name-${id}" type="text" maxlength="15" value="${nameInit.replace(/"/g, '&quot;')}" />
                         </div>
                         <div class="field">
                             <label for="edit-discord-${id}">Discord (max 15)</label>
-                            <input id="edit-discord-${id}" type="text" maxlength="15" value="${(users[id].discord || '').replace(/"/g, '&quot;')}" />
+                            <input id="edit-discord-${id}" type="text" maxlength="15" value="${discordInit.replace(/"/g, '&quot;')}" />
                         </div>
                         <div class="field edit-inline">
                             <label for="edit-showLastPixel-${id}" class="label-margin0">Show last pixel</label>
                             <label class="switch">
-                                <input id="edit-showLastPixel-${id}" type="checkbox" ${users[id].showLastPixel ? 'checked' : ''} />
+                                <input id="edit-showLastPixel-${id}" type="checkbox" ${showInit ? 'checked' : ''} />
                                 <span class="slider"></span>
                             </label>
                         </div>
                         <small class="help">Changes will be saved to your account on wplace.</small>
+                    </div>
+                    <div class="form-card" style="margin:8px 0 0; text-align: left;">
+                        <div class="field">
+                            <label for="edit-shortLabel-${id}">Personal note (max 20)</label>
+                            <input id="edit-shortLabel-${id}" type="text" maxlength="20" value="${(users[id].shortLabel || '').replace(/"/g, '&quot;')}" />
+                            <small class="help">Only for you. Not shared. Handy to store email/profile name for token updates.</small>
+                        </div>
                     </div>
                     <div class="form-card" style="text-align:left; margin-top:8px;">
                         <div class="settings-card-head">
@@ -1498,30 +1532,36 @@ openManageUsers.addEventListener("click", () => {
                         <div class="field">
                             <label for="edit-alliance-uuid-${id}">Alliance UUID</label>
                             <input id="edit-alliance-uuid-${id}" type="text" placeholder="01xxc1c1-1xxx-7xx6-913a-a84xxxx5a83e" />
-                            <small class="help">Paste the alliance UUID and press Join. Current id: <span id="edit-alliance-current-${id}">–</span></small>
+                            <small class="help">Paste the alliance UUID and press Join. Current id: <span id="edit-alliance-current-${id}">${escapeHtml(allianceIdInit)}</span></small>
                         </div>
-                        <div id="edit-alliance-join-wrap-${id}" class="form-actions">
+                        <div id="edit-alliance-join-wrap-${id}" class="form-actions" style="${allianceIdInit && allianceIdInit !== '–' ? 'display:none' : ''}">
                             <button type="button" id="edit-alliance-join-${id}" class="secondary-button"><img src="icons/addUser.svg" alt=""/>Join</button>
                         </div>
-                        <div class="form-actions">
+                        <div class="form-actions" style="${allianceIdInit && allianceIdInit !== '–' ? '' : 'display:none'}">
                             <button type="button" id="edit-alliance-leave-${id}" class="secondary-button"><img src="icons/remove.svg" alt=""/>Leave</button>
                         </div>
                     </div>`;
 
-                showConfirmation('Edit Account', content, async () => {
+                showConfirmationBig('Edit Account', content, async () => {
                     const nameEl = document.getElementById(`edit-name-${id}`);
+                    const shortLabelEl = document.getElementById(`edit-shortLabel-${id}`);
                     const discordEl = document.getElementById(`edit-discord-${id}`);
                     const showEl = document.getElementById(`edit-showLastPixel-${id}`);
                     const name = (nameEl?.value || '').trim().slice(0, 15);
+                    const shortLabel = (shortLabelEl?.value || '').trim().slice(0, 20);
                     const discord = (discordEl?.value || '').trim().slice(0, 15);
                     const showLastPixel = !!showEl?.checked;
                     if (name.length < 2) { showMessage('Error', 'Name must be at least 2 characters.'); return; }
                     try {
-                        const payload = { name, discord, showLastPixel };
+                        const payload = { name, discord, showLastPixel, shortLabel };
                         const resp = await axios.put(`/user/${id}/update-profile`, payload);
                         if (resp.status === 200 && resp.data?.success) {
-                            user.querySelector('.user-info-username').textContent = name;
+                            // Update username + short label inline
+                            const usernameEl = user.querySelector('.user-info-username');
+                            const shortCut = shortLabel ? escapeHtml(shortLabel.length > 20 ? shortLabel.slice(0, 20) + '…' : shortLabel) : '';
+                            if (usernameEl) usernameEl.innerHTML = `${escapeHtml(name)}${shortCut ? ` <span class=\"user-info-id\">(${shortCut})</span>` : ''}`;
                             users[id].name = name;
+                            users[id].shortLabel = shortLabel;
                             users[id].discord = discord;
                             users[id].showLastPixel = showLastPixel;
                             closeMessageBox();
@@ -1533,7 +1573,7 @@ openManageUsers.addEventListener("click", () => {
                         handleError(error);
                     }
                 });
-                if (messageBoxConfirm) messageBoxConfirm.textContent = 'Save';
+                if (typeof messageBoxConfirmBig !== 'undefined' && messageBoxConfirmBig) messageBoxConfirmBig.textContent = 'Save';
 
                 const joinBtn = document.getElementById(`edit-alliance-join-${id}`);
                 const leaveBtn = document.getElementById(`edit-alliance-leave-${id}`);
@@ -1589,28 +1629,6 @@ openManageUsers.addEventListener("click", () => {
                         leaveBtn.innerHTML = '<img src="icons/remove.svg" alt=""/>Leave';
                     }
                 });
-
-                (async () => {
-                    try {
-                        const r = await axios.get(`/user/status/${id}`);
-                        const u = r.data || {};
-                        const nameEl = document.getElementById(`edit-name-${id}`);
-                        const discordEl = document.getElementById(`edit-discord-${id}`);
-                        const showEl = document.getElementById(`edit-showLastPixel-${id}`);
-                        if (typeof u.name === 'string' && nameEl) nameEl.value = u.name.slice(0, 15);
-                        if (typeof u.discord === 'string' && discordEl) discordEl.value = u.discord.slice(0, 15);
-                        if (showEl && typeof u.showLastPixel === 'boolean') showEl.checked = !!u.showLastPixel;
-                        const currEl = document.getElementById(`edit-alliance-current-${id}`);
-                        if (currEl) currEl.textContent = u.allianceId || '–';
-                        if (u.allianceId) {
-                            if (joinWrap) joinWrap.style.display = 'none';
-                            if (leaveBtn) leaveBtn.style.display = '';
-                        } else {
-                            if (joinWrap) joinWrap.style.display = '';
-                            if (leaveBtn) leaveBtn.style.display = 'none';
-                        }
-                    } catch (_) { }
-                })();
             });
             user.querySelector('.json-btn').addEventListener("click", async () => {
                 try {
@@ -1700,6 +1718,42 @@ async function processInParallel(tasks, concurrency) {
 }
 
 checkUserStatus.addEventListener("click", async () => {
+    const __bypass = Number(window.__skipAccountCheckCooldownWarningCounter || 0);
+    if (__bypass === 0) {
+        try {
+            const { data: s } = await axios.get('/settings');
+            const settingsAccountCheckCooldownEarly = s?.accountCheckCooldown || 0;
+            if (settingsAccountCheckCooldownEarly === 0) {
+                const content = `
+                    <div style="text-align:left">
+                        <p><b>Heads‑up: Account Check Cooldown is 0</b></p>
+                        <ul>
+                            <li>No delay between checks: some accounts may temporarily fail due to rate limits or because the account is busy.</li>
+                            <li>This does not necessarily mean the token has expired.</li>
+                        </ul>
+                        <p><b>What you can do</b></p>
+                        <ul>
+                            <li>After some time, manually re‑check red‑marked accounts (the middle button <img style="width:20px;height:20px;background: #515151;padding: 3px;border-radius: 5px;" src="icons/code.svg">).</li>
+                            <li>If manual check still fails, the token is likely expired. To refresh it, load the extension in your browser/profile, sign in to wplace.live on that account — the extension will update the token automatically.</li>
+                        </ul>
+                        <p><b>Totals and “Show latest information”</b></p>
+                        <ul>
+                            <li>Initial totals may exclude accounts that temporarily failed to verify.</li>
+                            <li>When you click “Show latest information” later, recalculation uses the last known data for those accounts, so values can be higher.</li>
+                        </ul>
+                    </div>`;
+                showConfirmationBig('Before you start', content, () => {
+                    window.__skipAccountCheckCooldownWarningCounter = 1;
+                    checkUserStatus.click();
+                });
+                if (typeof messageBoxConfirmBig !== 'undefined' && messageBoxConfirmBig) messageBoxConfirmBig.textContent = 'OK, start anyway';
+                if (typeof messageBoxCancelBig !== 'undefined' && messageBoxCancelBig) messageBoxCancelBig.textContent = 'Close';
+                return;
+            }
+        } catch (_) { }
+    } else {
+        window.__skipAccountCheckCooldownWarningCounter = __bypass - 1;
+    }
     checkUserStatus.disabled = true;
     checkUserStatus.innerHTML = "Checking...";
     const userElements = Array.from(document.querySelectorAll('.user'));
@@ -2162,6 +2216,36 @@ let createToggleButton = (template, id, buttonsContainer, statusSpan) => {
     button.innerHTML = `<img src="icons/${isRunning ? 'pause' : 'play'}.svg">${isRunning ? 'Stop' : 'Start'}`;
 
     button.addEventListener('click', async () => {
+        // When starting single template, warn once if Account Turn Cooldown is 0
+        if (!isRunning) {
+            const bypass = Number(window.__skipAccountTurnCooldownWarningCounter || 0);
+            if (bypass === 0) {
+                try {
+                    const { data: s } = await axios.get('/settings');
+                    const ac = s?.accountCooldown || 0;
+                    if (ac === 0) {
+                        const content = `
+                            <div style=\"text-align:left\">\n\
+                                <p><b>Heads‑up: Account Turn Cooldown is 0</b></p>
+                                <ul>
+                                    <li>Setting cooldown to 0 is strongly discouraged: ban risk is higher.</li>
+                                    <li>Pixels appear on the canvas very quickly; terminal may show more 401/403 errors.</li>
+                                    <li>Use this setting wisely, even with proxy enabled.</li>
+                                </ul>
+                            </div>`;
+                        showConfirmationBig('Before you start', content, () => {
+                            window.__skipAccountTurnCooldownWarningCounter = 1;
+                            button.click();
+                        });
+                        if (typeof messageBoxConfirmBig !== 'undefined' && messageBoxConfirmBig) messageBoxConfirmBig.textContent = 'OK, start anyway';
+                        if (typeof messageBoxCancelBig !== 'undefined' && messageBoxCancelBig) messageBoxCancelBig.textContent = 'Close';
+                        return;
+                    }
+                } catch (_) { }
+            } else {
+                window.__skipAccountTurnCooldownWarningCounter = bypass - 1;
+            }
+        }
         try {
             await axios.put(`/template/${id}`, { running: !isRunning });
             template.running = !isRunning;
@@ -3973,16 +4057,16 @@ function fillEditorFromTemplate(t) {
 function resortUsersAfterPalette(maxTries = 40, delay = 50) {
     let tries = 0;
     (function tick() {
-      const sel = document.getElementById('userSortMode');
-      if (sel && sel._bound) {
-        sel.value = 'priority';
-        sel.dispatchEvent(new Event('change', { bubbles: true }));
-        return;
-      }
-      if (++tries < maxTries) setTimeout(tick, delay);
+        const sel = document.getElementById('userSortMode');
+        if (sel && sel._bound) {
+            sel.value = 'priority';
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            return;
+        }
+        if (++tries < maxTries) setTimeout(tick, delay);
     })();
-  }
-  
+}
+
 
 // colorsManager
 const colorsManager = $("colorsManager");

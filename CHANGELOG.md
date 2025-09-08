@@ -1,3 +1,12 @@
+## Changelog v4.2.1
+- Fixed an issue with alternating "Painted // Token expired/invalid" during drawing.
+- Added custom labeling for accounts (e.g., account email or browser profile) to facilitate easier navigation and management when refreshing cookies. Check "Edit User" section.
+- Updated extension (re-upload in your browser)
+- Added warnings:
+  - Added a warning box before 'Check Account Status' when Account Check Cooldown equals 0.
+  - Added a warning box before 'Start Template' when Account Turn Cooldown equals 0.
+
+
 ## Changelog v4.2.0
 - Trying to fix token issue
 - Heatmap preview added
