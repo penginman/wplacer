@@ -446,7 +446,7 @@ class WPlacer {
       // Authentication expired - mark for cookie refresh
       return { painted: 0, success: false, reason: "auth_expired" };
     } else if (response.status === 451 && response.data.suspension) {
-      throw new SuspensionError(`❌Account is suspended (451).`, response.data.durationMs || 0);
+      throw new SuspensionError(`❌ Account is suspended (451).`, response.data.durationMs || 0);
     } else if (response.status === 500) {
       log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ❌ Server error (500) - waiting before retry...`);
       await sleep(40000);
@@ -1955,10 +1955,12 @@ app.post("/user", async (req, res) => {
   try {
     const userInfo = await wplacer.login(req.body.cookies);
     const exp = getJwtExp(req.body.cookies.j);
+    const prev = users[userInfo.id] || {};
     users[userInfo.id] = {
+      ...prev,
       name: userInfo.name,
       cookies: req.body.cookies,
-      expirationDate: exp || users[userInfo.id]?.expirationDate || null
+      expirationDate: exp || prev?.expirationDate || null
     };
     saveUsers();
     res.json(userInfo);
