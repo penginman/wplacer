@@ -2,6 +2,7 @@
 
 <a href="LICENSE"><img src="https://img.shields.io/github/license/lllexxa/wplacer"></a>
 <a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
+[![Views](https://hits.sh/github.com/lllexxa/wplacer.svg?label=Views&color=blue&style=flat)](https://hits.sh/github.com/lllexxa/wplacer/)
 
 A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
