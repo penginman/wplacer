@@ -1,3 +1,7 @@
+## Changelog v4.2.3
+- Fixed extension behavior.
+- You need to reload the extension in your browser (refresh it in chrome://extensions or reinstall it).
+
 ## Changelog v4.2.2
 - Front-End improvements:
   - Added a counter to the palette header: “Remaining colors” now shows the total number of remaining pixels.

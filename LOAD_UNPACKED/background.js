@@ -1,3 +1,4 @@
+
 const POLL_ALARM_NAME = 'wplacer-poll-alarm';
 const COOKIE_ALARM_NAME = 'wplacer-cookie-alarm';
 
@@ -40,6 +41,15 @@ async function startLongPoll() {
     }
 }
 
+const maybeInitiateReload = async () => {
+    const now = Date.now();
+    if (TOKEN_IN_PROGRESS) return;
+    if (now - LAST_RELOAD_AT < MIN_RELOAD_INTERVAL_MS) return;
+    TOKEN_IN_PROGRESS = true;
+    await initiateReload();
+    LAST_RELOAD_AT = Date.now();
+};
+
 const pollForTokenRequest = async () => {
     console.log("wplacer: Polling server for token request...");
     try {
@@ -57,15 +67,6 @@ const pollForTokenRequest = async () => {
     } catch (error) {
         console.error("wplacer: Could not connect to the server to poll for tokens.", error.message);
     }
-};
-
-const maybeInitiateReload = async () => {
-    const now = Date.now();
-    if (TOKEN_IN_PROGRESS) return;
-    if (now - LAST_RELOAD_AT < MIN_RELOAD_INTERVAL_MS) return;
-    TOKEN_IN_PROGRESS = true;
-    await initiateReload();
-    LAST_RELOAD_AT = Date.now();
 };
 
 const initiateReload = async () => {
@@ -108,13 +109,6 @@ const sendCookie = async (callback) => {
     const url = await getServerUrl("/user");
 
     try {
-        const masked = typeof jCookie.value === 'string' && jCookie.value.length > 10
-            ? `${jCookie.value.slice(0, 6)}...${jCookie.value.slice(-4)}`
-            : (jCookie.value || '').slice(0, 6);
-        console.log(`wplacer: Sending j cookie to server (${masked}).`);
-    } catch {}
-
-    try {
         const response = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -122,10 +116,8 @@ const sendCookie = async (callback) => {
         });
         if (!response.ok) throw new Error(`Server responded with status: ${response.status}`);
         const userInfo = await response.json();
-        console.log(`wplacer: Cookie 'j' update success for user: ${userInfo?.name || 'unknown'}.`);
         if (callback) callback({ success: true, name: userInfo.name });
     } catch (error) {
-        console.warn(`wplacer: Failed to send j cookie: ${error?.message || error}`);
         if (callback) callback({ success: false, error: "Could not connect to the wplacer server." });
     }
 };
@@ -165,10 +157,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendCookie(sendResponse);
         return true;
     }
-    if (request.action === "quickLogout") {
-        quickLogout(sendResponse);
-        return true;
-    }
     if (request.action === "settingsUpdated") {
         LP_ACTIVE = false;
         setTimeout(startLongPoll, 100);
@@ -186,43 +174,81 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         window.__wplacerPawtectHooked = true;
 
                         const backend = 'https://backend.wplace.live';
-                        const resolvePawtectChunkUrl = async () => {
+                        
+                        const findPawtectPath = async () => {
+                            const cacheKey = 'wplacer_pawtect_path';
+                            const cacheTimeKey = 'wplacer_pawtect_cache_time';
+                            const cacheExpiry = 5 * 60 * 1000; // 5 minutes
+                            
+                            let pawtectPath = localStorage.getItem(cacheKey);
+                            const cacheTime = localStorage.getItem(cacheTimeKey);
+                            
+                            if (pawtectPath && cacheTime && (Date.now() - parseInt(cacheTime)) < cacheExpiry) {
+                                return pawtectPath;
+                            }
+                            
+                            console.log("[SEARCHING for Pawtect chunk...]");
+                            const links = Array.from(document.querySelectorAll('link[rel="modulepreload"]'))
+                                .map(l => l.href);
+                            
+                            for (const url of links) {
+                                try {
+                                    const res = await fetch(url);
+                                    const text = await res.text();
+                                    if (text.includes("get_pawtected_endpoint_payload")) {
+                                        pawtectPath = url;
+                                        console.log("[FOUND Pawtect chunk]:", url);
+                                        localStorage.setItem(cacheKey, pawtectPath);
+                                        localStorage.setItem(cacheTimeKey, Date.now().toString());
+                                        return pawtectPath;
+                                    }
+                                } catch (e) {
+                                    console.log("Failed to fetch", url, e);
+                                }
+                            }
+                            
+                            return null;
+                        };
+                        
+                        const importModule = async () => {
                             try {
-                                if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') return window.__wplacerPawtectChunk;
-                                const cached = localStorage.getItem('wplacerPawtectChunk');
-                                if (cached) { window.__wplacerPawtectChunk = cached; return cached; }
+                                const pawtectPath = await findPawtectPath();
+                                if (!pawtectPath) {
+                                    console.warn('pawtect: Could not find Pawtect chunk!');
+                                    return null;
+                                }
+                                
+                                try {
+                                    console.log("[USING Pawtect path]:", pawtectPath);
+                                    return await import(pawtectPath);
+                                } catch (e) {
+                                    console.log("[PATH FAILED, clearing cache and finding new one]:", e);
+                                    localStorage.removeItem('wplacer_pawtect_path');
+                                    localStorage.removeItem('wplacer_pawtect_cache_time');
+                                    const newPath = await findPawtectPath();
+                                    if (newPath) {
+                                        return await import(newPath);
+                                    }
+                                    return null;
+                                }
+                            } catch (e) {
+                                console.warn('pawtect: module import failed', e?.message || e);
+                                return null;
+                            }
+                        };
 
-                                const urls = new Set();
-                                Array.from(document.querySelectorAll('script[src]')).forEach(s => { try { urls.add(new URL(s.src, location.href).href); } catch {} });
-                                Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => { try { urls.add(new URL(l.href, location.href).href); } catch {} });
-                                try { (performance.getEntriesByType('resource') || []).forEach(e => { if (e && typeof e.name === 'string') urls.add(e.name); }); } catch {}
-
-                                const scripts = Array.from(urls).filter(src => /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src));
-                                console.log('wplacer: pawtect chunk candidates', scripts);
-
-                                for (const src of scripts) {
+                        const findSetUserIdFunction = (mod) => {
+                            for (const key of Object.keys(mod)) {
+                                const fn = mod[key];
+                                if (typeof fn === "function") {
                                     try {
-                                        const text = await fetch(src, { credentials: 'omit' }).then(r => r.text());
-                                        if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) {
-                                            localStorage.setItem('wplacerPawtectChunk', src);
-                                            window.__wplacerPawtectChunk = src;
-                                            return src;
+                                        const str = fn.toString();
+                                        if (/[\w$]+\s*\.\s*set_user_id\s*\(/.test(str)) {
+                                            return fn;
                                         }
                                     } catch {}
                                 }
-                                return null;
-                            } catch { return null; }
-                        };
-                        const importModule = async () => {
-                            const discovered = await resolvePawtectChunkUrl();
-                            console.log('wplacer: pawtect chunk discovered', discovered);
-                            const candidates = [];
-                            if (discovered) candidates.push(discovered);
-                            candidates.push(new URL('/_app/immutable/chunks/BdJF80pX.js', location.origin).href);
-                            candidates.push('https://wplace.live/_app/immutable/chunks/BdJF80pX.js');
-                            let lastErr;
-                            for (const url of candidates) { try { return await import(url); } catch (e) { lastErr = e; } }
-                            console.warn('pawtect: module import failed', lastErr?.message || lastErr);
+                            }
                             return null;
                         };
 
@@ -232,7 +258,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             const wasm = await mod._();
                             try {
                                 const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
-                                if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+                                if (me?.id) {
+                                    const setUserIdFn = findSetUserIdFunction(mod);
+                                    if (setUserIdFn) {
+                                        console.log('Set userId', me.id);
+                                        setUserIdFn(me.id);
+                                    }
+                                }
                             } catch {}
                             if (typeof mod.r === 'function') mod.r(url);
                             const enc = new TextEncoder();
@@ -240,6 +272,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             const bytes = enc.encode(bodyStr);
                             const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
                             new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
+                            console.log('wplacer: pawtect compute start', { url, bodyLen: bodyStr.length });
                             const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
                             let token;
                             if (Array.isArray(out)) {
@@ -255,6 +288,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 console.warn('wplacer: unexpected pawtect out shape', typeof out);
                                 token = null;
                             }
+                            console.log('wplacer: pawtect compute done, tokenLen:', token ? token.length : 0);
                             window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'pixel' }, '*');
                             return token;
                         };
@@ -268,11 +302,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 if (req.method === 'POST' && /\/s0\/pixel\//.test(req.url)) {
                                     const raw = typeof init.body === 'string' ? init.body : null;
                                     if (raw) {
+                                        console.log('wplacer: hook(fetch) pixel POST detected (init.body)', req.url, 'len', raw.length);
                                         computePawtect(req.url, raw);
                                     } else {
                                         try {
                                             const clone = req.clone();
                                             const text = await clone.text();
+                                            console.log('wplacer: hook(fetch) pixel POST detected (clone)', req.url, 'len', text.length);
                                             computePawtect(req.url, text);
                                         } catch {}
                                     }
@@ -296,19 +332,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                         const url = this.__wplacer_url;
                                         const maybeCompute = (raw) => { if (raw && typeof raw === 'string') computePawtect(url, raw); };
                                         if (typeof body === 'string') {
+                                            console.log('wplacer: hook(XHR) pixel POST detected (string)', url, 'len', body.length);
                                             maybeCompute(body);
                                         } else if (body instanceof ArrayBuffer) {
-                                            try { const s = new TextDecoder().decode(new Uint8Array(body)); maybeCompute(s); } catch {}
+                                            try { const s = new TextDecoder().decode(new Uint8Array(body)); console.log('wplacer: hook(XHR) pixel POST detected (ArrayBuffer)', url, 'len', s.length); maybeCompute(s); } catch {}
                                         } else if (body && typeof body === 'object' && 'buffer' in body && body.buffer instanceof ArrayBuffer) {
-                                            try { const s = new TextDecoder().decode(new Uint8Array(body.buffer)); maybeCompute(s); } catch {}
+                                            // e.g., Uint8Array
+                                            try { const s = new TextDecoder().decode(new Uint8Array(body.buffer)); console.log('wplacer: hook(XHR) pixel POST detected (TypedArray)', url, 'len', s.length); maybeCompute(s); } catch {}
                                         } else if (body && typeof body.text === 'function') {
-                                            try { body.text().then(s => { maybeCompute(s); }).catch(() => {}); } catch {}
+                                            // Blob or similar
+                                            try { body.text().then(s => { console.log('wplacer: hook(XHR) pixel POST detected (Blob)', url, 'len', (s||'').length); maybeCompute(s); }).catch(() => {}); } catch {}
                                         }
                                     }
                                 } catch {}
                                 return origSend.apply(this, arguments);
                             };
                         } catch {}
+                        console.log('wplacer: pawtect fetch hook installed');
                     }
                 });
             }
@@ -330,28 +370,65 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             try {
                                 const backend = 'https://backend.wplace.live';
                                 const url = `${backend}/s0/pixel/1/1`;
-                                const resolvePawtectChunkUrl = async () => {
-                                    try {
-                                        if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') return window.__wplacerPawtectChunk;
-                                        const cached = localStorage.getItem('wplacerPawtectChunk');
-                                        if (cached) { window.__wplacerPawtectChunk = cached; return cached; }
-                                        const urls = new Set();
-                                        Array.from(document.querySelectorAll('script[src]')).forEach(s => { try { urls.add(new URL(s.src, location.href).href); } catch {} });
-                                        Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => { try { urls.add(new URL(l.href, location.href).href); } catch {} });
-                                        try { (performance.getEntriesByType('resource') || []).forEach(e => { if (e && typeof e.name === 'string') urls.add(e.name); }); } catch {}
-                                        const scripts = Array.from(urls).filter(src => /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src));
-                                        for (const src of scripts) {
-                                            try { const text = await fetch(src, { credentials: 'omit' }).then(r => r.text()); if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) { localStorage.setItem('wplacerPawtectChunk', src); window.__wplacerPawtectChunk = src; return src; } } catch {}
-                                        }
-                                        return null;
-                                    } catch { return null; }
+                                
+                                const findPawtectPath = async () => {
+                                    const cacheKey = 'wplacer_pawtect_path';
+                                    const cacheTimeKey = 'wplacer_pawtect_cache_time';
+                                    const cacheExpiry = 5 * 60 * 1000;
+                                    
+                                    let pawtectPath = localStorage.getItem(cacheKey);
+                                    const cacheTime = localStorage.getItem(cacheTimeKey);
+                                    
+                                    if (pawtectPath && cacheTime && (Date.now() - parseInt(cacheTime)) < cacheExpiry) {
+                                        return pawtectPath;
+                                    }
+                                    
+                                    const links = Array.from(document.querySelectorAll('link[rel="modulepreload"]'))
+                                        .map(l => l.href);
+                                    
+                                    for (const url of links) {
+                                        try {
+                                            const res = await fetch(url);
+                                            const text = await res.text();
+                                            if (text.includes("get_pawtected_endpoint_payload")) {
+                                                pawtectPath = url;
+                                                localStorage.setItem(cacheKey, pawtectPath);
+                                                localStorage.setItem(cacheTimeKey, Date.now().toString());
+                                                return pawtectPath;
+                                            }
+                                        } catch (e) {}
+                                    }
+                                    
+                                    return null;
                                 };
-                                const discovered = await resolvePawtectChunkUrl();
-                                const mod = discovered ? await import(discovered) : await import('/_app/immutable/chunks/BdJF80pX.js');
+                                
+                                const pawtectPath = await findPawtectPath();
+                                if (!pawtectPath) return;
+                                
+                                const mod = await import(pawtectPath);
                                 const wasm = await mod._();
+                                
+                                const findSetUserIdFunction = (mod) => {
+                                    for (const key of Object.keys(mod)) {
+                                        const fn = mod[key];
+                                        if (typeof fn === "function") {
+                                            try {
+                                                const str = fn.toString();
+                                                if (/[\w$]+\s*\.\s*set_user_id\s*\(/.test(str)) {
+                                                    return fn;
+                                                }
+                                            } catch {}
+                                        }
+                                    }
+                                    return null;
+                                };
+                                
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
-                                    if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+                                    if (me?.id) {
+                                        const setUserIdFn = findSetUserIdFunction(mod);
+                                        if (setUserIdFn) setUserIdFn(me.id);
+                                    }
                                 } catch {}
                                 if (typeof mod.r === 'function') mod.r(url);
                                 const enc = new TextEncoder();
@@ -393,28 +470,65 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         (async () => {
                             try {
                                 const backend = 'https://backend.wplace.live';
-                                const resolvePawtectChunkUrl = async () => {
-                                    try {
-                                        if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') return window.__wplacerPawtectChunk;
-                                        const cached = localStorage.getItem('wplacerPawtectChunk');
-                                        if (cached) { window.__wplacerPawtectChunk = cached; return cached; }
-                                        const urls = new Set();
-                                        Array.from(document.querySelectorAll('script[src]')).forEach(s => { try { urls.add(new URL(s.src, location.href).href); } catch {} });
-                                        Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => { try { urls.add(new URL(l.href, location.href).href); } catch {} });
-                                        try { (performance.getEntriesByType('resource') || []).forEach(e => { if (e && typeof e.name === 'string') urls.add(e.name); }); } catch {}
-                                        const scripts = Array.from(urls).filter(src => /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src));
-                                        for (const src of scripts) {
-                                            try { const text = await fetch(src, { credentials: 'omit' }).then(r => r.text()); if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) { localStorage.setItem('wplacerPawtectChunk', src); window.__wplacerPawtectChunk = src; return src; } } catch {}
-                                        }
-                                        return null;
-                                    } catch { return null; }
+                                
+                                const findPawtectPath = async () => {
+                                    const cacheKey = 'wplacer_pawtect_path';
+                                    const cacheTimeKey = 'wplacer_pawtect_cache_time';
+                                    const cacheExpiry = 5 * 60 * 1000;
+                                    
+                                    let pawtectPath = localStorage.getItem(cacheKey);
+                                    const cacheTime = localStorage.getItem(cacheTimeKey);
+                                    
+                                    if (pawtectPath && cacheTime && (Date.now() - parseInt(cacheTime)) < cacheExpiry) {
+                                        return pawtectPath;
+                                    }
+                                    
+                                    const links = Array.from(document.querySelectorAll('link[rel="modulepreload"]'))
+                                        .map(l => l.href);
+                                    
+                                    for (const url of links) {
+                                        try {
+                                            const res = await fetch(url);
+                                            const text = await res.text();
+                                            if (text.includes("get_pawtected_endpoint_payload")) {
+                                                pawtectPath = url;
+                                                localStorage.setItem(cacheKey, pawtectPath);
+                                                localStorage.setItem(cacheTimeKey, Date.now().toString());
+                                                return pawtectPath;
+                                            }
+                                        } catch (e) {}
+                                    }
+                                    
+                                    return null;
                                 };
-                                const discovered = await resolvePawtectChunkUrl();
-                                const mod = discovered ? await import(discovered) : await import('/_app/immutable/chunks/BdJF80pX.js');
+                                
+                                const pawtectPath = await findPawtectPath();
+                                if (!pawtectPath) return;
+                                
+                                const mod = await import(pawtectPath);
                                 const wasm = await mod._();
+                                
+                                const findSetUserIdFunction = (mod) => {
+                                    for (const key of Object.keys(mod)) {
+                                        const fn = mod[key];
+                                        if (typeof fn === "function") {
+                                            try {
+                                                const str = fn.toString();
+                                                if (/[\w$]+\s*\.\s*set_user_id\s*\(/.test(str)) {
+                                                    return fn;
+                                                }
+                                            } catch {}
+                                        }
+                                    }
+                                    return null;
+                                };
+                                
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
-                                    if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+                                    if (me?.id) {
+                                        const setUserIdFn = findSetUserIdFunction(mod);
+                                        if (setUserIdFn) setUserIdFn(me.id);
+                                    }
                                 } catch {}
                                 const url = `${backend}/s0/pixel/1/1`;
                                 if (typeof mod.r === 'function') mod.r(url);
@@ -451,6 +565,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
         } catch {}
         sendResponse({ ok: true });
+        return true;
+    }
+    if (request.action === "quickLogout") {
+        quickLogout(sendResponse);
         return true;
     }
     if (request.type === "SEND_TOKEN") {
@@ -491,7 +609,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 const initializeAlarms = () => {
     chrome.alarms.create(POLL_ALARM_NAME, {
         delayInMinutes: 0.1,
-        periodInMinutes: 0.75
+        periodInMinutes: 0.75 
     });
     chrome.alarms.create(COOKIE_ALARM_NAME, {
         delayInMinutes: 1,
@@ -513,5 +631,3 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 startLongPoll();
-
-
