@@ -11,6 +11,11 @@ const dataDir = "./data";
 if (!existsSync(dataDir)) {
   mkdirSync(dataDir, { recursive: true });
 }
+// Heat maps directory
+const heatMapsDir = path.join(dataDir, "heat_maps");
+if (!existsSync(heatMapsDir)) {
+  try { mkdirSync(heatMapsDir, { recursive: true }); } catch (_) {}
+}
 
 // --- Logging & utils ---
 const log = async (id, name, data, error) => {
@@ -25,18 +30,7 @@ const log = async (id, name, data, error) => {
   }
 };
 
-// Pixel logs (for heatmap)
-const pixelLogsPath = path.join(dataDir, "pixel_logs.jsonl");
-if (!existsSync(pixelLogsPath)) {
-  try { writeFileSync(pixelLogsPath, ""); } catch (_) {}
-}
-const appendPixelLogs = (entries) => {
-  try {
-    if (!entries || !entries.length) return;
-    const lines = entries.map((e) => JSON.stringify(e)).join("\n") + "\n";
-    appendFileSync(pixelLogsPath, lines);
-  } catch (_) {}
-};
+
 
 const duration = (durationMs) => {
   if (durationMs <= 0) return "0s";
@@ -273,6 +267,11 @@ class WPlacer {
     this._activeBurstSeedIdx = null;
   }
 
+  // Add lightweight cancellation helper that can be set by TemplateManager
+  _isCancelled() {
+    try { return typeof this.shouldStop === 'function' ? !!this.shouldStop() : false; } catch (_) { return false; }
+  }
+
   async login(cookies) {
     this.cookies = cookies;
     const jar = new CookieJar();
@@ -441,6 +440,56 @@ class WPlacer {
 
     if (response.data.painted && response.data.painted === body.colors.length) {
       log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`);
+      try {
+        // Heatmap logging: write per-template records
+        const entry = Object.entries(templates).find(([tid, t]) => t && t.name === this.templateName && Array.isArray(t.coords) && JSON.stringify(t.coords) === JSON.stringify(this.coords));
+        const tpl = entry ? entry[1] : null;
+        const tplId = entry ? entry[0] : null;
+        if (tpl && tpl.heatmapEnabled) {
+          const [TlX, TlY, PxX0, PxY0] = this.coords;
+          const date = Date.now();
+          const coords = body.coords || [];
+          // records are pairs Px X, Px Y (convert to template-local coordinates)
+          const startGlobalX = (TlX * 1000) + (PxX0 | 0);
+          const startGlobalY = (TlY * 1000) + (PxY0 | 0);
+          const pairs = [];
+          for (let i = 0; i < coords.length; i += 2) {
+            const localPx = coords[i];
+            const localPy = coords[i + 1];
+            if (typeof localPx === 'number' && typeof localPy === 'number') {
+              const globalX = (tx * 1000) + localPx;
+              const globalY = (ty * 1000) + localPy;
+              const tplX = globalX - startGlobalX; // template-local X
+              const tplY = globalY - startGlobalY; // template-local Y
+              if (Number.isFinite(tplX) && Number.isFinite(tplY)) {
+                pairs.push({ date, "Tl X": TlX, "Tl Y": TlY, "Px X": tplX, "Px Y": tplY });
+              }
+            }
+          }
+          if (pairs.length) {
+            const idPart = tplId ? String(tplId) : encodeURIComponent(this.templateName);
+            const fileName = `${idPart}.jsonl`;
+            const filePath = path.join(heatMapsDir, fileName);
+            // ensure file exists
+            try { if (!existsSync(filePath)) writeFileSync(filePath, ""); } catch (_) {}
+            // append as JSONL to avoid memory usage
+            const lines = pairs.map(o => JSON.stringify(o)).join("\n") + "\n";
+            appendFileSync(filePath, lines);
+            // enforce limit by truncating oldest when exceeding lines
+            try {
+              const limit = Math.max(0, Math.floor(Number(tpl.heatmapLimit || 10000))) || 10000;
+              if (limit > 0) {
+                const raw = readFileSync(filePath, "utf8");
+                const arr = raw.split(/\r?\n/).filter(Boolean);
+                if (arr.length > limit) {
+                  const keep = arr.slice(arr.length - limit);
+                  writeFileSync(filePath, keep.join("\n") + "\n");
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (_) { }
       return { painted: body.colors.length, success: true };
     } else if (response.status === 401 || response.status === 403) {
       // Authentication expired - mark for cookie refresh
@@ -720,6 +769,7 @@ class WPlacer {
    */
   async paint(method = "linear") {
     await this.loadUserInfo();
+    if (this._isCancelled()) return 0;
 
     switch (method) {
       case "linear":
@@ -767,6 +817,8 @@ class WPlacer {
 
     while (true) {
       
+      if (this._isCancelled()) return 0;
+
       const nowTiles = Date.now();
       const TILES_CACHE_MS = 3000;
       if (nowTiles - this._lastTilesAt >= TILES_CACHE_MS || this.tiles.size === 0) {
@@ -968,47 +1020,21 @@ class WPlacer {
       let needsRetry = false;
 
       for (const tileKey in bodiesByTile) {
+        if (this._isCancelled()) { needsRetry = false; break; }
         const [tx, ty] = tileKey.split(",").map(Number);
         const body = { ...bodiesByTile[tileKey], t: this.token };
         if (globalThis.__wplacer_last_fp) body.fp = globalThis.__wplacer_last_fp;
         const result = await this._executePaint(tx, ty, body);
         if (result.success) {
           totalPainted += result.painted;
-          // append pixel logs for heatmap
-          try {
-            const now = Date.now();
-            const [sx, sy, spx, spy] = this.coords;
-            const coords = body.coords;
-            const colors = body.colors;
-            const entries = [];
-            for (let i = 0; i < colors.length; i++) {
-              const lp = i * 2;
-              const localPx = coords[lp];
-              const localPy = coords[lp + 1];
-              const gx = tx * 1000 + localPx;
-              const gy = ty * 1000 + localPy;
-              const relX = gx - (sx * 1000 + spx);
-              const relY = gy - (sy * 1000 + spy);
-              entries.push({
-                ts: now,
-                templateName: this.templateName,
-                userId: this.userInfo?.id,
-                userName: this.userInfo?.name,
-                color: colors[i],
-                gx,
-                gy,
-                relX,
-                relY
-              });
-            }
-            appendPixelLogs(entries);
-          } catch (_) {}
         } else {
           // token refresh or temp error — let caller handle
           needsRetry = true;
           break;
         }
       }
+
+      if (this._isCancelled()) return totalPainted;
 
       if (!needsRetry) {
         this._activeBurstSeedIdx = null; // next turn: pick a new seed
@@ -1131,7 +1157,9 @@ const saveTemplates = () => {
       antiGriefMode: t.antiGriefMode,
       userIds: t.userIds,
       paintTransparentPixels: t.paintTransparentPixels,
-      burstSeeds: t.burstSeeds || null
+      burstSeeds: t.burstSeeds || null,
+      heatmapEnabled: !!t.heatmapEnabled,
+      heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000)))
     };
   }
   saveJSON("templates.json", templatesToSave);
@@ -1344,6 +1372,10 @@ class TemplateManager {
 
     this.paintTransparentPixels = !!paintTransparentPixels; // NEW: per-template flag like old version
     this.burstSeeds = null; // persist across runs
+
+    // Heatmap settings (per template)
+    this.heatmapEnabled = false;
+    this.heatmapLimit = 10000; // default limit
 
     this.running = false;
     this._sleepResolver = null;
@@ -1647,7 +1679,8 @@ class TemplateManager {
                   activeBrowserUsers.add(uid);
                   const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, this.name);
                   try {
-                    await w.login(users[uid].cookies); await w.loadUserInfo();
+                    await w.login(users[uid].cookies);
+                    await w.loadUserInfo();
                     if ((Number(w.userInfo.droplets || 0) - reserve) >= 2000) { anyCanBuy = true; }
                     const bitmap = Number(w.userInfo.extraColorsBitmap || 0);
                     for (const cid of Array.from(summary.premiumColors)) {
@@ -1811,6 +1844,8 @@ class TemplateManager {
           }
           activeBrowserUsers.add(foundUserForTurn);
           const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
+          // Wire cancellation: allow WPlacer to see when manager was stopped
+          try { wplacer.shouldStop = () => !this.running; } catch (_) {}
           try {
             const { id, name } = await wplacer.login(users[foundUserForTurn].cookies);
             this.status = `Running user ${name}#${id}`;
@@ -1898,6 +1933,7 @@ class TemplateManager {
 const app = express();
 app.use(cors());
 app.use(express.static("public"));
+app.use('/data', express.static('data'));
 app.use(express.json({ limit: Infinity }));
 
 // --- API: tokens ---
@@ -2537,14 +2573,40 @@ app.get("/templates", (_, res) => {
       running: t.running,
       status: t.status,
       pixelsRemaining: t.pixelsRemaining,
-      totalPixels: t.totalPixels
+      totalPixels: t.totalPixels,
+      heatmapEnabled: !!t.heatmapEnabled,
+      heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000)))
     };
   }
   res.json(sanitized);
 });
 
+app.get("/template/:id", (req, res) => {
+  const { id } = req.params;
+  const t = templates[id];
+  if (!t) return res.sendStatus(404);
+  const sanitized = {
+    name: t.name,
+    template: t.template,
+    coords: t.coords,
+    canBuyCharges: t.canBuyCharges,
+    canBuyMaxCharges: t.canBuyMaxCharges,
+    autoBuyNeededColors: !!t.autoBuyNeededColors,
+    antiGriefMode: t.antiGriefMode,
+    paintTransparentPixels: t.paintTransparentPixels,
+    userIds: t.userIds,
+    running: t.running,
+    status: t.status,
+    pixelsRemaining: t.pixelsRemaining,
+    totalPixels: t.totalPixels,
+    heatmapEnabled: !!t.heatmapEnabled,
+    heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000)))
+  };
+  res.json(sanitized);
+});
+
 app.post("/template", async (req, res) => {
-  const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, paintTransparentPixels } = req.body;
+  const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, paintTransparentPixels, heatmapEnabled, heatmapLimit } = req.body;
   if (!templateName || !template || !coords || !userIds || !userIds.length) return res.sendStatus(400);
   if (Object.values(templates).some((t) => t.name === templateName)) {
     return res.status(409).json({ error: "A template with this name already exists." });
@@ -2567,6 +2629,12 @@ app.post("/template", async (req, res) => {
       templates[templateId].canBuyMaxCharges = false;
     }
   }
+  // Heatmap settings
+  try {
+    templates[templateId].heatmapEnabled = !!heatmapEnabled;
+    const lim = Math.max(0, Math.floor(Number(heatmapLimit)));
+    templates[templateId].heatmapLimit = lim > 0 ? lim : 10000;
+  } catch (_) { templates[templateId].heatmapEnabled = false; templates[templateId].heatmapLimit = 10000; }
   saveTemplates();
   res.status(200).json({ id: templateId });
 });
@@ -2584,13 +2652,19 @@ app.put("/template/edit/:id", async (req, res) => {
   if (!templates[id]) return res.sendStatus(404);
   const manager = templates[id];
 
-  const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, template, paintTransparentPixels } = req.body;
+  const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, template, paintTransparentPixels, heatmapEnabled, heatmapLimit } = req.body;
 
   const prevCoords = manager.coords;
   const prevTemplateStr = JSON.stringify(manager.template);
 
   manager.name = templateName;
-  manager.coords = coords;
+  // update coords only if provided as valid array of 4 numbers
+  let coordsChanged = false;
+  if (Array.isArray(coords) && coords.length === 4) {
+    const newCoords = coords.map((n) => Number(n));
+    coordsChanged = JSON.stringify(prevCoords) !== JSON.stringify(newCoords);
+    manager.coords = newCoords;
+  }
   manager.userIds = userIds;
   manager.canBuyCharges = canBuyCharges;
   manager.canBuyMaxCharges = canBuyMaxCharges;
@@ -2606,17 +2680,30 @@ app.put("/template/edit/:id", async (req, res) => {
   if (typeof paintTransparentPixels !== "undefined") {
     manager.paintTransparentPixels = !!paintTransparentPixels;
   }
+  // Heatmap settings
+  try {
+    manager.heatmapEnabled = !!heatmapEnabled;
+    const lim = Math.max(0, Math.floor(Number(heatmapLimit)));
+    manager.heatmapLimit = lim > 0 ? lim : 10000;
+  } catch (_) { }
 
+  let templateChanged = false;
   if (template) {
+    templateChanged = JSON.stringify(template) !== prevTemplateStr;
     manager.template = template;
   }
 
   manager.masterId = manager.userIds[0];
   manager.masterName = users[manager.masterId]?.name || "Unknown";
 
-  // reset seeds if image or coords changed
-  if (template || JSON.stringify(prevCoords) !== JSON.stringify(manager.coords)) {
+  // reset seeds + clear heatmap if image or coords actually changed
+  if (templateChanged || coordsChanged) {
     manager.burstSeeds = null;
+    // Also clear heatmap history if coordinates changed
+    try {
+      const filePath = path.join(heatMapsDir, `${id}.jsonl`);
+      if (existsSync(filePath)) writeFileSync(filePath, "");
+    } catch (_) { }
   }
 
   // recompute totals
@@ -2634,6 +2721,19 @@ app.put("/template/edit/:id", async (req, res) => {
 
   saveTemplates();
   res.sendStatus(200);
+});
+
+// Clear heatmap history for a template
+app.delete("/template/:id/heatmap", (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.sendStatus(400);
+  const filePath = path.join(heatMapsDir, `${id}.jsonl`);
+  try {
+    if (existsSync(filePath)) writeFileSync(filePath, "");
+    return res.status(200).json({ success: true });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: String(e && e.message || e) });
+  }
 });
 
 app.put("/template/:id", async (req, res) => {
@@ -2736,33 +2836,7 @@ app.get("/canvas", async (req, res) => {
   }
 });
 
-// --- API: heatmap pixel logs ---
-// Returns last X entries for specified template name (optional) within its relative bounding box
-// Query: id (template name, optional), limit (default 2000, max 20000)
-app.get("/heatmap", async (req, res) => {
-  try {
-    const limit = Math.max(1, Math.min(20000, parseInt(req.query.limit, 10) || 2000));
-    const id = (req.query.id ? String(req.query.id) : "").trim();
-
-    // Fast path: read the end of file. Since file is JSONL, we can read last ~N lines.
-    const raw = readFileSync(pixelLogsPath, "utf8");
-    if (!raw) return res.json({ entries: [] });
-    const lines = raw.trim().split(/\r?\n/);
-    const out = [];
-    for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
-      const line = lines[i];
-      if (!line) continue;
-      try {
-        const obj = JSON.parse(line);
-        if (id && obj.templateName !== id) continue;
-        out.push(obj);
-      } catch (_) { }
-    }
-    res.json({ entries: out.reverse() });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
+// (heatmap API removed)
 
 // --- API: version check ---
 app.get("/version", async (_req, res) => {
@@ -2913,6 +2987,12 @@ const keepAlive = async () => {
       );
       tm.burstSeeds = t.burstSeeds || null;
       tm.autoBuyNeededColors = !!t.autoBuyNeededColors;
+      // heatmap settings load
+      try {
+        tm.heatmapEnabled = !!t.heatmapEnabled;
+        const lim = Math.max(0, Math.floor(Number(t.heatmapLimit)));
+        tm.heatmapLimit = lim > 0 ? lim : 10000;
+      } catch (_) { tm.heatmapEnabled = false; tm.heatmapLimit = 10000; }
       templates[id] = tm;
     } else {
       console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
