@@ -736,12 +736,15 @@ class WPlacer {
     const mismatched = [];
     for (let y = 0; y < this.template.height; y++) {
       for (let x = 0; x < this.template.width; x++) {
-        const templateColor = this.template.data[x][y];
+        const _templateColor = this.template.data[x][y];
 
         // old behavior: 0 means "transparent pixel" in the template.
         // If paintTransparentPixels is false — we skip those; if true — we try to paint them too.
-        if (templateColor === 0 && !this.paintTransparentPixels) continue;
-        if (templateColor == null) continue;
+        if (_templateColor === 0 && !this.paintTransparentPixels) continue;
+        if (_templateColor == null) continue;
+
+        // substitute -1 for transparent
+        const templateColor = (_templateColor == -1 ? 0 : _templateColor);
 
         const globalPx = startPx + x;
         const globalPy = startPy + y;
