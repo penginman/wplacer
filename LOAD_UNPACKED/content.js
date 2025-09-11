@@ -1,5 +1,8 @@
 const RELOAD_FLAG = 'wplacer_reload_in_progress';
 
+// Ensure any leftover pawtect chunk cache is cleared on page load
+try { localStorage.removeItem('wplacerPawtectChunk'); } catch {}
+
 console.log("✅ wplacer: Content script loaded.");
 
 if (sessionStorage.getItem(RELOAD_FLAG)) {
