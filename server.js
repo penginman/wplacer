@@ -317,12 +317,14 @@ class SuspensionError extends Error {
 
 // --- WPlacer with old painting modes ported over ---
 class WPlacer {
-  constructor(template, coords, settings, templateName, paintTransparentPixels = false, initialBurstSeeds = null) {
+  constructor(template, coords, settings, templateName, paintTransparentPixels = false, initialBurstSeeds = null, skipPaintedPixels = false, outlineMode = false) { // Sei
     this.template = template;
     this.templateName = templateName;
     this.coords = coords;
     this.settings = settings;
     this.paintTransparentPixels = !!paintTransparentPixels;
+	this.skipPaintedPixels = !!skipPaintedPixels; // Sei
+	this.outlineMode = !!outlineMode; // Sei
 
     this.cookies = null;
     this.browser = null;
@@ -857,9 +859,24 @@ class WPlacer {
         if (!tile || !tile.data[localPx]) continue;
 
         const tileColor = tile.data[localPx][localPy];
-
-        if (templateColor !== tileColor && this.hasColor(templateColor)) {
-          mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor });
+		
+		// Sei - Enabling the ability to paint the most outer pixels first, securing your space.
+		const neighbors = [
+			this.template.data[x - 1]?.[y],
+			this.template.data[x + 1]?.[y],
+			this.template.data[x]?.[y - 1],
+			this.template.data[x]?.[y + 1],
+		];
+		const isEdge = neighbors.some((n) => n === 0 || n === undefined);
+		
+		// Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
+        const shouldPaint = this.skipPaintedPixels
+			? tileColor === 0
+			: templateColor !== tileColor;
+		
+		//if (templateColor !== tileColor && this.hasColor(templateColor)) {
+		if (shouldPaint && this.hasColor(templateColor)) {
+          mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge: isEdge }); // Sei
         }
       }
     }
@@ -930,18 +947,27 @@ class WPlacer {
       }
       if (!this.token) throw new Error("REFRESH_TOKEN"); // TokenManager must provide before calling
 
-      let mismatchedPixels = this._getMismatchedPixels();
-      if (mismatchedPixels.length === 0) return 0;
-
-      log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
-
       let activeMethod = method;
       if (method === "burst-mixed") {
         const pool = ["outline-then-burst", "burst", "colors-burst-rare"];
         activeMethod = pool[Math.floor(Math.random() * pool.length)];
         log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎲 Mixed mode picked this turn: ${activeMethod}`);
       }
-
+	  
+	  // Sei - Moved this below "burst-mixed" check above; Makes more sense in console.
+	  let mismatchedPixels = this._getMismatchedPixels();
+      if (mismatchedPixels.length === 0) return 0;
+	  log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
+	
+	  // Sei - Reintroduce "Outline Mode", an incredibly convenient tool for securing your space before drawing.
+	  if (this.outlineMode) {
+	    const edge = mismatchedPixels.filter((p) => p.isEdge);
+	    if (edge.length > 0) {
+			log (this.userInfo.id, this.userInfo.name, `[${this.templateName}] Outlining design first.`);
+			mismatchedPixels = edge;
+		}
+	  }
+	
       switch (activeMethod) {
         case "linear-reversed":
           mismatchedPixels.reverse();
@@ -1059,7 +1085,7 @@ class WPlacer {
           if (this._activeBurstSeedIdx == null || this._activeBurstSeedIdx >= this._burstSeeds.length) {
             this._activeBurstSeedIdx = Math.floor(Math.random() * this._burstSeeds.length);
             const s = this._burstSeeds[this._activeBurstSeedIdx];
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎯 Using single seed this turn: ${JSON.stringify(s)} (#${this._activeBurstSeedIdx + 1}/${this._burstSeeds.length})`);
+			log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎯 Using single seed this turn: ${JSON.stringify(s)} (#${this._activeBurstSeedIdx + 1}/${this._burstSeeds.length})`);
           }
           const seedForThisTurn = [this._burstSeeds[this._activeBurstSeedIdx]];
           mismatchedPixels = this._orderByBurst(mismatchedPixels, seedForThisTurn);
@@ -1200,7 +1226,14 @@ class WPlacer {
         const tile = this.tiles.get(`${targetTx}_${targetTy}`);
         if (!tile || !tile.data[localPx]) continue;
         const tileColor = tile.data[localPx][localPy];
-        if (templateColor !== tileColor) count++;
+		
+		// Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
+        const shouldPaint = this.skipPaintedPixels
+			? tileColor === 0
+			: templateColor !== tileColor;
+		
+        //if (templateColor !== tileColor) count++;
+        if (shouldPaint) count++; // Sei
       }
     }
     return count;
@@ -1225,7 +1258,14 @@ class WPlacer {
         const tile = this.tiles.get(`${targetTx}_${targetTy}`);
         if (!tile || !tile.data[localPx]) continue;
         const tileColor = tile.data[localPx][localPy];
-        if (templateColor !== tileColor) {
+		
+		// Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
+        const shouldPaint = this.skipPaintedPixels
+			? tileColor === 0
+			: templateColor !== tileColor;
+		
+        //if (templateColor !== tileColor) {
+        if (shouldPaint) {
           total++;
           if (templateColor >= 32) { premium++; premiumColors.add(templateColor); }
           else if (templateColor > 0) { basic++; }
@@ -1260,6 +1300,8 @@ const saveTemplates = () => {
       antiGriefMode: t.antiGriefMode,
       userIds: t.userIds,
       paintTransparentPixels: t.paintTransparentPixels,
+	  skipPaintedPixels: !!t.skipPaintedPixels, // Sei
+	  outlineMode: !!t.outlineMode, // Sei
       burstSeeds: t.burstSeeds || null,
       heatmapEnabled: !!t.heatmapEnabled,
       heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000)))
@@ -1469,7 +1511,7 @@ function logUserError(error, id, name, context) {
 
 // --- Template Manager ---
 class TemplateManager {
-  constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds, paintTransparentPixels = false) {
+  constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds, paintTransparentPixels = false, skipPaintedPixels = false, outlineMode = false) { // Sei
     this.name = name;
     this.template = templateData;
     this.coords = coords;
@@ -1482,7 +1524,9 @@ class TemplateManager {
     // throttle for opportunistic resync
     this._lastResyncAt = 0;
     this._resyncCooldownMs = 3000;
-
+	
+	this.skipPaintedPixels = !!skipPaintedPixels; // Sei
+	this.outlineMode = !!outlineMode; // Sei
     this.paintTransparentPixels = !!paintTransparentPixels; // NEW: per-template flag like old version
     this.burstSeeds = null; // persist across runs
 
@@ -1637,6 +1681,11 @@ class TemplateManager {
   async handleUpgrades(wplacer) {
     if (!this.canBuyMaxCharges) return;
     await wplacer.loadUserInfo();
+	
+	// Sei - Only buy Max Charges when we're at full charges so we can immediately use the +5
+	//const charges = wplacer.userInfo.charges;
+    //if (Math.floor(charges.count) < charges.max) return;
+	
     const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
     const amountToBuy = Math.floor(affordableDroplets / 500);
     if (amountToBuy > 0) {
@@ -1740,7 +1789,7 @@ class TemplateManager {
             if (rec.suspendedUntil && Date.now() < rec.suspendedUntil) continue;
             if (activeBrowserUsers.has(uid)) continue;
             activeBrowserUsers.add(uid);
-            const w = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
+            const w = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode); // Sei
             try {
               await w.login(rec.cookies); await w.loadUserInfo();
               const cnt = Math.floor(Number(w.userInfo?.charges?.count || 0));
@@ -1762,7 +1811,7 @@ class TemplateManager {
         let summaryForTurn = null;
         const needFreshSummary = !this._lastSummary || (Date.now() - this._lastSummaryAt) >= this._summaryMinIntervalMs;
         if (needFreshSummary) {
-          const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
+          const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode); // Sei
           try {
             await checkWplacer.login(users[this.masterId].cookies);
             const summary = await checkWplacer.mismatchesSummary();
@@ -1873,16 +1922,14 @@ class TemplateManager {
             break;
           }
         }
-
-        
+		
         if (this.userQueue.length === 0) this.userQueue = [...this.userIds];
 
         let resyncScheduled = false;
         const nowSel = Date.now();
         let bestUserId = null;
         let bestPredicted = null;
-
-        
+		let msWaitUntilNextUser = null; // Sei - smarter waiting
         
         const candidates = this.userIds
           .filter((uid) => {
@@ -1929,6 +1976,17 @@ class TemplateManager {
               bestPredicted = p; bestUserId = userId;
             }
           }
+		  
+		  // Sei - if no users are ready, determine the minimum time we need to wait before checking again.
+		  else {
+			  const needBeforeReady = Math.floor(p.max * currentSettings.chargeThreshold);
+			  if (msWaitUntilNextUser == null || msWaitUntilNextUser.timeToReady > Math.floor(needBeforeReady - p.count) * 30_000) {
+				  msWaitUntilNextUser = {
+					  'name': rec.name,
+					  'timeToReady': Math.floor(needBeforeReady - p.count) * 30_000
+				  };
+			  }
+		  }
         }
 
         const foundUserForTurn = bestUserId;
@@ -1954,12 +2012,16 @@ class TemplateManager {
             this._lastSwitchAt = Date.now();
           }
           activeBrowserUsers.add(foundUserForTurn);
-          const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
+          const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode); // Sei
           // Wire cancellation: allow WPlacer to see when manager was stopped
           try { wplacer.shouldStop = () => !this.running; } catch (_) {}
           try {
             const { id, name } = await wplacer.login(users[foundUserForTurn].cookies);
             this.status = `Running user ${name}#${id}`;
+			
+			// Sei - Better to buy upgrades BEFORE painting.
+			await this.handleUpgrades(wplacer);
+			
             const pred = ChargeCache.predict(foundUserForTurn, Date.now());
             if (pred) log(id, name, `[${this.name}] ▶️ Start turn with predicted ${Math.floor(pred.count)}/${pred.max} charges.`);
             const paintedNow = await this._performPaintTurn(wplacer);
@@ -1969,12 +2031,20 @@ class TemplateManager {
               if (this._lastSummary) {
                 this._lastSummary.total = Math.max(0, (this._lastSummary.total|0) - paintedNow);
               }
-              log(id, name, `[${this.name}] ✅ Painted ${paintedNow} px. Cache adjusted.`);
+			  
+			  // Sei - This line is redundant in the current code.
+              //log(id, name, `[${this.name}] ✅ Painted ${paintedNow} px. Cache adjusted.`);
             }
+			
+			// Sei - but what if we didn't paint anything because some how we failed to check if this account physically can?
+			else {
+				log(id, name, `[${this.name}] ❌ Nothing Painted.  Account may not have the required color(s).`);
+				await this._sleepInterruptible(5000);
+			}
             // cache any new seeds
             this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : this.burstSeeds;
             saveTemplates();
-            await this.handleUpgrades(wplacer);
+            //await this.handleUpgrades(wplacer);
           } catch (error) {
             // Handle authentication errors gracefully
             if (error.message && error.message.includes("Authentication expired")) {
@@ -1997,7 +2067,7 @@ class TemplateManager {
           // Buy charges if allowed (master only)
           if (this.canBuyCharges && !activeBrowserUsers.has(this.masterId)) {
             activeBrowserUsers.add(this.masterId);
-            const chargeBuyer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds);
+            const chargeBuyer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode); // Sei
             try {
               await chargeBuyer.login(users[this.masterId].cookies);
               const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
@@ -2023,12 +2093,14 @@ class TemplateManager {
             const deficit = Math.max(0, threshold - Math.floor(p.count));
             return deficit * (p.cooldownMs || 30_000);
           });
-          let waitTime = (waits.length ? Math.min(...waits) : 10_000) + 800;
-          
-          const maxWait = Math.max(10_000, Math.floor((currentSettings.accountCooldown || 15000) * 1.5));
-          waitTime = Math.min(waitTime, maxWait);
+		  
+          // Sei - Instead of refreshing every 30 seconds, why don't we only refresh when we need to???
+		  let waitTime = msWaitUntilNextUser.timeToReady;
+		  //let waitTime = (waits.length ? Math.min(...waits) : 10_000) + 800;
+          //const maxWait = Math.max(10_000, Math.floor((currentSettings.accountCooldown || 15000) * 1.5));
+          //waitTime = Math.min(waitTime, maxWait);
           this.status = `Waiting for charges.`;
-          log("SYSTEM", "wplacer", `[${this.name}] ⏳ No users ready. Waiting for ${duration(waitTime)}.`);
+          log("SYSTEM", "wplacer", `[${this.name}] ⏳ No users ready. Waiting for next available user (${msWaitUntilNextUser.name}): ${duration(waitTime)}.`);
           await this._sleepInterruptible(waitTime);
         }
       }
@@ -2689,6 +2761,8 @@ app.get("/templates", (_, res) => {
       canBuyMaxCharges: t.canBuyMaxCharges,
       autoBuyNeededColors: !!t.autoBuyNeededColors,
       antiGriefMode: t.antiGriefMode,
+	  skipPaintedPixels: t.skipPaintedPixels, // Sei
+	  outlineMode: t.outlineMode, // Sei
       paintTransparentPixels: t.paintTransparentPixels,
       userIds: t.userIds,
       running: t.running,
@@ -2714,6 +2788,8 @@ app.get("/template/:id", (req, res) => {
     canBuyMaxCharges: t.canBuyMaxCharges,
     autoBuyNeededColors: !!t.autoBuyNeededColors,
     antiGriefMode: t.antiGriefMode,
+	skipPaintedPixels: t.skipPaintedPixels, // Sei
+	outlineMode: t.outlineMode, // Sei
     paintTransparentPixels: t.paintTransparentPixels,
     userIds: t.userIds,
     running: t.running,
@@ -2727,7 +2803,7 @@ app.get("/template/:id", (req, res) => {
 });
 
 app.post("/template", async (req, res) => {
-  const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, paintTransparentPixels, heatmapEnabled, heatmapLimit } = req.body;
+  const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, paintTransparentPixels, skipPaintedPixels, outlineMode, heatmapEnabled, heatmapLimit } = req.body; // Sei
   if (!templateName || !template || !coords || !userIds || !userIds.length) return res.sendStatus(400);
   if (Object.values(templates).some((t) => t.name === templateName)) {
     return res.status(409).json({ error: "A template with this name already exists." });
@@ -2773,7 +2849,7 @@ app.put("/template/edit/:id", async (req, res) => {
   if (!templates[id]) return res.sendStatus(404);
   const manager = templates[id];
 
-  const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, template, paintTransparentPixels, heatmapEnabled, heatmapLimit } = req.body;
+  const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, template, paintTransparentPixels, skipPaintedPixels, outlineMode, heatmapEnabled, heatmapLimit } = req.body; // Sei
 
   const prevCoords = manager.coords;
   const prevTemplateStr = JSON.stringify(manager.template);
@@ -2790,6 +2866,8 @@ app.put("/template/edit/:id", async (req, res) => {
   manager.canBuyCharges = canBuyCharges;
   manager.canBuyMaxCharges = canBuyMaxCharges;
   manager.antiGriefMode = antiGriefMode;
+  manager.skipPaintedPixels = skipPaintedPixels; // Sei
+  manager.outlineMode = outlineMode; // Sei
   if (typeof req.body.autoBuyNeededColors !== 'undefined') {
     manager.autoBuyNeededColors = !!req.body.autoBuyNeededColors;
     if (manager.autoBuyNeededColors) {
@@ -3383,7 +3461,9 @@ const keepAlive = async () => {
         t.canBuyMaxCharges,
         t.antiGriefMode,
         t.userIds,
-        !!t.paintTransparentPixels
+        !!t.paintTransparentPixels,
+		!!t.skipPaintedPixels, // Sei
+		!!t.outlineMode // Sei
       );
       tm.burstSeeds = t.burstSeeds || null;
       tm.autoBuyNeededColors = !!t.autoBuyNeededColors;
@@ -3427,5 +3507,3 @@ const keepAlive = async () => {
     process.on('SIGTERM', shutdown);
   } catch (_) {}
 })();
-
-
