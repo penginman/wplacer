@@ -2878,6 +2878,19 @@ openSettings.addEventListener("click", async () => {
         proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
         if (parallelWorkers) parallelWorkers.value = String(currentSettings.parallelWorkers ?? 4);
 
+        // Logs toggles
+        try {
+            const lc = currentSettings.logCategories || {};
+            const bind = (id, def) => { const el = document.getElementById(id); if (el) el.checked = lc[id.replace('log_', '')] !== false; };
+            const mask = document.getElementById('log_maskPii'); if (mask) mask.checked = !!currentSettings.logMaskPii;
+            bind('log_tokenManager', true);
+            bind('log_cache', true);
+            bind('log_queuePreview', true);
+            bind('log_painting', true);
+            bind('log_startTurn', true);
+            bind('log_mismatches', true);
+        } catch (_) {}
+
 
         try {
             const cdTurn = parseInt(accountCooldown.value, 10) || 0;
@@ -2892,6 +2905,13 @@ openSettings.addEventListener("click", async () => {
         handleError(error);
     }
     changeTab(settings);
+});
+// Mask PII toggle + redact existing logs
+document.getElementById('log_maskPii')?.addEventListener('change', async (e) => {
+    try {
+        await axios.put('/settings', { logMaskPii: e.target.checked });
+        showMessage('Success', 'PII masking saved!');
+    } catch (err) { handleError(err); }
 });
 
 
@@ -4098,6 +4118,146 @@ reloadProxiesBtn?.addEventListener('click', async () => {
         reloadProxiesBtn.disabled = false;
         reloadProxiesBtn.textContent = "Reload proxies.txt";
     }
+});
+
+// Test proxies
+const testProxiesBtn = $("testProxiesBtn");
+const testProxiesResult = $("testProxiesResult");
+const testProxiesProgress = $("testProxiesProgress");
+const cleanupBlockedBtn = $("cleanupBlockedBtn");
+const cleanupBlockedWrap = $("cleanupBlockedWrap");
+testProxiesBtn?.addEventListener('click', async () => {
+    if (!testProxiesBtn || !testProxiesResult) return;
+    try {
+        testProxiesBtn.disabled = true;
+        testProxiesBtn.textContent = "Testing...";
+        testProxiesResult.style.display = 'none';
+        testProxiesProgress.style.display = 'block';
+        testProxiesProgress.textContent = 'Progress: 0% (0 tested)';
+        testProxiesResult.innerHTML = '';
+
+        // Live per-proxy test (target=/me), with controlled concurrency
+        const settingsResp = await axios.get('/settings');
+        const total = Number(settingsResp?.data?.proxyCount || 0);
+        if (!Number.isFinite(total) || total <= 0) {
+            showMessage('Error', 'No proxies loaded.');
+            testProxiesProgress.style.display = 'none';
+            return;
+        }
+        const idxs = Array.from({ length: total }, (_, i) => i + 1);
+        const results = new Array(total);
+        let tested = 0, ok = 0, blocked = 0;
+        const concurrency = 8;
+        let cursor = 0;
+        const worker = async () => {
+            while (true) {
+                const my = cursor++;
+                if (my >= total) return;
+                const idx = idxs[my];
+                const one = await axios.get('/test-proxy', { params: { idx, target: 'me' } }).then(x => x.data).catch(() => null);
+                const row = one || { idx, proxy: '?', ok: false, status: 0, reason: 'error', elapsedMs: 0 };
+                results[my] = row;
+                tested++;
+                if (row.ok) ok++; else blocked++;
+                const pct = Math.round(tested / total * 100);
+                testProxiesProgress.textContent = `Progress: ${pct}% (${tested} tested)`;
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(concurrency, total) }, () => worker()));
+
+        const rows = results
+            .map(r => {
+                const status = r.ok ? '<span style="color:#22c55e">OK</span>' : '<span style="color:#ef4444">BLOCKED</span>';
+                const reason = r.ok ? (r.reason || 'ok') : (r.reason || 'unknown');
+                return `<tr>
+                    <td style="padding:4px 8px;">#${r.idx}</td>
+                    <td style="padding:4px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace;">${r.proxy}</td>
+                    <td style="padding:4px 8px;">${status}</td>
+                    <td style="padding:4px 8px;">${reason}</td>
+                    <td style="padding:4px 8px;">${r.elapsedMs | 0} ms</td>
+                </tr>`;
+            })
+            .join('');
+        const summary = `<div><b>Total:</b> ${total} • <b>OK:</b> ${ok} • <b>Blocked:</b> ${blocked} <span class=\"muted\">(target: /me)</span></div>`;
+        testProxiesResult.innerHTML = `${summary}
+            <div style="max-height:220px; overflow:auto; border:1px solid var(--border); border-radius:6px; margin-top:6px;">
+                <table style="width:100%; border-collapse: collapse; font-size: 12px;">
+                    <thead>
+                        <tr style="background: rgba(255,255,255,.04)">
+                            <th style="text-align:left; padding:6px 8px;">#</th>
+                            <th style="text-align:left; padding:6px 8px;">Proxy</th>
+                            <th style="text-align:left; padding:6px 8px;">Status</th>
+                            <th style="text-align:left; padding:6px 8px;">Reason</th>
+                            <th style="text-align:left; padding:6px 8px;">Latency</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+            <div style="margin-top:6px; font-size:12px; opacity:.85;">
+                Tip: Consider removing proxies marked as "BLOCKED" from <code>data/proxies.txt</code> to avoid degraded performance and Cloudflare challenges. However, keep in mind that sometimes a proxy may work inconsistently (e.g., blocked at one moment but available later), so you may not always want to remove it permanently.
+            </div>`;
+        testProxiesResult.style.display = 'block';
+        testProxiesProgress.style.display = 'none';
+        // Show cleanup button if there are blocked ones
+        if (blocked > 0) {
+            cleanupBlockedWrap.style.display = 'block';
+            cleanupBlockedBtn.dataset.blockedIdx = JSON.stringify(
+                results.filter(r => !r.ok).map(r => r.idx)
+            );
+        } else {
+            cleanupBlockedWrap.style.display = 'none';
+            cleanupBlockedBtn.dataset.blockedIdx = '[]';
+        }
+        showMessage('Success', 'Proxy test finished.');
+    } catch (error) {
+        handleError(error);
+    } finally {
+        testProxiesBtn.disabled = false;
+        testProxiesBtn.textContent = 'Test proxies';
+    }
+});
+
+// --- Logs toggles ---
+['tokenManager','cache','queuePreview','painting','startTurn','mismatches'].forEach(key => {
+    const el = document.getElementById('log_' + key);
+    el?.addEventListener('change', async () => {
+        try {
+            const lc = {}; lc[key] = el.checked;
+            await axios.put('/settings', { logCategories: lc });
+            showMessage('Success', 'Log category saved!');
+        } catch (e) { handleError(e); }
+    });
+});
+
+// Cleanup blocked proxies with confirmation
+cleanupBlockedBtn?.addEventListener('click', async () => {
+    try {
+        const raw = cleanupBlockedBtn.dataset.blockedIdx || '[]';
+        const toRemove = JSON.parse(raw || '[]');
+        if (!Array.isArray(toRemove) || toRemove.length === 0) {
+            showMessage('Info', 'No BLOCKED proxies to remove.');
+            return;
+        }
+        showConfirmation('Remove BLOCKED proxies', `Are you sure you want to remove ${toRemove.length} blocked proxies? A backup will be created.`, async () => {
+            try {
+                const resp = await axios.post('/proxies/cleanup', { removeIdx: toRemove });
+                if (resp?.data?.success) {
+                    showMessage('Success', `Removed ${resp.data.removed} proxies. Kept: ${resp.data.kept}. Backup: ${resp.data.backup}`);
+                    // Refresh count in UI
+                    try {
+                        const { data } = await axios.post('/reload-proxies', {});
+                        if (data && typeof data.count === 'number') proxyCount.textContent = String(data.count);
+                    } catch (_) {}
+                    cleanupBlockedWrap.style.display = 'none';
+                } else {
+                    showMessage('Error', 'Cleanup failed.');
+                }
+            } catch (error) {
+                handleError(error);
+            }
+        });
+    } catch (error) { handleError(error); }
 });
 
 parallelWorkers?.addEventListener('change', async () => {

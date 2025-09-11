@@ -21,12 +21,46 @@ if (!existsSync(heatMapsDir)) {
 const log = async (id, name, data, error) => {
   const timestamp = new Date().toLocaleString();
   const identifier = `(${name}#${id})`;
+  const maskOn = !!(currentSettings && currentSettings.logMaskPii);
+  const maskMsg = (msg) => {
+    try {
+      let s = String(msg || "");
+      // (nick#123456) -> (****#****)
+      s = s.replace(/\([^)#]+#\d+\)/g, '(****#****)');
+      // #11240474 -> #**** (for 3+ digits)
+      s = s.replace(/#\d{3,}/g, '#****');
+      // tile 1227, 674 -> tile ****, ****
+      s = s.replace(/tile\s+\d+\s*,\s*\d+/gi, 'tile ****, ****');
+      return s;
+    } catch (_) { return String(msg || ""); }
+  };
   if (error) {
-    console.error(`[${timestamp}] ${identifier} ${data}:`, error);
-    appendFileSync(path.join(dataDir, `errors.log`), `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`);
+    const identOut = maskOn ? maskMsg(identifier) : identifier;
+    const outLine = `[${timestamp}] ${identOut} ${maskOn ? maskMsg(data) : data}:`;
+    console.error(outLine, error);
+    const errText = `${error.stack || error.message}`;
+    appendFileSync(path.join(dataDir, `errors.log`), `${outLine} ${maskOn ? maskMsg(errText) : errText}\n`);
   } else {
-    console.log(`[${timestamp}] ${identifier} ${data}`);
-    appendFileSync(path.join(dataDir, `logs.log`), `[${timestamp}] ${identifier} ${data}\n`);
+    try {
+      // Category-based filtering (non-error logs only)
+      const cat = (() => {
+        const s = String(data || "").toLowerCase();
+        if (s.includes('token_manager')) return 'tokenManager';
+        if (s.includes('cache')) return 'cache';
+        if (s.includes('queue') && s.includes('preview')) return 'queuePreview';
+        if (s.includes('🧱 painting') || s.includes(' painting (')) return 'painting';
+        if (s.includes('start turn')) return 'startTurn';
+        if (s.includes('mismatched')) return 'mismatches';
+        return null;
+      })();
+      const cfg = (currentSettings && currentSettings.logCategories) || {};
+      const enabled = (cat == null) ? true : (cfg[cat] !== false);
+      if (!enabled) return; // skip suppressed category
+    } catch (_) {}
+    const identOut = maskOn ? maskMsg(identifier) : identifier;
+    const outLine = `[${timestamp}] ${identOut} ${maskOn ? maskMsg(data) : data}`;
+    console.log(outLine);
+    appendFileSync(path.join(dataDir, `logs.log`), `${outLine}\n`);
   }
 };
 
@@ -91,6 +125,8 @@ const ChargeCache = {
 };
 
 let loadedProxies = [];
+// map: proxy idx -> timestamp (ms) until which proxy is quarantined (skipped)
+const proxyQuarantine = new Map();
 const loadProxies = () => {
   const proxyPath = path.join(dataDir, "proxies.txt");
   if (!existsSync(proxyPath)) {
@@ -206,32 +242,66 @@ const loadProxies = () => {
     const key = `${p.protocol}://${p.username}:${p.password}@${p.host}:${p.port}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    proxies.push(p);
+    // Assign 1-based index corresponding to order in proxies.txt after filtering
+    proxies.push({ ...p, _idx: proxies.length + 1 });
   }
   loadedProxies = proxies;
   if (lines.length > 0 && proxies.length === 0) {
     console.log(`[SYSTEM] ERROR: No valid proxies loaded from ${lines.length} lines - check proxies.txt format`);
   }
+  // Reset quarantine on reload to avoid mismatched indices after edits
+  try { proxyQuarantine.clear(); } catch (_) {}
 };
 
 let nextProxyIndex = 0;
 const getNextProxy = () => {
   const { proxyEnabled, proxyRotationMode } = currentSettings || {};
   if (!proxyEnabled || loadedProxies.length === 0) return null;
-  let proxy;
+  const now = Date.now();
+  const isUsable = (p) => {
+    const index = Number(p._idx) || (loadedProxies.indexOf(p) + 1);
+    const until = proxyQuarantine.get(index) || 0;
+    return until <= now;
+  };
+
+  const buildSel = (p) => {
+    let proxyUrl = `${p.protocol}://`;
+    if (p.username && p.password) {
+      proxyUrl += `${encodeURIComponent(p.username)}:${encodeURIComponent(p.password)}@`;
+    }
+    proxyUrl += `${p.host}:${p.port}`;
+    const display = `${p.host}:${p.port}`;
+    const index = Number(p._idx) || (loadedProxies.indexOf(p) + 1);
+    return { url: proxyUrl, idx: index, display };
+  };
+
+  // Try up to N attempts to find a non-quarantined proxy
+  const maxAttempts = loadedProxies.length;
   if (proxyRotationMode === "random") {
-    const randomIndex = Math.floor(Math.random() * loadedProxies.length);
-    proxy = loadedProxies[randomIndex];
+    for (let i = 0; i < maxAttempts; i++) {
+      const randomIndex = Math.floor(Math.random() * loadedProxies.length);
+      const proxy = loadedProxies[randomIndex];
+      if (isUsable(proxy)) return buildSel(proxy);
+    }
   } else {
-    proxy = loadedProxies[nextProxyIndex];
-    nextProxyIndex = (nextProxyIndex + 1) % loadedProxies.length;
+    for (let i = 0; i < maxAttempts; i++) {
+      const proxy = loadedProxies[nextProxyIndex];
+      nextProxyIndex = (nextProxyIndex + 1) % loadedProxies.length;
+      if (isUsable(proxy)) return buildSel(proxy);
+    }
   }
-  let proxyUrl = `${proxy.protocol}://`;
-  if (proxy.username && proxy.password) {
-    proxyUrl += `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password)}@`;
-  }
-  proxyUrl += `${proxy.host}:${proxy.port}`;
-  return proxyUrl;
+  return null;
+};
+
+const quarantineProxy = (idx, minutes = 15, reason = "") => {
+  try {
+    const ms = Math.max(1, Math.floor(Number(minutes))) * 60 * 1000;
+    const until = Date.now() + ms;
+    proxyQuarantine.set(idx, until);
+    const p = loadedProxies.find(x => (Number(x._idx) || (loadedProxies.indexOf(x) + 1)) === idx);
+    const label = p ? `${p.host}:${p.port}` : `#${idx}`;
+    log("SYSTEM", "wplacer", `🧯 Quarantining proxy #${idx} (${label}) for ${Math.floor(ms/60000)}m${reason ? ` — ${reason}` : ''}`);
+  } catch (_) {}
 };
 
 
@@ -281,12 +351,13 @@ class WPlacer {
       jar.setCookieSync(value, "https://wplace.live");
     }
     const impitOptions = { cookieJar: jar, browser: "chrome", ignoreTlsErrors: true };
-    const proxyUrl = getNextProxy();
-    if (proxyUrl) {
-      impitOptions.proxyUrl = proxyUrl;
+    const proxySel = getNextProxy();
+    if (proxySel) {
+      impitOptions.proxyUrl = proxySel.url;
       if (currentSettings.logProxyUsage) {
-        log("SYSTEM", "wplacer", `Using proxy: ${proxyUrl.split("@").pop()}`);
+        log("SYSTEM", "wplacer", `Using proxy #${proxySel.idx}: ${proxySel.display}`);
       }
+      try { this._lastProxyIdx = proxySel.idx; } catch (_) {}
     } else if (currentSettings.proxyEnabled && loadedProxies.length === 0) {
       log("SYSTEM", "wplacer", `⚠️ Proxy enabled but no valid proxies loaded - check proxies.txt format`);
     }
@@ -301,16 +372,20 @@ class WPlacer {
       headers: {
         "Accept": "application/json, text/plain, */*",
         "X-Requested-With": "XMLHttpRequest",
-        "Referer": "https://wplace.live/"
+        "Referer": "https://wplace.live/",
+        "Origin": "https://wplace.live",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-site"
       },
       redirect: "manual"
     });
     const status = me.status;
     const contentType = (me.headers.get("content-type") || "").toLowerCase();
     const bodyText = await me.text();
-    if (status === 401 || status === 403) {
-      throw new Error(`❌ Authentication expired (${status}) - please update cookies or try later`);
-    }
+    const short = bodyText.substring(0, 200);
     if (status === 429) {
       throw new Error("❌ Rate limited (429) - waiting before retry");
     }
@@ -318,7 +393,26 @@ class WPlacer {
       throw new Error(`❌ Server temporarily unavailable (502) - retrying later`);
     }
     if (status >= 300 && status < 400) {
-      throw new Error(`❌ Authentication expired (${status}) - please update cookies or try later`);
+      const loc = me.headers.get('location') || '';
+      throw new Error(`❌ Unexpected redirect (${status})${loc ? ` to ${loc}` : ''}. Likely cookies invalid or blocked by proxy.`);
+    }
+    if (status === 401 || status === 403) {
+      if (/cloudflare|attention required|access denied|just a moment|cf-ray|challenge-form|cf-chl/i.test(bodyText)) {
+        // auto-quarantine proxy for a short time to reduce repeated blocks
+        try { if (typeof this._lastProxyIdx === 'number') quarantineProxy(this._lastProxyIdx, 20, `cloudflare_block_${status}`); } catch (_) {}
+        throw new Error(`❌ Cloudflare blocked the request.`);
+      }
+      if (contentType.includes("application/json")) {
+        try {
+          const json = JSON.parse(bodyText);
+          if (json?.error) {
+            throw new Error(`❌ Authentication failed (${status}): ${String(json.error).slice(0, 180)}...`);
+          }
+        } catch (_) {
+          // fall through to generic with snippet
+        }
+      }
+      throw new Error(`Authentication failed (${status}). Response: "${short}..."`);
     }
     if (contentType.includes("application/json")) {
       let userInfo;
@@ -337,12 +431,12 @@ class WPlacer {
       }
       throw new Error(`❌ Unexpected JSON from /me (status ${status}): ${JSON.stringify(userInfo).slice(0, 200)}...`);
     }
-    const short = bodyText.substring(0, 200);
     if (/error\s*1015/i.test(bodyText) || /rate.?limit/i.test(bodyText)) {
       throw new Error("❌ (1015) You are being rate-limited by the server. Please wait a moment and try again.");
     }
-    if (/cloudflare|attention required|access denied/i.test(bodyText)) {
-      throw new Error(`❌ Cloudflare blocked the request (status ${status}). Consider proxy/rotate IP.`);
+    if (/cloudflare|attention required|access denied|just a moment|cf-ray|challenge-form|cf-chl/i.test(bodyText)) {
+      try { if (typeof this._lastProxyIdx === 'number') quarantineProxy(this._lastProxyIdx, 20, 'cloudflare_block_html'); } catch (_) {}
+      throw new Error(`❌ Cloudflare blocked the request.`);
     }
     if (/<!doctype html>/i.test(bodyText) || /<html/i.test(bodyText)) {
       throw new Error(`❌ Failed to parse server response (HTML, status ${status}). Likely a login page → cookies invalid or expired. Snippet: "${short}..."`);
@@ -354,7 +448,13 @@ class WPlacer {
     const headers = {
       Accept: "application/json, text/plain, */*",
       "Content-Type": "text/plain;charset=UTF-8",
-      Referer: "https://wplace.live/"
+      Referer: "https://wplace.live/",
+      Origin: "https://wplace.live",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+      "Sec-Fetch-Dest": "empty",
+      "Sec-Fetch-Mode": "cors",
+      "Sec-Fetch-Site": "same-site"
     };
     if (this.pawtect) headers["x-pawtect-token"] = this.pawtect;
     const request = await this.browser.fetch(url, {
@@ -1184,7 +1284,16 @@ let currentSettings = {
   proxyEnabled: false,
   proxyRotationMode: "sequential",
   logProxyUsage: false,
-  parallelWorkers: 4
+  parallelWorkers: 4,
+  logCategories: {
+    tokenManager: true,
+    cache: true,
+    queuePreview: false,
+    painting: false,
+    startTurn: false,
+    mismatches: false
+  },
+  logMaskPii: false
 };
 if (existsSync(path.join(dataDir, "settings.json"))) {
   currentSettings = { ...currentSettings, ...loadJSON("settings.json") };
@@ -1332,8 +1441,9 @@ function logUserError(error, id, name, context) {
   }
   
   // Simplify error messages for common auth issues
-  if (message.includes("(401/403)") || message.includes("Unauthorized") || message.includes("cookies are invalid")) {
-    log(id, name, `❌ Authentication expired (401/403) - please update cookies or try later`);
+  if (message.includes("(401/403)") || /Unauthorized/i.test(message) || /cookies\s+are\s+invalid/i.test(message)) {
+    // Log original message to avoid masking connection problems as auth issues
+    log(id, name, `❌ ${message}`);
     return;
   }
   
@@ -1354,7 +1464,7 @@ function logUserError(error, id, name, context) {
   
   // For other errors, show simplified message
   const simpleMessage = message.replace(/\([^)]+\)/g, '').replace(/Error:/g, '').trim();
-  log(id, name, `❌ ${simpleMessage}`);
+  log(id, name, ` ${simpleMessage}`);
 }
 
 // --- Template Manager ---
@@ -1567,11 +1677,9 @@ class TemplateManager {
           await sleep(1000);
           continue;
         }
-        // Handle authentication errors
-        if (error.message && error.message.includes("Authentication expired")) {
-          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] ❌ Authentication expired (401/403) - please update cookies or try later`);
-          return 0; // End turn for this user
-        }
+        // Delegate all errors to unified logger to keep original reason
+        logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] paint turn`);
+        return 0;
         throw error;
       }
     }
@@ -2761,8 +2869,285 @@ app.post("/reload-proxies", (req, res) => {
   loadProxies();
   res.status(200).json({ success: true, count: loadedProxies.length });
 });
+app.get("/test-proxies", async (req, res) => {
+  try {
+    if (!currentSettings.proxyEnabled || loadedProxies.length === 0) {
+      return res.status(400).json({ error: "no_proxies_loaded" });
+    }
+
+    const concurrency = Math.max(1, Math.min(32, parseInt(String(req.query.concurrency || "5"), 10) || 5));
+    const target = String(req.query.target || "tile").toLowerCase();
+    const isMe = target === "me";
+    const targetUrl = isMe
+      ? "https://backend.wplace.live/me"
+      : String(req.query.url || "https://backend.wplace.live/files/s0/tiles/0/0.png");
+
+    const toTest = loadedProxies.map((p, i) => ({
+      idx: Number(p._idx) || (i + 1),
+      host: p.host,
+      port: p.port,
+      protocol: p.protocol,
+      username: p.username,
+      password: p.password
+    }));
+
+    const cloudflareRe = /cloudflare|attention required|access denied|just a moment|cf-ray|challenge-form|cf-chl/i;
+    const buildProxyUrl = (p) => {
+      let s = `${p.protocol}://`;
+      if (p.username && p.password) s += `${encodeURIComponent(p.username)}:${encodeURIComponent(p.password)}@`;
+      s += `${p.host}:${p.port}`;
+      return s;
+    };
+
+    const results = new Array(toTest.length);
+    let cursor = 0;
+    const runWorker = async () => {
+      while (true) {
+        const n = cursor++;
+        if (n >= toTest.length) return;
+        const item = toTest[n];
+        const started = Date.now();
+        let outcome = { idx: item.idx, proxy: `${item.host}:${item.port}`, ok: false, status: 0, reason: "", elapsedMs: 0 };
+        try {
+          const imp = new Impit({ browser: "chrome", ignoreTlsErrors: true, proxyUrl: buildProxyUrl(item) });
+          try { log("SYSTEM", "wplacer", `🧪 Testing proxy #${item.idx} (${item.host}:${item.port}) target=${isMe ? '/me' : '/tile'}`); } catch (_) {}
+
+          const controller = new AbortController();
+          const timeoutMs = 10000;
+          const t = setTimeout(() => controller.abort(), timeoutMs);
+          try {
+            const r = await imp.fetch(targetUrl, {
+              headers: isMe
+                ? {
+                    Accept: "application/json, text/plain, */*",
+                    "X-Requested-With": "XMLHttpRequest",
+                    Referer: "https://wplace.live/",
+                    Origin: "https://wplace.live",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+                    "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+                    "Sec-Fetch-Dest": "empty",
+                    "Sec-Fetch-Mode": "cors",
+                    "Sec-Fetch-Site": "same-site"
+                  }
+                : { Accept: "image/*", Referer: "https://wplace.live/" },
+              redirect: "manual",
+              signal: controller.signal
+            });
+            clearTimeout(t);
+            const ct = (r.headers.get("content-type") || "").toLowerCase();
+            if (!isMe) {
+              if (r.ok && (ct.includes("image/") || ct.includes("application/octet-stream"))) {
+                outcome.ok = true;
+                outcome.status = r.status;
+                outcome.reason = "ok";
+              } else {
+                let text = "";
+                try { text = await r.text(); } catch (_) { text = ""; }
+                if (cloudflareRe.test(text)) {
+                  outcome.reason = "cloudflare_block";
+                } else if (r.status) {
+                  outcome.reason = `http_${r.status}`;
+                } else {
+                  outcome.reason = (text || "non_image_response").slice(0, 140);
+                }
+                outcome.status = r.status || 0;
+              }
+            } else {
+              // Strict /me target: OK if reachable without CF challenge (expect 401 JSON or 200 JSON)
+              let text = "";
+              try { text = await r.text(); } catch (_) { text = ""; }
+              if (cloudflareRe.test(text)) {
+                outcome.ok = false;
+                outcome.reason = "cloudflare_block";
+              } else if (r.status >= 300 && r.status < 400) {
+                outcome.ok = false;
+                outcome.reason = `redirect_${r.status}`;
+              } else if (ct.includes("application/json")) {
+                outcome.ok = (r.status === 200 || r.status === 401);
+                outcome.reason = r.status === 200 ? "ok_me_200" : (r.status === 401 ? "ok_me_401" : `http_${r.status}`);
+              } else if (r.status === 403) {
+                outcome.ok = false;
+                outcome.reason = "http_403";
+              } else {
+                outcome.ok = false;
+                outcome.reason = (text || `http_${r.status || 0}`).slice(0, 140);
+              }
+              outcome.status = r.status || 0;
+            }
+          } catch (e) {
+            if (String(e && e.name).toLowerCase() === "aborterror") {
+              outcome.reason = "timeout";
+            } else {
+              const msg = String(e && (e.message || e)).toLowerCase();
+              if (/econnreset|timeout|timed out|socket hang up|enotfound|econnrefused|reqwest::error|hyper_util/i.test(msg)) {
+                outcome.reason = "network_error";
+              } else {
+                outcome.reason = (e && (e.message || String(e)) || "error").slice(0, 160);
+              }
+            }
+          }
+        } catch (e) {
+          outcome.reason = (e && (e.message || String(e)) || "error").slice(0, 160);
+        } finally {
+          outcome.elapsedMs = Date.now() - started;
+          results[n] = outcome;
+          try {
+            const tag = outcome.ok ? 'OK' : 'BLOCKED';
+            log("SYSTEM", "wplacer", `🧪 Proxy #${outcome.idx} ${tag} (${outcome.status}) ${outcome.reason}; ${outcome.elapsedMs} ms`);
+          } catch (_) {}
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(concurrency, toTest.length) }, () => runWorker()));
+    const okCount = results.filter(r => r && r.ok).length;
+    const blockedCount = results.length - okCount;
+    res.json({ total: results.length, ok: okCount, blocked: blockedCount, results });
+  } catch (e) {
+    res.status(500).json({ error: String(e && e.message || e) });
+  }
+});
+
+app.get("/test-proxy", async (req, res) => {
+  try {
+    if (!currentSettings.proxyEnabled || loadedProxies.length === 0) {
+      return res.status(400).json({ error: "no_proxies_loaded" });
+    }
+    const idx = Math.max(1, parseInt(String(req.query.idx || "0"), 10) || 0);
+    const target = String(req.query.target || "me").toLowerCase();
+    const isMe = target === "me";
+    const targetUrl = isMe ? "https://backend.wplace.live/me" : "https://backend.wplace.live/files/s0/tiles/0/0.png";
+
+    const p = loadedProxies.find((x, i) => Number(x._idx) === idx) || loadedProxies[idx - 1];
+    if (!p) return res.status(404).json({ error: "proxy_not_found" });
+
+    const cloudflareRe = /cloudflare|attention required|access denied|just a moment|cf-ray|challenge-form|cf-chl/i;
+    const buildProxyUrl = (pp) => {
+      let s = `${pp.protocol}://`;
+      if (pp.username && pp.password) s += `${encodeURIComponent(pp.username)}:${encodeURIComponent(pp.password)}@`;
+      s += `${pp.host}:${pp.port}`;
+      return s;
+    };
+
+    const started = Date.now();
+    let outcome = { idx, proxy: `${p.host}:${p.port}`, ok: false, status: 0, reason: "", elapsedMs: 0 };
+    try {
+      const imp = new Impit({ browser: "chrome", ignoreTlsErrors: true, proxyUrl: buildProxyUrl(p) });
+      try { log("SYSTEM", "wplacer", `🧪 Testing proxy #${idx} (${p.host}:${p.port}) target=${isMe ? '/me' : '/tile'}`); } catch (_) {}
+      const controller = new AbortController();
+      const timeoutMs = 10000;
+      const t = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const r = await imp.fetch(targetUrl, {
+          headers: isMe
+            ? {
+                Accept: "application/json, text/plain, */*",
+                "X-Requested-With": "XMLHttpRequest",
+                Referer: "https://wplace.live/",
+                Origin: "https://wplace.live",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-site"
+              }
+            : { Accept: "image/*", Referer: "https://wplace.live/" },
+          redirect: "manual",
+          signal: controller.signal
+        });
+        clearTimeout(t);
+        const ct = (r.headers.get("content-type") || "").toLowerCase();
+        if (!isMe) {
+          if (r.ok && (ct.includes("image/") || ct.includes("application/octet-stream"))) {
+            outcome.ok = true;
+            outcome.status = r.status;
+            outcome.reason = "ok";
+          } else {
+            let text = "";
+            try { text = await r.text(); } catch (_) { text = ""; }
+            if (cloudflareRe.test(text)) outcome.reason = "cloudflare_block";
+            else if (r.status) outcome.reason = `http_${r.status}`;
+            else outcome.reason = (text || "non_image_response").slice(0, 140);
+            outcome.status = r.status || 0;
+          }
+        } else {
+          let text = "";
+          try { text = await r.text(); } catch (_) { text = ""; }
+          if (cloudflareRe.test(text)) { outcome.ok = false; outcome.reason = "cloudflare_block"; }
+          else if (r.status >= 300 && r.status < 400) { outcome.ok = false; outcome.reason = `redirect_${r.status}`; }
+          else if (ct.includes("application/json")) { outcome.ok = (r.status === 200 || r.status === 401); outcome.reason = r.status === 200 ? "ok_me_200" : (r.status === 401 ? "ok_me_401" : `http_${r.status}`); }
+          else if (r.status === 403) { outcome.ok = false; outcome.reason = "http_403"; }
+          else { outcome.ok = false; outcome.reason = (text || `http_${r.status || 0}`).slice(0, 140); }
+          outcome.status = r.status || 0;
+        }
+      } catch (e) {
+        if (String(e && e.name).toLowerCase() === "aborterror") outcome.reason = "timeout";
+        else {
+          const msg = String(e && (e.message || e)).toLowerCase();
+          if (/econnreset|timeout|timed out|socket hang up|enotfound|econnrefused|reqwest::error|hyper_util/i.test(msg)) outcome.reason = "network_error";
+          else outcome.reason = (e && (e.message || String(e)) || "error").slice(0, 160);
+        }
+      }
+    } catch (e) {
+      outcome.reason = (e && (e.message || String(e)) || "error").slice(0, 160);
+    } finally {
+      outcome.elapsedMs = Date.now() - started;
+      try {
+        const tag = outcome.ok ? 'OK' : 'BLOCKED';
+        log("SYSTEM", "wplacer", `🧪 Proxy #${idx} ${tag} (${outcome.status}) ${outcome.reason}; ${outcome.elapsedMs} ms`);
+      } catch (_) {}
+    }
+    res.json(outcome);
+  } catch (e) {
+    res.status(500).json({ error: String(e && e.message || e) });
+  }
+});
+
+app.post("/proxies/cleanup", (req, res) => {
+  try {
+    const keepIdx = Array.isArray(req.body?.keepIdx) ? req.body.keepIdx.map(n => parseInt(n, 10)).filter(n => Number.isFinite(n) && n > 0) : null;
+    const removeIdx = Array.isArray(req.body?.removeIdx) ? req.body.removeIdx.map(n => parseInt(n, 10)).filter(n => Number.isFinite(n) && n > 0) : null;
+    if (!keepIdx && !removeIdx) return res.status(400).json({ error: "no_selection" });
+
+    const proxyPath = path.join(dataDir, "proxies.txt");
+    const backupPath = path.join(dataDir, `proxies.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T','_').replace('Z','')}.txt`);
+    try { writeFileSync(backupPath, readFileSync(proxyPath, "utf8")); } catch (_) {}
+
+    const byIdx = new Map();
+    for (const p of loadedProxies) {
+      const index = Number(p._idx) || (loadedProxies.indexOf(p) + 1);
+      byIdx.set(index, p);
+    }
+    const shouldKeep = (idx) => {
+      if (keepIdx) return keepIdx.includes(idx);
+      if (removeIdx) return !removeIdx.includes(idx);
+      return true;
+    };
+    const kept = [];
+    for (const [idx, p] of byIdx.entries()) {
+      if (!shouldKeep(idx)) continue;
+      const auth = (p.username && p.password) ? `${encodeURIComponent(p.username)}:${encodeURIComponent(p.password)}@` : "";
+      kept.push(`${p.protocol}://${auth}${p.host}:${p.port}`);
+    }
+    writeFileSync(proxyPath, kept.join("\n") + (kept.length ? "\n" : ""));
+    loadProxies();
+    res.json({ success: true, kept: kept.length, removed: byIdx.size - kept.length, backup: path.basename(backupPath), count: loadedProxies.length });
+  } catch (e) {
+    res.status(500).json({ error: String(e && e.message || e) });
+  }
+});
 app.put("/settings", (req, res) => {
   const patch = { ...req.body };
+  // merge nested logCategories toggles
+  if (patch.logCategories && typeof patch.logCategories === 'object') {
+    const curr = currentSettings.logCategories || {};
+    currentSettings.logCategories = { ...curr, ...patch.logCategories };
+    delete patch.logCategories;
+  }
+  if (typeof patch.logMaskPii !== 'undefined') {
+    currentSettings.logMaskPii = !!patch.logMaskPii;
+    delete patch.logMaskPii;
+  }
 
   // sanitize seedCount like in old version
   if (typeof patch.seedCount !== "undefined") {
@@ -2821,8 +3206,13 @@ app.get("/canvas", async (req, res) => {
     if (useProxy) {
       // Fetch via Impit to respect proxy settings (no cookies needed)
       const impitOptions = { browser: "chrome", ignoreTlsErrors: true };
-      const proxyUrl = getNextProxy();
-      if (proxyUrl) impitOptions.proxyUrl = proxyUrl;
+      const proxySel = getNextProxy();
+      if (proxySel) {
+        impitOptions.proxyUrl = proxySel.url;
+        if (currentSettings.logProxyUsage) {
+          log("SYSTEM", "wplacer", `Using proxy #${proxySel.idx}: ${proxySel.display}`);
+        }
+      }
       const imp = new Impit(impitOptions);
       const resp = await imp.fetch(url, { headers: { Accept: "image/*" } });
       if (!resp.ok) return res.sendStatus(resp.status);
@@ -2887,6 +3277,7 @@ app.get("/changelog", async (_req, res) => {
   }
 });
 
+
 // --- Keep-Alive (parallel with proxies) ---
 const keepAlive = async () => {
   if (activeBrowserUsers.size > 0) {
@@ -2922,12 +3313,8 @@ const keepAlive = async () => {
           await wplacer.login(users[userId].cookies);
           log(userId, users[userId].name, "✅ Cookie keep-alive successful.");
         } catch (error) {
-          // Don't log auth errors as they're expected when cookies expire
-          if (error.message && error.message.includes("Authentication expired")) {
-            log(userId, users[userId].name, "❌ Cookies expired (401/403) - please update");
-          } else {
-            logUserError(error, userId, users[userId].name, "perform keep-alive check");
-          }
+          // Always delegate to unified error logger to keep original messages
+          logUserError(error, userId, users[userId].name, "perform keep-alive check");
         } finally {
           activeBrowserUsers.delete(userId);
         }

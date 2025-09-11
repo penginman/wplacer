@@ -1,3 +1,8 @@
+## Changelog v4.2.4
+- Proxy: improved proxy handling; blocking proxies are now quarantined for 20 minutes.
+- Proxy: added a settings option to validate proxies and remove non‑working ones (note: some proxies may work intermittently).
+- Logging: added log category toggles in `settings.json` — you can disable noisy categories (e.g., `queuePreview`, `drawingMode`, `startTurn`, `mismatches`).
+
 ## Changelog v4.2.3
 - Fixed extension behavior.
 - You need to reload the extension in your browser (refresh it in chrome://extensions or reinstall it).

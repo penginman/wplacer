@@ -341,7 +341,8 @@
                             </div>
 
                             <div class="setting-toggle">
-                                <label for="heatmapEnabled" class="label-margin0">Save painting history (heatmap)</label>
+                                <label for="heatmapEnabled" class="label-margin0">Save painting history
+                                    (heatmap)</label>
                                 <label class="switch" class="label-margin0">
                                     <input id="heatmapEnabled" name="heatmapEnabled" type="checkbox" />
                                     <span class="slider"></span>
@@ -842,6 +843,17 @@
                                     style="margin-top:8px">
                                     Reload proxies.txt
                                 </button>
+                                <button type="button" id="testProxiesBtn" class="secondary-button"
+                                    style="margin-top:8px">
+                                    Test proxies
+                                </button>
+                                <div id="testProxiesProgress" class="summary" style="margin-top:6px; display:none;">
+                                </div>
+                                <div id="testProxiesResult" class="summary" style="margin-top:8px; display:none;"></div>
+                                <div id="cleanupBlockedWrap" style="margin-top:8px; display:none;">
+                                    <button type="button" id="cleanupBlockedBtn" class="destructive-button">Remove
+                                        BLOCKED proxies (backup will be created)</button>
+                                </div>
                                 <div class="field" style="margin-top:8px">
                                     <label for="parallelWorkers">Concurrent workers (with proxy)</label>
                                     <div class="input-affix">
@@ -850,6 +862,79 @@
                                     </div>
                                     <small class="help">Max number of parallel accounts when proxies are enabled (except
                                         drawing).</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Logs -->
+                        <div class="settings-card">
+                            <div class="settings-card-head">
+                                <h3 class="settings-card-title">Logs</h3>
+                                <p class="settings-card-sub">Toggle categories printed to terminal in real time.</p>
+                            </div>
+
+                            <div class="toggles">
+                                <div class="setting-toggle">
+                                    <label for="log_maskPii" class="label-margin0">Mask names and IDs</label>
+                                    <label class="switch">
+                                        <input id="log_maskPii" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <small class="help">Replace (nick#id), #12345 and tile coordinates with masked values. Applies to NEW logs only.</small>
+                                <div class="setting-toggle">
+                                    <label for="log_tokenManager" class="label-margin0">TOKEN_MANAGER</label>
+                                    <label class="switch">
+                                        <input id="log_tokenManager" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                    <small class="help">Notifications about token queue, receipt and
+                                        invalidation.</small>
+                                </div>
+
+                                <div class="setting-toggle">
+                                    <label for="log_cache" class="label-margin0">Cache updates</label>
+                                    <label class="switch">
+                                        <input id="log_cache" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                    <small class="help">Internal cache refresh logs (charges, tiles, etc.).</small>
+                                </div>
+
+                                <div class="setting-toggle">
+                                    <label for="log_queuePreview" class="label-margin0">Queue preview</label>
+                                    <label class="switch">
+                                        <input id="log_queuePreview" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                    <small class="help">High-level plan for next paint (queues/segments).</small>
+                                </div>
+
+                                <div class="setting-toggle">
+                                    <label for="log_painting" class="label-margin0">Painting method</label>
+                                    <label class="switch">
+                                        <input id="log_painting" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                    <small class="help">Which drawing strategy is used this turn.</small>
+                                </div>
+
+                                <div class="setting-toggle">
+                                    <label for="log_startTurn" class="label-margin0">Start turn (predictions)</label>
+                                    <label class="switch">
+                                        <input id="log_startTurn" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                    <small class="help">Messages like “Start turn with predicted ...”.</small>
+                                </div>
+
+                                <div class="setting-toggle">
+                                    <label for="log_mismatches" class="label-margin0">Mismatched pixels</label>
+                                    <label class="switch">
+                                        <input id="log_mismatches" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                    <small class="help">Findings like “Found .. mismatched ..”.</small>
                                 </div>
                             </div>
                         </div>
