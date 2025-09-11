@@ -1,6 +1,8 @@
 
 const POLL_ALARM_NAME = 'wplacer-poll-alarm';
 const COOKIE_ALARM_NAME = 'wplacer-cookie-alarm';
+const SAFETY_REFRESH_ALARM_NAME = 'wplacer-safety-refresh-alarm';
+const TOKEN_TIMEOUT_ALARM_NAME = 'wplacer-token-timeout-alarm';
 
 const getSettings = async () => {
     const result = await chrome.storage.local.get(['wplacerPort']);
@@ -19,6 +21,11 @@ let LP_ACTIVE = false;
 let TOKEN_IN_PROGRESS = false;
 let LAST_RELOAD_AT = 0;
 const MIN_RELOAD_INTERVAL_MS = 5000;
+const TOKEN_TIMEOUT_MS = 25000;
+let TOKEN_TIMEOUT_ID = null;
+const FAST_RETRY_DELAY_MS = 7000;
+const FAST_RETRY_MAX = 3;
+let fastRetriesLeft = 0;
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -31,7 +38,12 @@ async function startLongPoll() {
             const r = await fetch(url, { cache: "no-store" });
             if (r.ok) {
                 const data = await r.json();
-                if (data.needed) await maybeInitiateReload();
+                if (data.needed) {
+                    await maybeInitiateReload();
+                    // start fast retries to avoid long idle gaps
+                    fastRetriesLeft = FAST_RETRY_MAX;
+                    scheduleFastRetry();
+                }
             } else {
                 await wait(1000);
             }
@@ -41,6 +53,12 @@ async function startLongPoll() {
     }
 }
 
+const clearTokenWait = () => {
+    try { if (TOKEN_TIMEOUT_ID) { clearTimeout(TOKEN_TIMEOUT_ID); TOKEN_TIMEOUT_ID = null; } } catch {}
+    TOKEN_IN_PROGRESS = false;
+    fastRetriesLeft = 0;
+};
+
 const maybeInitiateReload = async () => {
     const now = Date.now();
     if (TOKEN_IN_PROGRESS) return;
@@ -48,6 +66,32 @@ const maybeInitiateReload = async () => {
     TOKEN_IN_PROGRESS = true;
     await initiateReload();
     LAST_RELOAD_AT = Date.now();
+    try {
+        if (TOKEN_TIMEOUT_ID) clearTimeout(TOKEN_TIMEOUT_ID);
+    } catch {}
+    TOKEN_TIMEOUT_ID = setTimeout(() => {
+        console.warn('wplacer: token wait timed out, retrying...');
+        clearTokenWait();
+        // trigger next cycle quickly
+        pollForTokenRequest();
+        fastRetriesLeft = FAST_RETRY_MAX;
+        scheduleFastRetry();
+    }, TOKEN_TIMEOUT_MS);
+    // Backup alarm in case service worker sleeps
+    try { chrome.alarms.clear(TOKEN_TIMEOUT_ALARM_NAME); } catch {}
+    try { chrome.alarms.create(TOKEN_TIMEOUT_ALARM_NAME, { delayInMinutes: 1 }); } catch {}
+};
+
+const scheduleFastRetry = () => {
+    if (fastRetriesLeft <= 0) return;
+    setTimeout(async () => {
+        if (fastRetriesLeft <= 0) return;
+        if (!TOKEN_IN_PROGRESS) {
+            await maybeInitiateReload();
+        }
+        fastRetriesLeft -= 1;
+        if (fastRetriesLeft > 0) scheduleFastRetry();
+    }, FAST_RETRY_DELAY_MS);
 };
 
 const pollForTokenRequest = async () => {
@@ -63,9 +107,97 @@ const pollForTokenRequest = async () => {
         if (data.needed) {
             console.log("wplacer: Server requires a token. Initiating reload.");
             await initiateReload();
+            fastRetriesLeft = FAST_RETRY_MAX;
+            scheduleFastRetry();
         }
     } catch (error) {
         console.error("wplacer: Could not connect to the server to poll for tokens.", error.message);
+    }
+};
+
+const injectPawtectIntoTab = async (tabId) => {
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: () => {
+                if (window.__wplacerPawtectHooked) return;
+                window.__wplacerPawtectHooked = true;
+                const backend = 'https://backend.wplace.live';
+                const findPawtectPath = async () => {
+                    const cacheKey = 'wplacer_pawtect_path';
+                    const cacheTimeKey = 'wplacer_pawtect_cache_time';
+                    const cacheExpiry = 5 * 60 * 1000;
+                    let pawtectPath = localStorage.getItem(cacheKey);
+                    const cacheTime = localStorage.getItem(cacheTimeKey);
+                    if (pawtectPath && cacheTime && (Date.now() - parseInt(cacheTime)) < cacheExpiry) return pawtectPath;
+                    const links = Array.from(document.querySelectorAll('link[rel="modulepreload"]')).map(l => l.href);
+                    for (const url of links) {
+                        try {
+                            const res = await fetch(url);
+                            const text = await res.text();
+                            if (text.includes('get_pawtected_endpoint_payload')) {
+                                pawtectPath = url;
+                                localStorage.setItem(cacheKey, pawtectPath);
+                                localStorage.setItem(cacheTimeKey, Date.now().toString());
+                                return pawtectPath;
+                            }
+                        } catch {}
+                    }
+                    return null;
+                };
+                const computeInstall = async () => {
+                    const pawtectPath = await findPawtectPath();
+                    if (!pawtectPath) return;
+                    const mod = await import(pawtectPath);
+                    const originalFetch = window.fetch.bind(window);
+                    const computePawtect = async (url, bodyStr) => {
+                        if (!mod || typeof mod._ !== 'function') return null;
+                        const wasm = await mod._();
+                        try {
+                            const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
+                            if (me?.id) {
+                                for (const key of Object.keys(mod)) {
+                                    const fn = mod[key];
+                                    if (typeof fn === 'function') {
+                                        try { const s = fn.toString(); if (/[\w$]+\s*\.\s*set_user_id\s*\(/.test(s)) { fn(me.id); break; } } catch {}
+                                    }
+                                }
+                            }
+                        } catch {}
+                        if (typeof mod.r === 'function') mod.r(url);
+                        const enc = new TextEncoder();
+                        const dec = new TextDecoder();
+                        const bytes = enc.encode(bodyStr);
+                        const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
+                        new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
+                        const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
+                        let token;
+                        if (Array.isArray(out)) { const [ptr,len] = out; token = dec.decode(new Uint8Array(wasm.memory.buffer, ptr, len)); try { wasm.__wbindgen_free(ptr, len, 1); } catch {} }
+                        else if (typeof out === 'string') token = out;
+                        else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') { token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len)); try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch {} }
+                        window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'pixel' }, '*');
+                        return token;
+                    };
+                    window.fetch = async (...args) => {
+                        try {
+                            const input = args[0];
+                            const init = args[1] || {};
+                            const req = new Request(input, init);
+                            if (req.method === 'POST' && /\/s0\/pixel\//.test(req.url)) {
+                                const raw = typeof init.body === 'string' ? init.body : null;
+                                if (raw) computePawtect(req.url, raw);
+                                else { try { const clone = req.clone(); const text = await clone.text(); computePawtect(req.url, text); } catch {} }
+                            }
+                        } catch {}
+                        return originalFetch(...args);
+                    };
+                };
+                computeInstall().catch(() => {});
+            }
+        });
+    } catch (e) {
+        console.warn('wplacer: injectPawtectIntoTab failed', e);
     }
 };
 
@@ -78,8 +210,30 @@ const initiateReload = async () => {
             tabs = [created];
         }
         const targetTab = tabs.find(t => t.active) || tabs[0];
+        console.log(`wplacer: Preparing tab #${targetTab.id} for token reload (inject pawtect + reload)`);
+        try { await injectPawtectIntoTab(targetTab.id); } catch {}
+        await wait(150);
         console.log(`wplacer: Sending reload command to tab #${targetTab.id}`);
-        await chrome.tabs.sendMessage(targetTab.id, { action: "reloadForToken" });
+        try { await chrome.tabs.sendMessage(targetTab.id, { action: "reloadForToken" }); } catch {}
+        // Ensure reload even if content script didn't handle the message
+        setTimeout(async () => {
+            try {
+                await chrome.tabs.update(targetTab.id, { active: true });
+            } catch {}
+            try {
+                await chrome.tabs.reload(targetTab.id, { bypassCache: true });
+            } catch {
+                try {
+                    const appended = (targetTab.url || 'https://wplace.live/').replace(/[#?]$/, '');
+                    const url = appended + (appended.includes('?') ? '&' : '?') + 'wplacer=' + Date.now();
+                    await chrome.tabs.update(targetTab.id, { url });
+                } catch {}
+            }
+            // Second shot after 1.5s if нужно
+            setTimeout(async () => {
+                try { const t = await chrome.tabs.get(targetTab.id); if (t.status !== 'loading') { await chrome.tabs.reload(targetTab.id, { bypassCache: true }); } } catch {}
+            }, 1500);
+        }, 200);
     } catch (error) {
         console.error("wplacer: Error sending reload message to tab, falling back to direct reload.", error);
         const tabs = await chrome.tabs.query({ url: "https://wplace.live/*" });
@@ -583,17 +737,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 })
             });
         });
-        TOKEN_IN_PROGRESS = false;
+        clearTokenWait();
         LAST_RELOAD_AT = Date.now();
     }
     return false;
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete' && tab.url?.startsWith("https://wplace.live")) {
-        console.log("wplacer: wplace.live tab loaded. Sending cookie.");
-        sendCookie(response => console.log(`wplacer: Cookie send status: ${response.success ? 'Success' : 'Failed'}`));
-    }
+    try {
+        if (tab.url?.startsWith("https://wplace.live")) {
+            if (changeInfo.status === 'loading') {
+                // preinstall pawtect early
+                injectPawtectIntoTab(tabId).catch(() => {});
+            }
+            if (changeInfo.status === 'complete') {
+                console.log("wplacer: wplace.live tab loaded. Sending cookie.");
+                injectPawtectIntoTab(tabId).catch(() => {});
+                sendCookie(response => console.log(`wplacer: Cookie send status: ${response.success ? 'Success' : 'Failed'}`));
+            }
+        }
+    } catch {}
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -603,6 +766,35 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     } else if (alarm.name === POLL_ALARM_NAME) {
         if (!LP_ACTIVE) startLongPoll();
         pollForTokenRequest();
+    } else if (alarm.name === SAFETY_REFRESH_ALARM_NAME) {
+        // Safety net: force refresh wplace tabs every ~45s if not already refreshing
+        (async () => {
+            try {
+                if (TOKEN_IN_PROGRESS) return;
+                const now = Date.now();
+                if (now - LAST_RELOAD_AT < 45000) return;
+                const tabs = await chrome.tabs.query({ url: "https://wplace.live/*" });
+                for (const tab of tabs || []) {
+                    try {
+                        await injectPawtectIntoTab(tab.id);
+                        await chrome.tabs.reload(tab.id, { bypassCache: true });
+                    } catch {}
+                }
+                LAST_RELOAD_AT = Date.now();
+            } catch {}
+        })();
+    } else if (alarm.name === TOKEN_TIMEOUT_ALARM_NAME) {
+        // Backup timeout: if still waiting, retry (wrap in async IIFE)
+        (async () => {
+            try {
+                if (!TOKEN_IN_PROGRESS) return;
+                const now = Date.now();
+                if (now - LAST_RELOAD_AT < 45000) return; // already retried recently
+                console.warn('wplacer: token wait backup alarm fired, retrying...');
+                clearTokenWait();
+                await maybeInitiateReload();
+            } catch {}
+        })();
     }
 });
 
@@ -614,6 +806,10 @@ const initializeAlarms = () => {
     chrome.alarms.create(COOKIE_ALARM_NAME, {
         delayInMinutes: 1,
         periodInMinutes: 20
+    });
+    chrome.alarms.create(SAFETY_REFRESH_ALARM_NAME, {
+        delayInMinutes: 1,
+        periodInMinutes: 1
     });
     console.log("wplacer: Alarms initialized.");
 };
@@ -631,3 +827,7 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 startLongPoll();
+
+// Keep service worker alive by periodic no-op
+setInterval(() => { try { /* noop tick */ } catch {} }, 30 * 1000);
+

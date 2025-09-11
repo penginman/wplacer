@@ -250,7 +250,10 @@ function renderMarkdown(md) {
     }
 
     flushAllLists();
-    return html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>');
+    return html
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+        .replace(/\*(.+?)\*/g, '<i>$1</i>');
 }
 async function checkVersionAndWarn() {
     try {
@@ -272,7 +275,7 @@ async function checkVersionAndWarn() {
                 const content = (ch.data?.remote || '').trim() || (ch.data?.local || '').trim();
                 if (content) {
                     const mdHtml = renderMarkdown(content);
-                    changelog = `<div style="max-height:40vh; overflow:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background: rgba(255,255,255,.04); text-align: left;">${mdHtml}</div>`;
+                    changelog = `<div style="max-height:60vh; overflow:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background: rgba(255,255,255,.04); text-align: left;">${mdHtml}</div>`;
                 }
             } catch (_) { }
 
@@ -323,7 +326,7 @@ async function showChangelogOnFirstLoad() {
             const content = (ch.data?.local || '').trim();
             if (content) {
                 const mdHtml = renderMarkdown(content);
-                changelog = `<div style="max-height:40vh; overflow:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background: rgba(255,255,255,.04); text-align: left;">${mdHtml}</div>`;
+                changelog = `<div style="max-height:60vh; overflow:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background: rgba(255,255,255,.04); text-align: left;">${mdHtml}</div>`;
             }
         } catch (_) { }
 

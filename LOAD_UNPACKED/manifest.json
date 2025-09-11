@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "wplacer - forked by lllexxa",
-  "version": "4.4",
+  "version": "4.5",
   "description": "Automatically sends session and Turnstile tokens from wplace.live to a wplacer server.",
   "permissions": [
     "storage",
@@ -24,7 +24,8 @@
     }
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
@@ -35,6 +36,27 @@
         "content.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://challenges.cloudflare.com/*"
+      ],
+      "all_frames": true,
+      "run_at": "document_start",
+      "js": [
+        "cf_turnstile_autoclick.js"
+      ]
+    },
+    {
+      "matches": [
+        "*://challenges.cloudflare.com/*"
+      ],
+      "all_frames": true,
+      "run_at": "document_start",
+      "world": "MAIN",
+      "js": [
+        "cf_attach_shadow_open.js"
+      ]
     }
   ]
 }

@@ -1453,7 +1453,7 @@ function logUserError(error, id, name, context) {
   }
   
   if (message.includes("(500)") || message.includes("(502)")) {
-    log(id, name, `❌ Server error (500/502) - retrying later`);
+    log(id, name, `❌ Server error (500/502) - retrying later (maybe need to relogin)`);
     return;
   }
   
@@ -1917,7 +1917,7 @@ class TemplateManager {
             log(userId, rec.name, `[${this.name}] 🔄 Background resync started.`);
             w.login(rec.cookies)
               .then(()=>{ try { log(userId, rec.name, `[${this.name}] ✅ Background resync finished.`); } catch {} })
-              .catch((e)=>{ logUserError(e, userId, rec.name, "opportunistic resync"); try { log(userId, rec.name, `[${this.name}] ❌ Background resync finished (error).`); } catch {} })
+              .catch((e)=>{ logUserError(e, userId, rec.name, "opportunistic resync"); try { log(userId, rec.name, `[${this.name}] ❌ Background resync finished (error). Try to re-add the account.`); } catch {} })
               .finally(()=>activeBrowserUsers.delete(userId));
           }
 
@@ -2046,6 +2046,16 @@ app.use(cors());
 app.use(express.static("public"));
 app.use('/data', express.static('data'));
 app.use(express.json({ limit: Infinity }));
+
+// Global express error handler (keeps server alive and logs)
+app.use((err, req, res, next) => {
+  try {
+    console.error("[Express] error:", err?.message || err);
+    appendFileSync(path.join(dataDir, `errors.log`), `[${new Date().toLocaleString()}] (Express) ${err?.stack || err}\n`);
+  } catch (_) {}
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 // --- API: tokens ---
 app.get("/token-needed/long", (req, res) => {
@@ -3394,11 +3404,28 @@ const keepAlive = async () => {
 
   const port = Number(process.env.PORT) || 80;
   const host = "0.0.0.0";
-  app.listen(port, host, () => {
+  const server = app.listen(port, host, () => {
     console.log(`✅ Server listening on http://localhost:${port}`);
     console.log(`   Open the web UI in your browser to start!`);
     setInterval(keepAlive, 20 * 60 * 1000);
   });
+  // Process-level safety nets and graceful shutdown
+  try {
+    process.on('uncaughtException', (err) => {
+      console.error('[Process] uncaughtException:', err?.stack || err);
+      try { appendFileSync(path.join(dataDir, 'errors.log'), `[${new Date().toLocaleString()}] uncaughtException: ${err?.stack || err}\n`); } catch (_) {}
+    });
+    process.on('unhandledRejection', (reason) => {
+      console.error('[Process] unhandledRejection:', reason);
+      try { appendFileSync(path.join(dataDir, 'errors.log'), `[${new Date().toLocaleString()}] unhandledRejection: ${reason}\n`); } catch (_) {}
+    });
+    const shutdown = () => {
+      console.log('Shutting down server...');
+      try { server.close(() => process.exit(0)); } catch (_) { process.exit(0); }
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+  } catch (_) {}
 })();
 
 

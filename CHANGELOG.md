@@ -1,11 +1,21 @@
+## Changelog v4.2.5 QUICK FIX
+- Fixed extension!
+- Added automatic Cloudflare Turnstile solving!
+- Works on Chrome-based browsers (not tested on others). Re-upload the extension to your browser!
+Known issues: If you constantly see `❌ Background resync finished (error)` on an account while template is running, you should re‑login (refresh cookies). HTTP 401 can appear occasionally and usually does not break the flow, but I cannot fully fix it yet. Please remember this build is unstable.
+Recommendation: keep a `wplace.live` tab focused (active) while running to avoid throttling and ensure stable token acquisition.
+
+
 ## Changelog v4.2.4
 - Proxy: improved proxy handling; blocking proxies are now quarantined for 20 minutes.
 - Proxy: added a settings option to validate proxies and remove non‑working ones (note: some proxies may work intermittently).
 - Logging: added log category toggles in `settings.json` — you can disable noisy categories (e.g., `queuePreview`, `drawingMode`, `startTurn`, `mismatches`).
 
+
 ## Changelog v4.2.3
 - Fixed extension behavior.
 - You need to reload the extension in your browser (refresh it in chrome://extensions or reinstall it).
+
 
 ## Changelog v4.2.2
 - Front-End improvements:
@@ -18,6 +28,7 @@
   - Added a progress counter to “Check Account Status”.
   
 Note: The next update will focus on fixing drawing modes, improving template rendering with premium colors, and addressing other core issues. As this is a fork, occasional instability is expected.
+
 
 ## Changelog v4.2.1
 - Fixed an issue with alternating "Painted // Token expired/invalid" during drawing.
