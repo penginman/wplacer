@@ -1,3 +1,9 @@
+## Changelog v4.2.5 (UNOFFICIAL)
+- Added "Outline Before Drawing" Mode (great to reserve your drawing space)
+- Added "Skip Painted Pixels" Mode, making drawing "behind" other's artwork possible
+- Gently reworked wait time logic when no accounts are ready to paint.  Instead of refreshing every X seconds, it'll now wait until the next available account will be ready before rechecking. (Reduces calls to wplace.live)
+- Moved upgrade logic to happen BEFORE painting, so that if the account is at max charges, free extra charges are received by upgrading those first.
+
 ## Changelog v4.2.5 QUICK FIX
 - Fixed extension!
 - Added automatic Cloudflare Turnstile solving!
