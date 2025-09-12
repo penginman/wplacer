@@ -199,7 +199,15 @@
                         </div>
                     </div>
 
+                    <div id="checkUsersProgress" class="summary" style="margin-top:8px; display:none;"></div>
+                    <div id="checkUsersResult" class="summary" style="margin-top:8px; display:none;"></div>
+                    <div id="cleanupExpiredWrap" style="margin-top:8px; display:none;">
+                        <button type="button" id="cleanupExpiredBtn" class="destructive-button">Remove expired accounts
+                            (backup will be created)</button>
+                    </div>
+
                     <div id="userList" class="cards-grid"></div>
+
 
                 </section>
 
@@ -897,7 +905,8 @@
                                         <span class="slider"></span>
                                     </label>
                                 </div>
-                                <small class="help">Replace (nick#id), #12345 and tile coordinates with masked values. Applies to NEW logs only.</small>
+                                <small class="help">Replace (nick#id), #12345 and tile coordinates with masked values.
+                                    Applies to NEW logs only.</small>
                                 <div class="setting-toggle">
                                     <label for="log_tokenManager" class="label-margin0">TOKEN_MANAGER</label>
                                     <label class="switch">
