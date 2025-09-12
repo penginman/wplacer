@@ -17,6 +17,14 @@ if (!existsSync(heatMapsDir)) {
   try { mkdirSync(heatMapsDir, { recursive: true }); } catch (_) {}
 }
 
+// Backups directories
+const backupsRootDir = path.join(dataDir, "backups");
+const usersBackupsDir = path.join(backupsRootDir, "users");
+const proxiesBackupsDir = path.join(backupsRootDir, "proxies");
+try { if (!existsSync(backupsRootDir)) mkdirSync(backupsRootDir, { recursive: true }); } catch (_) {}
+try { if (!existsSync(usersBackupsDir)) mkdirSync(usersBackupsDir, { recursive: true }); } catch (_) {}
+try { if (!existsSync(proxiesBackupsDir)) mkdirSync(proxiesBackupsDir, { recursive: true }); } catch (_) {}
+
 // --- Logging & utils ---
 const log = async (id, name, data, error) => {
   const timestamp = new Date().toLocaleString();
@@ -2175,6 +2183,63 @@ app.get("/user/status/:id", async (req, res) => {
   }
 });
 
+// Cleanup expired users (by ids) with backup of users.json
+app.post("/users/cleanup-expired", (req, res) => {
+  try {
+    const removeIds = Array.isArray(req.body?.removeIds) ? req.body.removeIds.map(String) : [];
+    if (!removeIds || removeIds.length === 0) return res.status(400).json({ error: "no_selection" });
+
+    // Backup users.json
+    try {
+      const usersPath = path.join(dataDir, "users.json");
+      const backupPath = path.join(
+        usersBackupsDir,
+        `users.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T','_').replace('Z','')}.json`
+      );
+      try { writeFileSync(backupPath, readFileSync(usersPath, "utf8")); } catch (_) {}
+
+      // Remove users
+      let removed = 0;
+      for (const id of removeIds) {
+        if (users[id]) {
+          const name = users[id].name;
+          delete users[id];
+          removed++;
+          try { log("SYSTEM", "Users", `Deleted expired user ${name}#${id}.`); } catch (_) {}
+        }
+      }
+      saveUsers();
+
+      // Strip removed users from templates, update master if needed, stop if none
+      let templatesModified = false;
+      for (const templateId in templates) {
+        const template = templates[templateId];
+        const before = template.userIds.length;
+        template.userIds = template.userIds.filter((uid) => !!users[uid]);
+        if (template.userIds.length < before) {
+          templatesModified = true;
+          if (template.masterId && !users[template.masterId]) {
+            template.masterId = template.userIds[0] || null;
+            template.masterName = template.masterId ? users[template.masterId].name : null;
+          }
+          if (template.userIds.length === 0 && template.running) {
+            template.running = false;
+            try { log("SYSTEM", "wplacer", `[${template.name}] 🛑 Template stopped because it has no users left.`); } catch (_) {}
+          }
+        }
+      }
+      if (templatesModified) saveTemplates();
+
+      const remaining = Object.keys(users).length;
+      return res.status(200).json({ success: true, removed, remaining, backup: path.basename(backupPath) });
+    } catch (e) {
+      return res.status(500).json({ error: String(e && e.message || e) });
+    }
+  } catch (e) {
+    return res.status(500).json({ error: String(e && e.message || e) });
+  }
+});
+
 // --- API: update user profile (name/discord/showLastPixel) ---
 app.put("/user/:id/update-profile", async (req, res) => {
   const { id } = req.params;
@@ -3120,7 +3185,7 @@ app.post("/proxies/cleanup", (req, res) => {
     if (!keepIdx && !removeIdx) return res.status(400).json({ error: "no_selection" });
 
     const proxyPath = path.join(dataDir, "proxies.txt");
-    const backupPath = path.join(dataDir, `proxies.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T','_').replace('Z','')}.txt`);
+    const backupPath = path.join(proxiesBackupsDir, `proxies.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T','_').replace('Z','')}.txt`);
     try { writeFileSync(backupPath, readFileSync(proxyPath, "utf8")); } catch (_) {}
 
     const byIdx = new Map();

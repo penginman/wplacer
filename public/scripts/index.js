@@ -12,6 +12,10 @@ const submitUser = $("submitUser");
 const manageUsers = $("manageUsers");
 const userList = $("userList");
 const checkUserStatus = $("checkUserStatus");
+const checkUsersProgress = $("checkUsersProgress");
+const checkUsersResult = $("checkUsersResult");
+const cleanupExpiredBtn = $("cleanupExpiredBtn");
+const cleanupExpiredWrap = $("cleanupExpiredWrap");
 const addTemplate = $("addTemplate");
 const convert = $("convert");
 const details = $("details");
@@ -252,8 +256,9 @@ function renderMarkdown(md) {
     flushAllLists();
     return html
         .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
-        .replace(/\*(.+?)\*/g, '<i>$1</i>');
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1<\/a>')
+        .replace(/\*\*(.+?)\*\*/g, '<b>$1<\/b>')
+        .replace(/\*(.+?)\*/g, '<i>$1<\/i>');
 }
 async function checkVersionAndWarn() {
     try {
@@ -2043,6 +2048,9 @@ checkUserStatus.addEventListener("click", async () => {
         window.__skipAccountCheckCooldownWarningCounter = __bypass - 1;
     }
     checkUserStatus.disabled = true;
+    if (checkUsersResult) { checkUsersResult.style.display = 'none'; checkUsersResult.innerHTML = ''; }
+    if (checkUsersProgress) { checkUsersProgress.style.display = 'block'; checkUsersProgress.textContent = 'Progress: 0% (0 checked)'; }
+    if (cleanupExpiredWrap) { cleanupExpiredWrap.style.display = 'none'; }
     const userElements = Array.from(document.querySelectorAll('.user'));
     const totalUsersToCheck = userElements.length;
     let checkedUsersCount = 0;
@@ -2055,6 +2063,7 @@ checkUserStatus.addEventListener("click", async () => {
     let totalMax = 0;
     let totalDroplets = 0;
     const colorReport = [];
+    const accountResults = [];
 
 
     let settingsAccountCheckCooldown = 0;
@@ -2119,19 +2128,28 @@ checkUserStatus.addEventListener("click", async () => {
             totalDroplets += Number(droplets) || 0;
 
             infoSpans.forEach(span => span.style.color = 'var(--success-color)');
+            accountResults.push({ id, name: (USERS_COLOR_STATE[id]?.name || userInfo.name || `#${id}`), ok: true, reason: 'ok' });
         } catch (error) {
+            let reason = '';
+            try { reason = (error && error.response && error.response.data && error.response.data.error) ? String(error.response.data.error) : String(error && error.message || error) } catch (_) { reason = 'error'; }
             currentChargesEl.textContent = "ERR";
             maxChargesEl.textContent = "ERR";
             currentLevelEl.textContent = "?";
             levelProgressEl.textContent = "(?%)";
             currentDroplets.textContent = "?";
             infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+            const uname = (() => { try { return userEl.querySelector('.user-info-username')?.textContent?.trim() || `#${id}` } catch(_) { return `#${id}` } })();
+            accountResults.push({ id, name: uname, ok: false, reason });
         }
         if (settingsAccountCheckCooldown > 0) {
             await sleep(settingsAccountCheckCooldown);
         }
         checkedUsersCount++;
         updateCheckBtn();
+        if (checkUsersProgress) {
+            const pct = totalUsersToCheck > 0 ? Math.round(checkedUsersCount / totalUsersToCheck * 100) : 100;
+            checkUsersProgress.textContent = `Progress: ${pct}% (${checkedUsersCount} checked)`;
+        }
     };
 
     if (settingsAccountCheckCooldown > 0) {
@@ -2174,6 +2192,90 @@ checkUserStatus.addEventListener("click", async () => {
 
     checkUserStatus.disabled = false;
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
+
+    // Build results table similar to Test proxies
+    try {
+        const total = accountResults.length;
+        let ok = 0, expired = 0, otherErr = 0;
+        const isExpired = (r) => {
+            const msg = String(r.reason || '').toLowerCase();
+            return /authentication failed\s*\(401\)/i.test(r.reason || '') || /unauthorized/i.test(msg);
+        };
+        const rows = accountResults.map((r, i) => {
+            let status = 'OK';
+            let tag = '<span style="color:var(--success-color);">OK</span>';
+            if (!r.ok) {
+                if (isExpired(r)) { status = 'EXPIRED'; tag = '<span style="color:var(--error-color);">EXPIRED</span>'; expired++; }
+                else { status = 'ERROR'; tag = '<span style="color:var(--warning-color);">ERROR</span>'; otherErr++; }
+            } else { ok++; }
+            const reasonShort = String(r.reason || '').slice(0, 180).replace(/</g, '&lt;');
+            return `<tr>
+                        <td style="padding:6px 8px;">${i + 1}</td>
+                        <td style="padding:6px 8px; white-space:nowrap;">${r.name} <span class="muted">(#${r.id})</span></td>
+                        <td style="padding:6px 8px;">${tag}</td>
+                        <td style="padding:6px 8px;">${r.ok ? '-' : reasonShort}</td>
+                    </tr>`;
+        }).join('');
+        const summary = `<div><b>Total:</b> ${total} • <b>OK:</b> ${ok} • <b>Expired:</b> ${expired} • <b>Other errors:</b> ${otherErr}</div>`;
+        if (checkUsersResult) {
+            checkUsersResult.innerHTML = `${summary}
+                <div style="max-height:220px; overflow:auto; border:1px solid var(--border); border-radius:6px; margin-top:6px;">
+                    <table style="width:100%; border-collapse: collapse; font-size: 12px;">
+                        <thead>
+                            <tr style="background: rgba(255,255,255,.04)">
+                                <th style="text-align:left; padding:6px 8px;">#</th>
+                                <th style="text-align:left; padding:6px 8px;">User</th>
+                                <th style="text-align:left; padding:6px 8px;">Status</th>
+                                <th style="text-align:left; padding:6px 8px;">Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+            checkUsersResult.style.display = 'block';
+        }
+        if (checkUsersProgress) checkUsersProgress.style.display = 'none';
+
+        // Show cleanup button if there are expired accounts
+        if (expired > 0) {
+            try {
+                const expiredIds = accountResults.filter(r => !r.ok && isExpired(r)).map(r => r.id);
+                if (cleanupExpiredWrap) cleanupExpiredWrap.style.display = 'block';
+                if (cleanupExpiredBtn) cleanupExpiredBtn.dataset.expiredIds = JSON.stringify(expiredIds);
+            } catch (_) {}
+        } else {
+            if (cleanupExpiredWrap) cleanupExpiredWrap.style.display = 'none';
+            if (cleanupExpiredBtn) cleanupExpiredBtn.dataset.expiredIds = '[]';
+        }
+        showMessage('Success', 'Accounts check finished.');
+    } catch (e) { /* no-op */ }
+});
+
+// Cleanup expired accounts with confirmation (creates users.json backup)
+cleanupExpiredBtn?.addEventListener('click', async () => {
+    try {
+        const raw = cleanupExpiredBtn.dataset.expiredIds || '[]';
+        const toRemove = JSON.parse(raw || '[]');
+        if (!Array.isArray(toRemove) || toRemove.length === 0) {
+            showMessage('Info', 'No expired accounts to remove.');
+            return;
+        }
+        showConfirmation('Remove expired accounts', `Are you sure you want to remove ${toRemove.length} expired accounts? A backup will be created.`, async () => {
+            try {
+                const resp = await axios.post('/users/cleanup-expired', { removeIds: toRemove });
+                if (resp?.data?.success) {
+                    showMessage('Success', `Removed ${resp.data.removed} accounts. Remaining: ${resp.data.remaining}. Backup: ${resp.data.backup}`);
+                    if (cleanupExpiredWrap) cleanupExpiredWrap.style.display = 'none';
+                    // Refresh Users tab to reflect deleted accounts
+                    openManageUsers.click();
+                } else {
+                    showMessage('Error', 'Cleanup failed.');
+                }
+            } catch (error) {
+                handleError(error);
+            }
+        });
+    } catch (error) { handleError(error); }
 });
 
 buyMaxUpgradesAll?.addEventListener("click", () => {

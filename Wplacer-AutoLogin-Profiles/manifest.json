@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "WPlacer AutoLogin",
+  "version": "1.0.0",
+  "description": "Checks the 'j' cookie on wplace.live and, if missing, triggers auto-login via Google and updates the token.",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://challenges.cloudflare.com/*"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "js": ["cf-click.js"]
+    },
+    {
+      "matches": ["*://challenges.cloudflare.com/*"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "js": ["cf-open-shadow.js"],
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://wplace.live/*", "https://*.wplace.live/*"],
+      "run_at": "document_start",
+      "all_frames": false,
+      "js": ["wplace.js"]
+    },
+    {
+      "matches": ["https://backend.wplace.live/*"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "js": ["inject-turnstile.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["cf-open-shadow.js"],
+      "matches": ["*://challenges.cloudflare.com/*"]
+    }
+  ],
+  "permissions": [
+    "cookies",
+    "tabs",
+    "storage",
+    "alarms",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://wplace.live/*",
+    "https://*.wplace.live/*",
+    "https://backend.wplace.live/*",
+    "https://accounts.google.com/*",
+    "*://challenges.cloudflare.com/*",
+    "http://127.0.0.1/*"
+  ],
+  "action": {
+    "default_title": "WPlace AutoLogin"
+  }
+}
+

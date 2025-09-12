@@ -1,3 +1,8 @@
+## Changelog v4.2.6
+- Added an "Active/Expired accounts" table shown after the status check (you can remove non‑working accounts with one click).
+- Added an extension that automates account re‑login. See the AutoLogin README: [WPlace AutoLogin — Chrome Extension](https://github.com/lllexxa/wplacer/Wplacer-AutoLogin-Profiles/README.md)
+
+
 ## Changelog v4.2.5 QUICK FIX
 - Fixed extension!
 - Added automatic Cloudflare Turnstile solving!
