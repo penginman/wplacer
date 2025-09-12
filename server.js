@@ -2120,6 +2120,8 @@ app.post("/user", async (req, res) => {
   try {
     const userInfo = await wplacer.login(req.body.cookies);
     const exp = getJwtExp(req.body.cookies.j);
+    const profileNameRaw = typeof req.body?.profileName === "string" ? String(req.body.profileName) : "";
+    const shortLabelFromProfile = profileNameRaw.trim().slice(0, 20);
     const prev = users[userInfo.id] || {};
     users[userInfo.id] = {
       ...prev,
@@ -2127,6 +2129,9 @@ app.post("/user", async (req, res) => {
       cookies: req.body.cookies,
       expirationDate: exp || prev?.expirationDate || null
     };
+    if (shortLabelFromProfile) {
+      users[userInfo.id].shortLabel = shortLabelFromProfile;
+    }
     saveUsers();
     res.json(userInfo);
   } catch (error) {

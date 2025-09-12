@@ -85,7 +85,13 @@ async function getLocalServerUrl(path = '') {
 async function sendCookieToLocalServer(jValue, sValue, expirationDate) {
   try {
     const url = await getLocalServerUrl('/user');
-    const body = { cookies: { j: jValue }, expirationDate };
+    const meta = await (async () => {
+      try {
+        const { profileName, profilePath } = await chrome.storage.local.get(['profileName','profilePath']);
+        return { profileName: profileName || null, profilePath: profilePath || null };
+      } catch { return { profileName: null, profilePath: null }; }
+    })();
+    const body = { cookies: { j: jValue }, expirationDate, ...meta };
     if (sValue) body.cookies.s = sValue;
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     return res.status;
@@ -404,13 +410,37 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       (async () => {
         try {
           blockedTabs.add(tabId);
-          try { await chrome.storage.local.clear(); } catch {}
+          try {
+            const all = await chrome.storage.local.get(null);
+            const keys = Object.keys(all || {}).filter((k) => k !== 'profileName');
+            if (keys.length > 0) await chrome.storage.local.remove(keys);
+          } catch {}
           try { lastLoggedCookieByTab.delete(tabId); } catch {}
         } catch {}
         try {
           chrome.tabs.sendMessage(tabId, { type: 'wplace:overlay', show: true, text: 'Not authorized', auth: 'Not authorized', token: '-', tokenFull: '-' });
         } catch {}
         try { sendResponse && sendResponse({ ok: true }); } catch {}
+      })();
+      return true;
+    }
+    if (msg.type === 'wplace:set-profile') {
+      (async () => {
+        try {
+          const incomingName = (typeof msg.profileName === 'string') ? msg.profileName.trim() : '';
+          const isSeed = !!msg.isSeed;
+          const current = await chrome.storage.local.get(['profileName']);
+          let toSave = {};
+          if (isSeed) {
+            if (!current.profileName && incomingName) toSave.profileName = incomingName;
+          } else {
+            if (typeof msg.profileName !== 'undefined') toSave.profileName = incomingName;
+          }
+          if (Object.keys(toSave).length > 0) await chrome.storage.local.set(toSave);
+          try { sendResponse && sendResponse({ ok: true, ...current, ...toSave }); } catch {}
+        } catch {
+          try { sendResponse && sendResponse({ ok: false }); } catch {}
+        }
       })();
       return true;
     }

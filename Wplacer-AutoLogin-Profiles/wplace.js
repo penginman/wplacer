@@ -1,5 +1,33 @@
 // Content script for wplace.live to initiate login flow when requested
 console.log('[AUTO-LOGIN EXTENSION] wplace.js loaded');
+// Seed profileName from URL query if present (first time only)
+(function seedProfileFromQuery(){
+  try {
+    const u = new URL(location.href);
+    const qName = (u.searchParams.get('profileName') || '').trim();
+    if (qName) {
+      chrome.runtime.sendMessage({ type: 'wplace:set-profile', profileName: qName, isSeed: true }, (resp) => {
+        try { if (resp && resp.ok) console.log('[AUTO-LOGIN EXTENSION] profileName seeded from URL'); } catch {}
+      });
+      try {
+        window.__wplaceSeedName = qName;
+        // Ensure overlay exists and set the input immediately (with retry in case input appears later)
+        try { ensureOverlay(); } catch {}
+        const tryPrefill = () => {
+          const el = document.getElementById('wplace-profile-name');
+          if (el && typeof el.value === 'string') { el.value = qName; return true; }
+          return false;
+        };
+        if (!tryPrefill()) {
+          let tries = 0; // try up to 5 times (5s)
+          const iv = setInterval(() => {
+            if (tryPrefill() || ++tries > 5) clearInterval(iv);
+          }, 1000);
+        }
+      } catch {}
+    }
+  } catch {}
+})();
 // Simple overlay UI for status and actions
 function ensureOverlay() {
   if (document.getElementById('wplace-overlay')) return document.getElementById('wplace-overlay');
@@ -43,11 +71,16 @@ function ensureOverlay() {
         <input id="wplace-port" type="number" min="1" max="65535" placeholder="80" style="width:100px;padding:6px 8px;border-radius:6px;border:1px solid #4b5563;background:#111827;color:#e5e7eb;" />
         <button id="wplace-save-port" style="padding:6px 10px;border-radius:6px;border:none;background:#4b5563;color:#fff;font-weight:600;cursor:pointer;">Save</button>
       </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+        <span>Profile name:</span>
+        <input id="wplace-profile-name" type="text" placeholder="e.g. test1" style="width:16rem;padding:6px 8px;border-radius:6px;border:1px solid #4b5563;background:#111827;color:#e5e7eb;" />
+        <button id="wplace-save-profile" style="padding:6px 10px;border-radius:6px;border:none;background:#4b5563;color:#fff;font-weight:600;cursor:pointer;">Save profile</button>
+      </div>
     </div>
     <div style="display:flex;gap:10px;margin-top:14px;">
       <button id="wplace-btn-refresh" style="padding:8px 12px;border-radius:8px;border:none;background:#3b82f6;color:#fff;font-weight:600;cursor:pointer;">Refresh token</button>
       <button id="wplace-btn-send" style="padding:8px 12px;border-radius:8px;border:none;background:#10b981;color:#fff;font-weight:600;cursor:pointer;">Send token</button>
-      <button id="wplace-btn-logout" style="padding:8px 12px;border-radius:8px;border:none;background:#ef4444;color:#fff;font-weight:600;cursor:pointer;">Logout</button>
+      <button id="wplace-btn-logout" style="padding:8px 12px;border-radius:8px;border:none;background:#ef4444;color:#fff;font-weight:600;cursor:pointer;">Clear all</button>
       <button id="wplace-btn-hide" style="padding:8px 12px;border-radius:8px;border:none;background:#6b7280;color:#fff;font-weight:600;cursor:pointer;margin-left:auto;">Hide</button>
     </div>
   `;
@@ -62,6 +95,18 @@ function ensureOverlay() {
       const p = (res && res.wplacerPort) ? String(res.wplacerPort) : '80';
       const el = document.getElementById('wplace-port');
       if (el) el.value = p;
+    });
+  } catch {}
+  // Prefill profile name: URL seed has priority, then storage
+  try {
+    const seed = (typeof window.__wplaceSeedName === 'string' && window.__wplaceSeedName.trim()) ? window.__wplaceSeedName.trim() : '';
+    const nameEl = document.getElementById('wplace-profile-name');
+    if (nameEl && seed) nameEl.value = seed;
+    chrome.storage.local.get(['profileName'], (res) => {
+      try {
+        const stored = res && res.profileName ? String(res.profileName) : '';
+        if (nameEl && !nameEl.value && stored) nameEl.value = stored;
+      } catch {}
     });
   } catch {}
   // Copy token button
@@ -127,6 +172,28 @@ function ensureOverlay() {
       chrome.runtime.sendMessage({ type: 'wplace:set-port', port: isFinite(val) && val > 0 ? val : 80 });
     } catch {}
   };
+  // Load and save profile meta (do not overwrite non-empty input)
+  try {
+    chrome.storage.local.get(['profileName'], (res) => {
+      try {
+        const nameEl = document.getElementById('wplace-profile-name');
+        const stored = res && res.profileName ? String(res.profileName) : '';
+        if (nameEl && !nameEl.value && stored) nameEl.value = stored;
+      } catch {}
+    });
+  } catch {}
+  document.getElementById('wplace-save-profile').onclick = () => {
+    try {
+      const name = (document.getElementById('wplace-profile-name')?.value || '').trim();
+      chrome.runtime.sendMessage({ type: 'wplace:set-profile', profileName: name }, (resp) => {
+        try {
+          const err = chrome.runtime.lastError;
+          if (err) { overlayUpdate({ status: 'Save failed' }); return; }
+          if (resp && resp.ok) overlayUpdate({ status: 'Profile saved' }); else overlayUpdate({ status: 'Save failed' });
+        } catch {}
+      });
+    } catch {}
+  };
   return wrap;
 }
 
@@ -137,7 +204,18 @@ function overlayUpdate(fields) {
     if ('status' in fields) setText('wplace-status', fields.status);
     if ('auth' in fields) setText('wplace-auth', fields.auth);
     if ('token' in fields) setText('wplace-token', fields.token);
-    if ('send' in fields) setText('wplace-send', fields.send);
+    if ('send' in fields) {
+      setText('wplace-send', fields.send);
+      try {
+        const sendEl = document.getElementById('wplace-send');
+        if (sendEl) {
+          const val = String(fields.send || '').toLowerCase();
+          if (val === 'success') sendEl.style.color = '#8be28b';
+          else if (val === 'failed' || val.includes('fail')) sendEl.style.color = '#ef4444';
+          else sendEl.style.color = '';
+        }
+      } catch {}
+    }
     if ('tokenFull' in fields && typeof fields.tokenFull === 'string') {
       try { window.__wplaceTokenFull = fields.tokenFull; } catch {}
     }
