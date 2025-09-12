@@ -325,14 +325,14 @@ class SuspensionError extends Error {
 
 // --- WPlacer with old painting modes ported over ---
 class WPlacer {
-  constructor(template, coords, settings, templateName, paintTransparentPixels = false, initialBurstSeeds = null, skipPaintedPixels = false, outlineMode = false) { // Sei
+  constructor(template, coords, settings, templateName, paintTransparentPixels = false, initialBurstSeeds = null, skipPaintedPixels = false, outlineMode = false) {
     this.template = template;
     this.templateName = templateName;
     this.coords = coords;
     this.settings = settings;
     this.paintTransparentPixels = !!paintTransparentPixels;
-	this.skipPaintedPixels = !!skipPaintedPixels; // Sei
-	this.outlineMode = !!outlineMode; // Sei
+	this.skipPaintedPixels = !!skipPaintedPixels;
+	this.outlineMode = !!outlineMode;
 
     this.cookies = null;
     this.browser = null;
@@ -867,8 +867,6 @@ class WPlacer {
         if (!tile || !tile.data[localPx]) continue;
 
         const tileColor = tile.data[localPx][localPy];
-		
-		// Sei - Enabling the ability to paint the most outer pixels first, securing your space.
 		const neighbors = [
 			this.template.data[x - 1]?.[y],
 			this.template.data[x + 1]?.[y],
@@ -877,14 +875,13 @@ class WPlacer {
 		];
 		const isEdge = neighbors.some((n) => n === 0 || n === undefined);
 		
-		// Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
+		// Setting to paint "behind" other's artwork, by not painting over already painted pixels.
         const shouldPaint = this.skipPaintedPixels
 			? tileColor === 0
 			: templateColor !== tileColor;
 		
-		//if (templateColor !== tileColor && this.hasColor(templateColor)) {
 		if (shouldPaint && this.hasColor(templateColor)) {
-          mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge: isEdge }); // Sei
+          mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge: isEdge });
         }
       }
     }
@@ -967,7 +964,7 @@ class WPlacer {
       if (mismatchedPixels.length === 0) return 0;
 	  log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
 	
-	  // Sei - Reintroduce "Outline Mode", an incredibly convenient tool for securing your space before drawing.
+	  // "Outline Mode", an incredibly convenient tool for securing your space before drawing.
 	  if (this.outlineMode) {
 	    const edge = mismatchedPixels.filter((p) => p.isEdge);
 	    if (edge.length > 0) {
@@ -1235,13 +1232,11 @@ class WPlacer {
         if (!tile || !tile.data[localPx]) continue;
         const tileColor = tile.data[localPx][localPy];
 		
-		// Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
         const shouldPaint = this.skipPaintedPixels
 			? tileColor === 0
 			: templateColor !== tileColor;
 		
-        //if (templateColor !== tileColor) count++;
-        if (shouldPaint) count++; // Sei
+        if (shouldPaint) count++;
       }
     }
     return count;
@@ -1266,13 +1261,10 @@ class WPlacer {
         const tile = this.tiles.get(`${targetTx}_${targetTy}`);
         if (!tile || !tile.data[localPx]) continue;
         const tileColor = tile.data[localPx][localPy];
-		
-		// Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
         const shouldPaint = this.skipPaintedPixels
 			? tileColor === 0
 			: templateColor !== tileColor;
 		
-        //if (templateColor !== tileColor) {
         if (shouldPaint) {
           total++;
           if (templateColor >= 32) { premium++; premiumColors.add(templateColor); }
@@ -1308,8 +1300,8 @@ const saveTemplates = () => {
       antiGriefMode: t.antiGriefMode,
       userIds: t.userIds,
       paintTransparentPixels: t.paintTransparentPixels,
-	  skipPaintedPixels: !!t.skipPaintedPixels, // Sei
-	  outlineMode: !!t.outlineMode, // Sei
+	  skipPaintedPixels: !!t.skipPaintedPixels,
+	  outlineMode: !!t.outlineMode,
       burstSeeds: t.burstSeeds || null,
       heatmapEnabled: !!t.heatmapEnabled,
       heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000)))
@@ -1519,7 +1511,7 @@ function logUserError(error, id, name, context) {
 
 // --- Template Manager ---
 class TemplateManager {
-  constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds, paintTransparentPixels = false, skipPaintedPixels = false, outlineMode = false) { // Sei
+  constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds, paintTransparentPixels = false, skipPaintedPixels = false, outlineMode = false) {
     this.name = name;
     this.template = templateData;
     this.coords = coords;
@@ -1533,8 +1525,8 @@ class TemplateManager {
     this._lastResyncAt = 0;
     this._resyncCooldownMs = 3000;
 	
-	this.skipPaintedPixels = !!skipPaintedPixels; // Sei
-	this.outlineMode = !!outlineMode; // Sei
+	this.skipPaintedPixels = !!skipPaintedPixels;
+	this.outlineMode = !!outlineMode;
     this.paintTransparentPixels = !!paintTransparentPixels; // NEW: per-template flag like old version
     this.burstSeeds = null; // persist across runs
 
@@ -1797,7 +1789,7 @@ class TemplateManager {
             if (rec.suspendedUntil && Date.now() < rec.suspendedUntil) continue;
             if (activeBrowserUsers.has(uid)) continue;
             activeBrowserUsers.add(uid);
-            const w = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode); // Sei
+            const w = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode);
             try {
               await w.login(rec.cookies); await w.loadUserInfo();
               const cnt = Math.floor(Number(w.userInfo?.charges?.count || 0));
@@ -1819,7 +1811,7 @@ class TemplateManager {
         let summaryForTurn = null;
         const needFreshSummary = !this._lastSummary || (Date.now() - this._lastSummaryAt) >= this._summaryMinIntervalMs;
         if (needFreshSummary) {
-          const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode); // Sei
+          const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode);
           try {
             await checkWplacer.login(users[this.masterId].cookies);
             const summary = await checkWplacer.mismatchesSummary();
@@ -2020,14 +2012,14 @@ class TemplateManager {
             this._lastSwitchAt = Date.now();
           }
           activeBrowserUsers.add(foundUserForTurn);
-          const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode); // Sei
+          const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode);
           // Wire cancellation: allow WPlacer to see when manager was stopped
           try { wplacer.shouldStop = () => !this.running; } catch (_) {}
           try {
             const { id, name } = await wplacer.login(users[foundUserForTurn].cookies);
             this.status = `Running user ${name}#${id}`;
 			
-			// Sei - Better to buy upgrades BEFORE painting.
+			// Better to buy upgrades BEFORE painting.
 			await this.handleUpgrades(wplacer);
 			
             const pred = ChargeCache.predict(foundUserForTurn, Date.now());
@@ -2075,7 +2067,7 @@ class TemplateManager {
           // Buy charges if allowed (master only)
           if (this.canBuyCharges && !activeBrowserUsers.has(this.masterId)) {
             activeBrowserUsers.add(this.masterId);
-            const chargeBuyer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode); // Sei
+            const chargeBuyer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode);
             try {
               await chargeBuyer.login(users[this.masterId].cookies);
               const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
@@ -2831,8 +2823,8 @@ app.get("/templates", (_, res) => {
       canBuyMaxCharges: t.canBuyMaxCharges,
       autoBuyNeededColors: !!t.autoBuyNeededColors,
       antiGriefMode: t.antiGriefMode,
-	  skipPaintedPixels: t.skipPaintedPixels, // Sei
-	  outlineMode: t.outlineMode, // Sei
+	  skipPaintedPixels: t.skipPaintedPixels,
+	  outlineMode: t.outlineMode,
       paintTransparentPixels: t.paintTransparentPixels,
       userIds: t.userIds,
       running: t.running,
@@ -2858,8 +2850,8 @@ app.get("/template/:id", (req, res) => {
     canBuyMaxCharges: t.canBuyMaxCharges,
     autoBuyNeededColors: !!t.autoBuyNeededColors,
     antiGriefMode: t.antiGriefMode,
-	skipPaintedPixels: t.skipPaintedPixels, // Sei
-	outlineMode: t.outlineMode, // Sei
+	skipPaintedPixels: t.skipPaintedPixels,
+	outlineMode: t.outlineMode,
     paintTransparentPixels: t.paintTransparentPixels,
     userIds: t.userIds,
     running: t.running,
@@ -2873,7 +2865,7 @@ app.get("/template/:id", (req, res) => {
 });
 
 app.post("/template", async (req, res) => {
-  const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, paintTransparentPixels, skipPaintedPixels, outlineMode, heatmapEnabled, heatmapLimit } = req.body; // Sei
+  const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, paintTransparentPixels, skipPaintedPixels, outlineMode, heatmapEnabled, heatmapLimit } = req.body;
   if (!templateName || !template || !coords || !userIds || !userIds.length) return res.sendStatus(400);
   if (Object.values(templates).some((t) => t.name === templateName)) {
     return res.status(409).json({ error: "A template with this name already exists." });
@@ -2887,7 +2879,9 @@ app.post("/template", async (req, res) => {
     canBuyMaxCharges,
     antiGriefMode,
     userIds,
-    !!paintTransparentPixels
+    !!paintTransparentPixels,
+	skipPaintedPixels,
+	outlineMode
   );
   if (typeof req.body.autoBuyNeededColors !== 'undefined') {
     templates[templateId].autoBuyNeededColors = !!req.body.autoBuyNeededColors;
@@ -2919,7 +2913,7 @@ app.put("/template/edit/:id", async (req, res) => {
   if (!templates[id]) return res.sendStatus(404);
   const manager = templates[id];
 
-  const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, template, paintTransparentPixels, skipPaintedPixels, outlineMode, heatmapEnabled, heatmapLimit } = req.body; // Sei
+  const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, template, paintTransparentPixels, skipPaintedPixels, outlineMode, heatmapEnabled, heatmapLimit } = req.body;
 
   const prevCoords = manager.coords;
   const prevTemplateStr = JSON.stringify(manager.template);
@@ -2936,8 +2930,8 @@ app.put("/template/edit/:id", async (req, res) => {
   manager.canBuyCharges = canBuyCharges;
   manager.canBuyMaxCharges = canBuyMaxCharges;
   manager.antiGriefMode = antiGriefMode;
-  manager.skipPaintedPixels = skipPaintedPixels; // Sei
-  manager.outlineMode = outlineMode; // Sei
+  manager.skipPaintedPixels = skipPaintedPixels;
+  manager.outlineMode = outlineMode;
   if (typeof req.body.autoBuyNeededColors !== 'undefined') {
     manager.autoBuyNeededColors = !!req.body.autoBuyNeededColors;
     if (manager.autoBuyNeededColors) {
@@ -3532,8 +3526,8 @@ const keepAlive = async () => {
         t.antiGriefMode,
         t.userIds,
         !!t.paintTransparentPixels,
-		!!t.skipPaintedPixels, // Sei
-		!!t.outlineMode // Sei
+		!!t.skipPaintedPixels,
+		!!t.outlineMode
       );
       tm.burstSeeds = t.burstSeeds || null;
       tm.autoBuyNeededColors = !!t.autoBuyNeededColors;
