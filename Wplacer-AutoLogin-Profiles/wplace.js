@@ -344,6 +344,8 @@ async function tryClickGoogle() {
   const xpathA = '/html/body/div/dialog[1]/div/div/div/form/div/a[1]';
   const link = await waitForXPath(xpathA, 40000);
   if (link && link.href) {
+    console.log('[AUTO-LOGIN EXTENSION] tryClickGoogle: link found, waiting 2000ms before navigating');
+    await new Promise(r => setTimeout(r, 1000));
     console.log('[AUTO-LOGIN EXTENSION] tryClickGoogle: navigating to', link.href);
     try { window.location.href = link.href; } catch { link.click(); }
     return true;

@@ -1,5 +1,7 @@
 # WPlace AutoLogin — Chrome Extension
 
+> Important: this extension is not intended for using multiple accounts within a single browser profile. One profile = one account. For multiple accounts, create separate browser profiles (e.g., separate Chrome profiles), and install this extension in each profile.
+
 Auto-checks the `j` cookie on `wplace.live` and refreshes it via Google sign-in when needed.
 
 ## Requirements

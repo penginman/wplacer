@@ -14,16 +14,16 @@ if (!existsSync(dataDir)) {
 // Heat maps directory
 const heatMapsDir = path.join(dataDir, "heat_maps");
 if (!existsSync(heatMapsDir)) {
-  try { mkdirSync(heatMapsDir, { recursive: true }); } catch (_) {}
+  try { mkdirSync(heatMapsDir, { recursive: true }); } catch (_) { }
 }
 
 // Backups directories
 const backupsRootDir = path.join(dataDir, "backups");
 const usersBackupsDir = path.join(backupsRootDir, "users");
 const proxiesBackupsDir = path.join(backupsRootDir, "proxies");
-try { if (!existsSync(backupsRootDir)) mkdirSync(backupsRootDir, { recursive: true }); } catch (_) {}
-try { if (!existsSync(usersBackupsDir)) mkdirSync(usersBackupsDir, { recursive: true }); } catch (_) {}
-try { if (!existsSync(proxiesBackupsDir)) mkdirSync(proxiesBackupsDir, { recursive: true }); } catch (_) {}
+try { if (!existsSync(backupsRootDir)) mkdirSync(backupsRootDir, { recursive: true }); } catch (_) { }
+try { if (!existsSync(usersBackupsDir)) mkdirSync(usersBackupsDir, { recursive: true }); } catch (_) { }
+try { if (!existsSync(proxiesBackupsDir)) mkdirSync(proxiesBackupsDir, { recursive: true }); } catch (_) { }
 
 // --- Logging & utils ---
 const log = async (id, name, data, error) => {
@@ -64,7 +64,7 @@ const log = async (id, name, data, error) => {
       const cfg = (currentSettings && currentSettings.logCategories) || {};
       const enabled = (cat == null) ? true : (cfg[cat] !== false);
       if (!enabled) return; // skip suppressed category
-    } catch (_) {}
+    } catch (_) { }
     const identOut = maskOn ? maskMsg(identifier) : identifier;
     const outLine = `[${timestamp}] ${identOut} ${maskOn ? maskMsg(data) : data}`;
     console.log(outLine);
@@ -111,7 +111,7 @@ const ChargeCache = {
     if (!userInfo?.id || !userInfo?.charges) return;
     const k = this._key(userInfo.id);
     const base = Math.floor(userInfo.charges.count ?? 0);
-    const max  = Math.floor(userInfo.charges.max ?? 0);
+    const max = Math.floor(userInfo.charges.max ?? 0);
     this._m.set(k, { base, max, lastSync: now });
   },
   predict(id, now = Date.now()) {
@@ -258,7 +258,7 @@ const loadProxies = () => {
     console.log(`[SYSTEM] ERROR: No valid proxies loaded from ${lines.length} lines - check proxies.txt format`);
   }
   // Reset quarantine on reload to avoid mismatched indices after edits
-  try { proxyQuarantine.clear(); } catch (_) {}
+  try { proxyQuarantine.clear(); } catch (_) { }
 };
 
 let nextProxyIndex = 0;
@@ -308,8 +308,8 @@ const quarantineProxy = (idx, minutes = 15, reason = "") => {
     proxyQuarantine.set(idx, until);
     const p = loadedProxies.find(x => (Number(x._idx) || (loadedProxies.indexOf(x) + 1)) === idx);
     const label = p ? `${p.host}:${p.port}` : `#${idx}`;
-    log("SYSTEM", "wplacer", `🧯 Quarantining proxy #${idx} (${label}) for ${Math.floor(ms/60000)}m${reason ? ` — ${reason}` : ''}`);
-  } catch (_) {}
+    log("SYSTEM", "wplacer", `🧯 Quarantining proxy #${idx} (${label}) for ${Math.floor(ms / 60000)}m${reason ? ` — ${reason}` : ''}`);
+  } catch (_) { }
 };
 
 
@@ -331,8 +331,8 @@ class WPlacer {
     this.coords = coords;
     this.settings = settings;
     this.paintTransparentPixels = !!paintTransparentPixels;
-	this.skipPaintedPixels = !!skipPaintedPixels; // Sei
-	this.outlineMode = !!outlineMode; // Sei
+    this.skipPaintedPixels = !!skipPaintedPixels; // Sei
+    this.outlineMode = !!outlineMode; // Sei
 
     this.cookies = null;
     this.browser = null;
@@ -367,7 +367,7 @@ class WPlacer {
       if (currentSettings.logProxyUsage) {
         log("SYSTEM", "wplacer", `Using proxy #${proxySel.idx}: ${proxySel.display}`);
       }
-      try { this._lastProxyIdx = proxySel.idx; } catch (_) {}
+      try { this._lastProxyIdx = proxySel.idx; } catch (_) { }
     } else if (currentSettings.proxyEnabled && loadedProxies.length === 0) {
       log("SYSTEM", "wplacer", `⚠️ Proxy enabled but no valid proxies loaded - check proxies.txt format`);
     }
@@ -409,7 +409,7 @@ class WPlacer {
     if (status === 401 || status === 403) {
       if (/cloudflare|attention required|access denied|just a moment|cf-ray|challenge-form|cf-chl/i.test(bodyText)) {
         // auto-quarantine proxy for a short time to reduce repeated blocks
-        try { if (typeof this._lastProxyIdx === 'number') quarantineProxy(this._lastProxyIdx, 20, `cloudflare_block_${status}`); } catch (_) {}
+        try { if (typeof this._lastProxyIdx === 'number') quarantineProxy(this._lastProxyIdx, 20, `cloudflare_block_${status}`); } catch (_) { }
         throw new Error(`❌ Cloudflare blocked the request.`);
       }
       if (contentType.includes("application/json")) {
@@ -436,7 +436,7 @@ class WPlacer {
       }
       if (userInfo?.id && userInfo?.name) {
         this.userInfo = userInfo;
-        try { ChargeCache.markFromUserInfo(userInfo); } catch {}
+        try { ChargeCache.markFromUserInfo(userInfo); } catch { }
         return true;
       }
       throw new Error(`❌ Unexpected JSON from /me (status ${status}): ${JSON.stringify(userInfo).slice(0, 200)}...`);
@@ -445,7 +445,7 @@ class WPlacer {
       throw new Error("❌ (1015) You are being rate-limited by the server. Please wait a moment and try again.");
     }
     if (/cloudflare|attention required|access denied|just a moment|cf-ray|challenge-form|cf-chl/i.test(bodyText)) {
-      try { if (typeof this._lastProxyIdx === 'number') quarantineProxy(this._lastProxyIdx, 20, 'cloudflare_block_html'); } catch (_) {}
+      try { if (typeof this._lastProxyIdx === 'number') quarantineProxy(this._lastProxyIdx, 20, 'cloudflare_block_html'); } catch (_) { }
       throw new Error(`❌ Cloudflare blocked the request.`);
     }
     if (/<!doctype html>/i.test(bodyText) || /<html/i.test(bodyText)) {
@@ -581,7 +581,7 @@ class WPlacer {
             const fileName = `${idPart}.jsonl`;
             const filePath = path.join(heatMapsDir, fileName);
             // ensure file exists
-            try { if (!existsSync(filePath)) writeFileSync(filePath, ""); } catch (_) {}
+            try { if (!existsSync(filePath)) writeFileSync(filePath, ""); } catch (_) { }
             // append as JSONL to avoid memory usage
             const lines = pairs.map(o => JSON.stringify(o)).join("\n") + "\n";
             appendFileSync(filePath, lines);
@@ -596,7 +596,7 @@ class WPlacer {
                   writeFileSync(filePath, keep.join("\n") + "\n");
                 }
               }
-            } catch (_) {}
+            } catch (_) { }
           }
         }
       } catch (_) { }
@@ -867,23 +867,23 @@ class WPlacer {
         if (!tile || !tile.data[localPx]) continue;
 
         const tileColor = tile.data[localPx][localPy];
-		
-		// Sei - Enabling the ability to paint the most outer pixels first, securing your space.
-		const neighbors = [
-			this.template.data[x - 1]?.[y],
-			this.template.data[x + 1]?.[y],
-			this.template.data[x]?.[y - 1],
-			this.template.data[x]?.[y + 1],
-		];
-		const isEdge = neighbors.some((n) => n === 0 || n === undefined);
-		
-		// Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
+
+        // Sei - Enabling the ability to paint the most outer pixels first, securing your space.
+        const neighbors = [
+          this.template.data[x - 1]?.[y],
+          this.template.data[x + 1]?.[y],
+          this.template.data[x]?.[y - 1],
+          this.template.data[x]?.[y + 1],
+        ];
+        const isEdge = neighbors.some((n) => n === 0 || n === undefined);
+
+        // Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
         const shouldPaint = this.skipPaintedPixels
-			? tileColor === 0
-			: templateColor !== tileColor;
-		
-		//if (templateColor !== tileColor && this.hasColor(templateColor)) {
-		if (shouldPaint && this.hasColor(templateColor)) {
+          ? tileColor === 0
+          : templateColor !== tileColor;
+
+        //if (templateColor !== tileColor && this.hasColor(templateColor)) {
+        if (shouldPaint && this.hasColor(templateColor)) {
           mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge: isEdge }); // Sei
         }
       }
@@ -944,7 +944,7 @@ class WPlacer {
     }
 
     while (true) {
-      
+
       if (this._isCancelled()) return 0;
 
       const nowTiles = Date.now();
@@ -961,21 +961,21 @@ class WPlacer {
         activeMethod = pool[Math.floor(Math.random() * pool.length)];
         log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎲 Mixed mode picked this turn: ${activeMethod}`);
       }
-	  
-	  // Sei - Moved this below "burst-mixed" check above; Makes more sense in console.
-	  let mismatchedPixels = this._getMismatchedPixels();
+
+      // Sei - Moved this below "burst-mixed" check above; Makes more sense in console.
+      let mismatchedPixels = this._getMismatchedPixels();
       if (mismatchedPixels.length === 0) return 0;
-	  log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
-	
-	  // Sei - Reintroduce "Outline Mode", an incredibly convenient tool for securing your space before drawing.
-	  if (this.outlineMode) {
-	    const edge = mismatchedPixels.filter((p) => p.isEdge);
-	    if (edge.length > 0) {
-			log (this.userInfo.id, this.userInfo.name, `[${this.templateName}] Outlining design first.`);
-			mismatchedPixels = edge;
-		}
-	  }
-	
+      log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
+
+      // Sei - Reintroduce "Outline Mode", an incredibly convenient tool for securing your space before drawing.
+      if (this.outlineMode) {
+        const edge = mismatchedPixels.filter((p) => p.isEdge);
+        if (edge.length > 0) {
+          log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Outlining design first.`);
+          mismatchedPixels = edge;
+        }
+      }
+
       switch (activeMethod) {
         case "linear-reversed":
           mismatchedPixels.reverse();
@@ -1093,7 +1093,7 @@ class WPlacer {
           if (this._activeBurstSeedIdx == null || this._activeBurstSeedIdx >= this._burstSeeds.length) {
             this._activeBurstSeedIdx = Math.floor(Math.random() * this._burstSeeds.length);
             const s = this._burstSeeds[this._activeBurstSeedIdx];
-			log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎯 Using single seed this turn: ${JSON.stringify(s)} (#${this._activeBurstSeedIdx + 1}/${this._burstSeeds.length})`);
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎯 Using single seed this turn: ${JSON.stringify(s)} (#${this._activeBurstSeedIdx + 1}/${this._burstSeeds.length})`);
           }
           const seedForThisTurn = [this._burstSeeds[this._activeBurstSeedIdx]];
           mismatchedPixels = this._orderByBurst(mismatchedPixels, seedForThisTurn);
@@ -1141,7 +1141,7 @@ class WPlacer {
       const maxPerPass = Number.isFinite(this.settings?.maxPixelsPerPass) ? Math.max(0, Math.floor(this.settings.maxPixelsPerPass)) : 0;
       const limit = maxPerPass > 0 ? Math.min(allowedByCharges, maxPerPass) : allowedByCharges;
       if (limit <= 0) {
-        
+
         return 0;
       }
       const pixelsToPaint = mismatchedPixels.slice(0, limit);
@@ -1234,14 +1234,41 @@ class WPlacer {
         const tile = this.tiles.get(`${targetTx}_${targetTy}`);
         if (!tile || !tile.data[localPx]) continue;
         const tileColor = tile.data[localPx][localPy];
-		
-		// Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
+
+        // Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
         const shouldPaint = this.skipPaintedPixels
-			? tileColor === 0
-			: templateColor !== tileColor;
-		
+          ? tileColor === 0
+          : templateColor !== tileColor;
+
         //if (templateColor !== tileColor) count++;
         if (shouldPaint) count++; // Sei
+      }
+    }
+    return count;
+  }
+
+  // Counts mismatches ignoring ownership and skipPaintedPixels setting
+  // - Respects transparency: skips templateColor === 0 unless paintTransparentPixels is true
+  // - Does NOT check color ownership and does NOT apply skipPaintedPixels logic
+  async pixelsLeftRawMismatch() {
+    await this.loadTiles();
+    const [startX, startY, startPx, startPy] = this.coords;
+    let count = 0;
+    for (let y = 0; y < this.template.height; y++) {
+      for (let x = 0; x < this.template.width; x++) {
+        const templateColor = this.template.data[x][y];
+        if (templateColor == null) continue;
+        if (templateColor === 0 && !this.paintTransparentPixels) continue;
+        const globalPx = startPx + x;
+        const globalPy = startPy + y;
+        const targetTx = startX + Math.floor(globalPx / 1000);
+        const targetTy = startY + Math.floor(globalPy / 1000);
+        const localPx = globalPx % 1000;
+        const localPy = globalPy % 1000;
+        const tile = this.tiles.get(`${targetTx}_${targetTy}`);
+        if (!tile || !tile.data[localPx]) continue;
+        const tileColor = tile.data[localPx][localPy];
+        if (templateColor !== tileColor) count++;
       }
     }
     return count;
@@ -1266,12 +1293,12 @@ class WPlacer {
         const tile = this.tiles.get(`${targetTx}_${targetTy}`);
         if (!tile || !tile.data[localPx]) continue;
         const tileColor = tile.data[localPx][localPy];
-		
-		// Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
+
+        // Sei - Setting to paint "behind" other's artwork, by not painting over already painted pixels.
         const shouldPaint = this.skipPaintedPixels
-			? tileColor === 0
-			: templateColor !== tileColor;
-		
+          ? tileColor === 0
+          : templateColor !== tileColor;
+
         //if (templateColor !== tileColor) {
         if (shouldPaint) {
           total++;
@@ -1308,8 +1335,8 @@ const saveTemplates = () => {
       antiGriefMode: t.antiGriefMode,
       userIds: t.userIds,
       paintTransparentPixels: t.paintTransparentPixels,
-	  skipPaintedPixels: !!t.skipPaintedPixels, // Sei
-	  outlineMode: !!t.outlineMode, // Sei
+      skipPaintedPixels: !!t.skipPaintedPixels, // Sei
+      outlineMode: !!t.outlineMode, // Sei
       burstSeeds: t.burstSeeds || null,
       heatmapEnabled: !!t.heatmapEnabled,
       heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000)))
@@ -1326,7 +1353,7 @@ let currentSettings = {
   keepAliveCooldown: 5000,
   dropletReserve: 0,
   antiGriefStandby: 600000,
-  drawingMethod: "linear", 
+  drawingMethod: "linear",
   chargeThreshold: 0.5,
   alwaysDrawOnCharge: false,
   maxPixelsPerPass: 0,
@@ -1451,7 +1478,7 @@ const TokenManager = {
   invalidateToken() {
     this.tokenQueue.shift();
     log("SYSTEM", "wplacer", `🛡️ TOKEN_MANAGER: Invalidating token. ${this.tokenQueue.length} tokens remaining.`);
-    
+
     if (this.tokenQueue.length === 0) {
       this.isTokenNeeded = true;
       this._lastNeededAt = Date.now();
@@ -1474,44 +1501,44 @@ const TokenManager = {
 // --- Error logging wrapper ---
 function logUserError(error, id, name, context) {
   const message = error?.message || "An unknown error occurred.";
-  
+
   // Handle proxy connection errors
-  if (message.includes("reqwest::Error") || message.includes("hyper_util::client::legacy::Error") || 
-      message.includes("Connection refused") || message.includes("timeout") || 
-      message.includes("ENOTFOUND") || message.includes("ECONNREFUSED")) {
+  if (message.includes("reqwest::Error") || message.includes("hyper_util::client::legacy::Error") ||
+    message.includes("Connection refused") || message.includes("timeout") ||
+    message.includes("ENOTFOUND") || message.includes("ECONNREFUSED")) {
     log(id, name, `❌ Proxy connection failed - check proxy IP/port or try different proxy (or IP not whitelisted)`);
     return;
   }
-  
+
   // Handle network-related errors
-  if (message.includes("Network error") || message.includes("Failed to fetch") || 
-      message.includes("socket hang up") || message.includes("ECONNRESET")) {
+  if (message.includes("Network error") || message.includes("Failed to fetch") ||
+    message.includes("socket hang up") || message.includes("ECONNRESET")) {
     log(id, name, `❌ Network error - check proxy IP/port or try different proxy (or IP not whitelisted)`);
     return;
   }
-  
+
   // Simplify error messages for common auth issues
   if (message.includes("(401/403)") || /Unauthorized/i.test(message) || /cookies\s+are\s+invalid/i.test(message)) {
     // Log original message to avoid masking connection problems as auth issues
     log(id, name, `❌ ${message}`);
     return;
   }
-  
+
   if (message.includes("(1015)") || message.includes("rate-limited")) {
     log(id, name, `❌ Rate limited (1015) - waiting before retry`);
     return;
   }
-  
+
   if (message.includes("(500)") || message.includes("(502)")) {
     log(id, name, `❌ Server error (500/502) - retrying later (maybe need to relogin)`);
     return;
   }
-  
+
   if (error?.name === "SuspensionError") {
     log(id, name, `🛑 Account suspended (451)`);
     return;
   }
-  
+
   // For other errors, show simplified message
   const simpleMessage = message.replace(/\([^)]+\)/g, '').replace(/Error:/g, '').trim();
   log(id, name, ` ${simpleMessage}`);
@@ -1532,9 +1559,9 @@ class TemplateManager {
     // throttle for opportunistic resync
     this._lastResyncAt = 0;
     this._resyncCooldownMs = 3000;
-	
-	this.skipPaintedPixels = !!skipPaintedPixels; // Sei
-	this.outlineMode = !!outlineMode; // Sei
+
+    this.skipPaintedPixels = !!skipPaintedPixels; // Sei
+    this.outlineMode = !!outlineMode; // Sei
     this.paintTransparentPixels = !!paintTransparentPixels; // NEW: per-template flag like old version
     this.burstSeeds = null; // persist across runs
 
@@ -1568,7 +1595,7 @@ class TemplateManager {
     this._initialScanned = false;
   }
   interruptSleep() {
-    try { if (this._sleepResolver) this._sleepResolver(); } catch (_) {}
+    try { if (this._sleepResolver) this._sleepResolver(); } catch (_) { }
   }
 
   async _sleepInterruptible(ms) {
@@ -1634,7 +1661,7 @@ class TemplateManager {
     };
 
     // 2) for each required premium color in ascending order
-    const neededColors = Array.from(this.templatePremiumColors).sort((a,b)=>a-b);
+    const neededColors = Array.from(this.templatePremiumColors).sort((a, b) => a - b);
     let purchasedAny = false;
     const bought = [];
     for (const cid of neededColors) {
@@ -1663,14 +1690,14 @@ class TemplateManager {
         const before = Number(w.userInfo.droplets || 0);
         if ((before - reserve) < COLOR_COST) { /* just in case */ throw new Error("insufficient_droplets"); }
         // if already has (race), skip
-        if (this._hasPremium(Number(w.userInfo.extraColorsBitmap||0), cid)) {
+        if (this._hasPremium(Number(w.userInfo.extraColorsBitmap || 0), cid)) {
           log(buyer.id, w.userInfo.name, `[${this.name}] ⏭️ Skip auto-buy color #${cid}: account already owns this color.`);
           continue;
         }
         log(buyer.id, w.userInfo.name, `[${this.name}] 💰 Attempting to auto-buy premium color #${cid}. Cost 2000, droplets before: ${before}, reserve: ${reserve}.`);
         await w.buyProduct(100, 1, cid);
         await sleep(purchaseCooldown);
-        await w.loadUserInfo().catch(()=>{});
+        await w.loadUserInfo().catch(() => { });
         log(buyer.id, w.userInfo.name, `[${this.name}] 🛒 Auto-bought premium color #${cid}. Droplets ${before} → ${w.userInfo?.droplets}`);
         // reflect in candidates for subsequent colors
         buyer.bitmap = Number(w.userInfo.extraColorsBitmap || (buyer.bitmap | (1 << (cid - 32))));
@@ -1689,11 +1716,11 @@ class TemplateManager {
   async handleUpgrades(wplacer) {
     if (!this.canBuyMaxCharges) return;
     await wplacer.loadUserInfo();
-	
-	// Sei - Only buy Max Charges when we're at full charges so we can immediately use the +5
-	//const charges = wplacer.userInfo.charges;
+
+    // Sei - Only buy Max Charges when we're at full charges so we can immediately use the +5
+    //const charges = wplacer.userInfo.charges;
     //if (Math.floor(charges.count) < charges.max) return;
-	
+
     const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
     const amountToBuy = Math.floor(affordableDroplets / 500);
     if (amountToBuy > 0) {
@@ -1713,12 +1740,12 @@ class TemplateManager {
       try {
         wplacer.token = await TokenManager.getToken();
         // Pull latest pawtect token, if any
-        try { wplacer.pawtect = globalThis.__wplacer_last_pawtect || null; } catch {}
+        try { wplacer.pawtect = globalThis.__wplacer_last_pawtect || null; } catch { }
         const painted = await wplacer.paint(currentSettings.drawingMethod);
         // save back burst seeds if used
         this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : null;
         saveTemplates();
-        try { TokenManager.consumeToken(); } catch {}
+        try { TokenManager.consumeToken(); } catch { }
         return painted;
       } catch (error) {
         if (error.name === "SuspensionError") {
@@ -1748,7 +1775,7 @@ class TemplateManager {
     log("SYSTEM", "wplacer", `▶️ Starting template "${this.name}"...`);
 
     try {
-      
+
       if (!this._initialScanned) {
         const cooldown = Math.max(0, Number(currentSettings.accountCheckCooldown || 0));
         const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
@@ -1765,7 +1792,7 @@ class TemplateManager {
           log("SYSTEM", "wplacer", `[${this.name}] 🔍 Initial scan (parallel): ${candidates.length} accounts (concurrency=${concurrency}, proxies=${loadedProxies.length}).`);
           let index = 0;
           const worker = async () => {
-            for (;;) {
+            for (; ;) {
               if (!this.running) break;
               const myIndex = index++;
               if (myIndex >= candidates.length) break;
@@ -1834,7 +1861,7 @@ class TemplateManager {
                 // only premium remain — check funds and stop if none can buy
                 // first, try auto-buy immediately to avoid false stop
                 let autoRes = { purchased: false, bought: [] };
-                try { autoRes = await this._tryAutoBuyNeededColors() || autoRes; } catch (_) {}
+                try { autoRes = await this._tryAutoBuyNeededColors() || autoRes; } catch (_) { }
 
                 // re-evaluate ability to buy / own after purchases
                 const reserve = currentSettings.dropletReserve || 0;
@@ -1855,13 +1882,13 @@ class TemplateManager {
                       if (cid >= 32 && ((bitmap & (1 << (cid - 32))) !== 0)) { anyOwnsRemaining = true; break; }
                     }
                   }
-                  catch {} finally { activeBrowserUsers.delete(uid); }
+                  catch { } finally { activeBrowserUsers.delete(uid); }
                   if (anyCanBuy) break;
                 }
                 if (anyOwnsRemaining) {
                   log("SYSTEM", "wplacer", `[${this.name}] ℹ️ Only premium pixels remain, but some are already owned. Proceeding to paint owned premium while waiting for funds to buy others.`);
                 } else if (!anyCanBuy) {
-                  const list = Array.from(summary.premiumColors).sort((a,b)=>a-b).join(', ');
+                  const list = Array.from(summary.premiumColors).sort((a, b) => a - b).join(', ');
                   const reserve2 = currentSettings.dropletReserve || 0;
                   const needTotal = 2000 + reserve2;
                   log("SYSTEM", "wplacer", `[${this.name}] ⛔ Template stopped: Only premium pixels remain (${summary.premium} px, colors: ${list}), and none of assigned accounts have enough droplets to purchase (need 2000 + ${reserve2}(reserve) = ${needTotal}).`);
@@ -1897,7 +1924,7 @@ class TemplateManager {
                     const id = t.data?.[x]?.[y] | 0; if (id > 0 && id < 32) return true;
                   }
                 }
-              } catch {}
+              } catch { }
               return false;
             })();
             if (!hasAnyBasic) {
@@ -1910,7 +1937,7 @@ class TemplateManager {
                 activeBrowserUsers.add(uid);
                 const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, this.name);
                 try { await w.login(users[uid].cookies); await w.loadUserInfo(); if ((Number(w.userInfo.droplets || 0) - reserve) >= 2000) { anyCanBuy = true; } }
-                catch {} finally { activeBrowserUsers.delete(uid); }
+                catch { } finally { activeBrowserUsers.delete(uid); }
                 if (anyCanBuy) break;
               }
               if (!anyCanBuy) {
@@ -1930,15 +1957,15 @@ class TemplateManager {
             break;
           }
         }
-		
+
         if (this.userQueue.length === 0) this.userQueue = [...this.userIds];
 
         let resyncScheduled = false;
         const nowSel = Date.now();
         let bestUserId = null;
         let bestPredicted = null;
-		let msWaitUntilNextUser = null; // Sei - smarter waiting
-        
+        let msWaitUntilNextUser = null; // Sei - smarter waiting
+
         const candidates = this.userIds
           .filter((uid) => {
             const rec = users[uid];
@@ -1971,9 +1998,9 @@ class TemplateManager {
             const w = new WPlacer(this.template, this.coords, currentSettings, this.name);
             log(userId, rec.name, `[${this.name}] 🔄 Background resync started.`);
             w.login(rec.cookies)
-              .then(()=>{ try { log(userId, rec.name, `[${this.name}] ✅ Background resync finished.`); } catch {} })
-              .catch((e)=>{ logUserError(e, userId, rec.name, "opportunistic resync"); try { log(userId, rec.name, `[${this.name}] ❌ Background resync finished (error). Try to re-add the account.`); } catch {} })
-              .finally(()=>activeBrowserUsers.delete(userId));
+              .then(() => { try { log(userId, rec.name, `[${this.name}] ✅ Background resync finished.`); } catch { } })
+              .catch((e) => { logUserError(e, userId, rec.name, "opportunistic resync"); try { log(userId, rec.name, `[${this.name}] ❌ Background resync finished (error). Try to re-add the account.`); } catch { } })
+              .finally(() => activeBrowserUsers.delete(userId));
           }
 
           const p = ChargeCache.predict(userId, nowSel);
@@ -1984,17 +2011,17 @@ class TemplateManager {
               bestPredicted = p; bestUserId = userId;
             }
           }
-		  
-		  // Sei - if no users are ready, determine the minimum time we need to wait before checking again.
-		  else {
-			  const needBeforeReady = Math.floor(p.max * currentSettings.chargeThreshold);
-			  if (msWaitUntilNextUser == null || msWaitUntilNextUser.timeToReady > Math.floor(needBeforeReady - p.count) * 30_000) {
-				  msWaitUntilNextUser = {
-					  'name': rec.name,
-					  'timeToReady': Math.floor(needBeforeReady - p.count) * 30_000
-				  };
-			  }
-		  }
+
+          // Sei - if no users are ready, determine the minimum time we need to wait before checking again.
+          else {
+            const needBeforeReady = Math.floor(p.max * currentSettings.chargeThreshold);
+            if (msWaitUntilNextUser == null || msWaitUntilNextUser.timeToReady > Math.floor(needBeforeReady - p.count) * 30_000) {
+              msWaitUntilNextUser = {
+                'name': rec.name,
+                'timeToReady': Math.floor(needBeforeReady - p.count) * 30_000
+              };
+            }
+          }
         }
 
         const foundUserForTurn = bestUserId;
@@ -2004,7 +2031,7 @@ class TemplateManager {
             await sleep(500);
             continue;
           }
-          
+
           const nowRun = Date.now();
           if (this._lastRunnerId && this._lastRunnerId !== foundUserForTurn) {
             const passed = nowRun - this._lastSwitchAt;
@@ -2022,33 +2049,52 @@ class TemplateManager {
           activeBrowserUsers.add(foundUserForTurn);
           const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name, this.paintTransparentPixels, this.burstSeeds, this.skipPaintedPixels, this.outlineMode); // Sei
           // Wire cancellation: allow WPlacer to see when manager was stopped
-          try { wplacer.shouldStop = () => !this.running; } catch (_) {}
+          try { wplacer.shouldStop = () => !this.running; } catch (_) { }
           try {
             const { id, name } = await wplacer.login(users[foundUserForTurn].cookies);
             this.status = `Running user ${name}#${id}`;
-			
-			// Sei - Better to buy upgrades BEFORE painting.
-			await this.handleUpgrades(wplacer);
-			
+
+            // Sei - Better to buy upgrades BEFORE painting.
+            await this.handleUpgrades(wplacer);
+
             const pred = ChargeCache.predict(foundUserForTurn, Date.now());
             if (pred) log(id, name, `[${this.name}] ▶️ Start turn with predicted ${Math.floor(pred.count)}/${pred.max} charges.`);
             const paintedNow = await this._performPaintTurn(wplacer);
             if (typeof paintedNow === 'number' && paintedNow > 0) {
-              try { ChargeCache.consume(foundUserForTurn, paintedNow); } catch {}
+              try { ChargeCache.consume(foundUserForTurn, paintedNow); } catch { }
               this._lastPaintedAt = Date.now();
               if (this._lastSummary) {
-                this._lastSummary.total = Math.max(0, (this._lastSummary.total|0) - paintedNow);
+                this._lastSummary.total = Math.max(0, (this._lastSummary.total | 0) - paintedNow);
               }
-			  
-			  // Sei - This line is redundant in the current code.
-              //log(id, name, `[${this.name}] ✅ Painted ${paintedNow} px. Cache adjusted.`);
             }
-			
-			// Sei - but what if we didn't paint anything because some how we failed to check if this account physically can?
-			else {
-				log(id, name, `[${this.name}] ❌ Nothing Painted.  Account may not have the required color(s).`);
-				await this._sleepInterruptible(5000);
-			}
+
+            // Sei - but what if we didn't paint anything because some how we failed to check if this account physically can?
+            else {
+              try {
+                // Enhanced diagnostics to avoid misleading message
+                const rawMismatches = await wplacer.pixelsLeftRawMismatch().catch(() => -1);
+                const canPaintNow = Math.max(0, Math.floor(wplacer?.userInfo?.charges?.count || 0));
+                const { total: ownableMismatches } = await wplacer.mismatchesSummary().catch(() => ({ total: -1 }));
+                const skip = !!wplacer.skipPaintedPixels;
+
+                if (rawMismatches === 0) {
+                  log(id, name, `[${this.name}] ✅ Nothing to paint: template already matches the board.`);
+                } else if (canPaintNow <= 0) {
+                  log(id, name, `[${this.name}] ⏳ Nothing painted: no charges available right now.`);
+                } else if (ownableMismatches === 0 && rawMismatches > 0) {
+                  if (skip) {
+                    log(id, name, `[${this.name}] ⚠️ Nothing painted: 'Skip painted pixels' is enabled and target spots are not empty.`);
+                  } else {
+                    log(id, name, `[${this.name}] ❌ Nothing painted: required colors not owned for current mismatches.`);
+                  }
+                } else {
+                  log(id, name, `[${this.name}] ❌ Nothing painted: unknown constraint (raw=${rawMismatches}, ownable=${ownableMismatches}, charges=${canPaintNow}).`);
+                }
+              } catch (_) {
+                log(id, name, `[${this.name}] ❌ Nothing painted (diagnostics failed).`);
+              }
+              await this._sleepInterruptible(5000);
+            }
             // cache any new seeds
             this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : this.burstSeeds;
             saveTemplates();
@@ -2063,14 +2109,14 @@ class TemplateManager {
           } finally {
             activeBrowserUsers.delete(foundUserForTurn);
           }
-          
+
           if (this._lastRunnerId !== foundUserForTurn) {
             this._lastRunnerId = foundUserForTurn;
             this._lastSwitchAt = Date.now();
           }
         } else {
-          
-          try { if (this.autoBuyNeededColors) { await this._tryAutoBuyNeededColors(); } } catch {}
+
+          try { if (this.autoBuyNeededColors) { await this._tryAutoBuyNeededColors(); } } catch { }
 
           // Buy charges if allowed (master only)
           if (this.canBuyCharges && !activeBrowserUsers.has(this.masterId)) {
@@ -2092,7 +2138,7 @@ class TemplateManager {
             } finally { activeBrowserUsers.delete(this.masterId); }
           }
 
-          
+
           const now2 = Date.now();
           const waits = this.userQueue.map((uid) => {
             const p = ChargeCache.predict(uid, now2);
@@ -2101,10 +2147,10 @@ class TemplateManager {
             const deficit = Math.max(0, threshold - Math.floor(p.count));
             return deficit * (p.cooldownMs || 30_000);
           });
-		  
+
           // Sei - Instead of refreshing every 30 seconds, why don't we only refresh when we need to???
-		  let waitTime = msWaitUntilNextUser.timeToReady;
-		  //let waitTime = (waits.length ? Math.min(...waits) : 10_000) + 800;
+          let waitTime = msWaitUntilNextUser.timeToReady;
+          //let waitTime = (waits.length ? Math.min(...waits) : 10_000) + 800;
           //const maxWait = Math.max(10_000, Math.floor((currentSettings.accountCooldown || 15000) * 1.5));
           //waitTime = Math.min(waitTime, maxWait);
           this.status = `Waiting for charges.`;
@@ -2132,7 +2178,7 @@ app.use((err, req, res, next) => {
   try {
     console.error("[Express] error:", err?.message || err);
     appendFileSync(path.join(dataDir, `errors.log`), `[${new Date().toLocaleString()}] (Express) ${err?.stack || err}\n`);
-  } catch (_) {}
+  } catch (_) { }
   if (res.headersSent) return next(err);
   res.status(500).json({ error: 'Internal server error' });
 });
@@ -2158,7 +2204,7 @@ app.post("/t", (req, res) => {
   try {
     if (pawtect && typeof pawtect === "string") globalThis.__wplacer_last_pawtect = pawtect;
     if (fp && typeof fp === "string") globalThis.__wplacer_last_fp = fp;
-  } catch {}
+  } catch { }
   res.sendStatus(200);
 });
 
@@ -2271,9 +2317,9 @@ app.post("/users/cleanup-expired", (req, res) => {
       const usersPath = path.join(dataDir, "users.json");
       const backupPath = path.join(
         usersBackupsDir,
-        `users.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T','_').replace('Z','')}.json`
+        `users.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.json`
       );
-      try { writeFileSync(backupPath, readFileSync(usersPath, "utf8")); } catch (_) {}
+      try { writeFileSync(backupPath, readFileSync(usersPath, "utf8")); } catch (_) { }
 
       // Remove users
       let removed = 0;
@@ -2282,7 +2328,7 @@ app.post("/users/cleanup-expired", (req, res) => {
           const name = users[id].name;
           delete users[id];
           removed++;
-          try { log("SYSTEM", "Users", `Deleted expired user ${name}#${id}.`); } catch (_) {}
+          try { log("SYSTEM", "Users", `Deleted expired user ${name}#${id}.`); } catch (_) { }
         }
       }
       saveUsers();
@@ -2301,7 +2347,7 @@ app.post("/users/cleanup-expired", (req, res) => {
           }
           if (template.userIds.length === 0 && template.running) {
             template.running = false;
-            try { log("SYSTEM", "wplacer", `[${template.name}] 🛑 Template stopped because it has no users left.`); } catch (_) {}
+            try { log("SYSTEM", "wplacer", `[${template.name}] 🛑 Template stopped because it has no users left.`); } catch (_) { }
           }
         }
       }
@@ -2469,7 +2515,7 @@ app.post("/users/buy-max-upgrades", async (req, res) => {
     console.log(`[BuyMax] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
     let index = 0;
     const worker = async () => {
-      for (;;) {
+      for (; ;) {
         const i = index++;
         if (i >= ids.length) break;
         const userId = ids[i];
@@ -2578,7 +2624,7 @@ app.post("/users/purchase-color", async (req, res) => {
       console.log(`[ColorPurchase] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++;
           if (i >= ids.length) break;
           const uid = ids[i];
@@ -2599,7 +2645,7 @@ app.post("/users/purchase-color", async (req, res) => {
             } else {
               try {
                 await w.buyProduct(100, 1, cid);
-                await w.loadUserInfo().catch(() => {});
+                await w.loadUserInfo().catch(() => { });
                 report.push({ userId: uid, name, ok: true, success: true, beforeDroplets, afterDroplets: w.userInfo?.droplets });
               } catch (err) {
                 if (err?.code === 403 || /FORBIDDEN_OR_INSUFFICIENT/i.test(err?.message)) {
@@ -2644,7 +2690,7 @@ app.post("/users/purchase-color", async (req, res) => {
             try {
               await w.buyProduct(100, 1, cid);
               await sleep(cooldown);
-              await w.loadUserInfo().catch(() => {});
+              await w.loadUserInfo().catch(() => { });
               report.push({ userId: uid, name, ok: true, success: true, beforeDroplets, afterDroplets: w.userInfo?.droplets });
             } catch (err) {
               if (err?.code === 403 || /FORBIDDEN_OR_INSUFFICIENT/i.test(err?.message)) {
@@ -2707,7 +2753,7 @@ app.post("/users/colors-check", async (req, res) => {
       console.log(`[ColorsCheck] Parallel: ${ids.length} accounts (concurrency=${concurrency}, proxies=${loadedProxies.length})`);
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++;
           if (i >= ids.length) break;
           const uid = String(ids[i]);
@@ -2831,8 +2877,8 @@ app.get("/templates", (_, res) => {
       canBuyMaxCharges: t.canBuyMaxCharges,
       autoBuyNeededColors: !!t.autoBuyNeededColors,
       antiGriefMode: t.antiGriefMode,
-	  skipPaintedPixels: t.skipPaintedPixels, // Sei
-	  outlineMode: t.outlineMode, // Sei
+      skipPaintedPixels: t.skipPaintedPixels, // Sei
+      outlineMode: t.outlineMode, // Sei
       paintTransparentPixels: t.paintTransparentPixels,
       userIds: t.userIds,
       running: t.running,
@@ -2858,8 +2904,8 @@ app.get("/template/:id", (req, res) => {
     canBuyMaxCharges: t.canBuyMaxCharges,
     autoBuyNeededColors: !!t.autoBuyNeededColors,
     antiGriefMode: t.antiGriefMode,
-	skipPaintedPixels: t.skipPaintedPixels, // Sei
-	outlineMode: t.outlineMode, // Sei
+    skipPaintedPixels: t.skipPaintedPixels, // Sei
+    outlineMode: t.outlineMode, // Sei
     paintTransparentPixels: t.paintTransparentPixels,
     userIds: t.userIds,
     running: t.running,
@@ -3016,7 +3062,7 @@ app.put("/template/:id", async (req, res) => {
       log("SYSTEM", "wplacer", `[${manager.name}] ⏹️ Template manually stopped by user.`);
     }
     manager.running = false;
-    try { if (typeof manager.interruptSleep === 'function') manager.interruptSleep(); } catch (_) {}
+    try { if (typeof manager.interruptSleep === 'function') manager.interruptSleep(); } catch (_) { }
   }
   res.sendStatus(200);
 });
@@ -3068,7 +3114,7 @@ app.get("/test-proxies", async (req, res) => {
         let outcome = { idx: item.idx, proxy: `${item.host}:${item.port}`, ok: false, status: 0, reason: "", elapsedMs: 0 };
         try {
           const imp = new Impit({ browser: "chrome", ignoreTlsErrors: true, proxyUrl: buildProxyUrl(item) });
-          try { log("SYSTEM", "wplacer", `🧪 Testing proxy #${item.idx} (${item.host}:${item.port}) target=${isMe ? '/me' : '/tile'}`); } catch (_) {}
+          try { log("SYSTEM", "wplacer", `🧪 Testing proxy #${item.idx} (${item.host}:${item.port}) target=${isMe ? '/me' : '/tile'}`); } catch (_) { }
 
           const controller = new AbortController();
           const timeoutMs = 10000;
@@ -3077,16 +3123,16 @@ app.get("/test-proxies", async (req, res) => {
             const r = await imp.fetch(targetUrl, {
               headers: isMe
                 ? {
-                    Accept: "application/json, text/plain, */*",
-                    "X-Requested-With": "XMLHttpRequest",
-                    Referer: "https://wplace.live/",
-                    Origin: "https://wplace.live",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-                    "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
-                    "Sec-Fetch-Dest": "empty",
-                    "Sec-Fetch-Mode": "cors",
-                    "Sec-Fetch-Site": "same-site"
-                  }
+                  Accept: "application/json, text/plain, */*",
+                  "X-Requested-With": "XMLHttpRequest",
+                  Referer: "https://wplace.live/",
+                  Origin: "https://wplace.live",
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+                  "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+                  "Sec-Fetch-Dest": "empty",
+                  "Sec-Fetch-Mode": "cors",
+                  "Sec-Fetch-Site": "same-site"
+                }
                 : { Accept: "image/*", Referer: "https://wplace.live/" },
               redirect: "manual",
               signal: controller.signal
@@ -3152,7 +3198,7 @@ app.get("/test-proxies", async (req, res) => {
           try {
             const tag = outcome.ok ? 'OK' : 'BLOCKED';
             log("SYSTEM", "wplacer", `🧪 Proxy #${outcome.idx} ${tag} (${outcome.status}) ${outcome.reason}; ${outcome.elapsedMs} ms`);
-          } catch (_) {}
+          } catch (_) { }
         }
       }
     };
@@ -3191,7 +3237,7 @@ app.get("/test-proxy", async (req, res) => {
     let outcome = { idx, proxy: `${p.host}:${p.port}`, ok: false, status: 0, reason: "", elapsedMs: 0 };
     try {
       const imp = new Impit({ browser: "chrome", ignoreTlsErrors: true, proxyUrl: buildProxyUrl(p) });
-      try { log("SYSTEM", "wplacer", `🧪 Testing proxy #${idx} (${p.host}:${p.port}) target=${isMe ? '/me' : '/tile'}`); } catch (_) {}
+      try { log("SYSTEM", "wplacer", `🧪 Testing proxy #${idx} (${p.host}:${p.port}) target=${isMe ? '/me' : '/tile'}`); } catch (_) { }
       const controller = new AbortController();
       const timeoutMs = 10000;
       const t = setTimeout(() => controller.abort(), timeoutMs);
@@ -3199,16 +3245,16 @@ app.get("/test-proxy", async (req, res) => {
         const r = await imp.fetch(targetUrl, {
           headers: isMe
             ? {
-                Accept: "application/json, text/plain, */*",
-                "X-Requested-With": "XMLHttpRequest",
-                Referer: "https://wplace.live/",
-                Origin: "https://wplace.live",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-                "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
-                "Sec-Fetch-Dest": "empty",
-                "Sec-Fetch-Mode": "cors",
-                "Sec-Fetch-Site": "same-site"
-              }
+              Accept: "application/json, text/plain, */*",
+              "X-Requested-With": "XMLHttpRequest",
+              Referer: "https://wplace.live/",
+              Origin: "https://wplace.live",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+              "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+              "Sec-Fetch-Dest": "empty",
+              "Sec-Fetch-Mode": "cors",
+              "Sec-Fetch-Site": "same-site"
+            }
             : { Accept: "image/*", Referer: "https://wplace.live/" },
           redirect: "manual",
           signal: controller.signal
@@ -3253,7 +3299,7 @@ app.get("/test-proxy", async (req, res) => {
       try {
         const tag = outcome.ok ? 'OK' : 'BLOCKED';
         log("SYSTEM", "wplacer", `🧪 Proxy #${idx} ${tag} (${outcome.status}) ${outcome.reason}; ${outcome.elapsedMs} ms`);
-      } catch (_) {}
+      } catch (_) { }
     }
     res.json(outcome);
   } catch (e) {
@@ -3268,8 +3314,8 @@ app.post("/proxies/cleanup", (req, res) => {
     if (!keepIdx && !removeIdx) return res.status(400).json({ error: "no_selection" });
 
     const proxyPath = path.join(dataDir, "proxies.txt");
-    const backupPath = path.join(proxiesBackupsDir, `proxies.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T','_').replace('Z','')}.txt`);
-    try { writeFileSync(backupPath, readFileSync(proxyPath, "utf8")); } catch (_) {}
+    const backupPath = path.join(proxiesBackupsDir, `proxies.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.txt`);
+    try { writeFileSync(backupPath, readFileSync(proxyPath, "utf8")); } catch (_) { }
 
     const byIdx = new Map();
     for (const p of loadedProxies) {
@@ -3423,12 +3469,12 @@ app.get("/version", async (_req, res) => {
 app.get("/changelog", async (_req, res) => {
   try {
     let local = "";
-    try { local = readFileSync(path.join(process.cwd(), "CHANGELOG.md"), "utf8"); } catch (_) {}
+    try { local = readFileSync(path.join(process.cwd(), "CHANGELOG.md"), "utf8"); } catch (_) { }
     let remote = "";
     try {
       const r = await fetch("https://raw.githubusercontent.com/lllexxa/wplacer/main/CHANGELOG.md", { cache: "no-store" });
       if (r.ok) remote = await r.text();
-    } catch (_) {}
+    } catch (_) { }
     res.json({ local, remote });
   } catch (e) {
     res.status(500).json({ error: "changelog_fetch_failed" });
@@ -3459,7 +3505,7 @@ const keepAlive = async () => {
 
     let index = 0;
     const worker = async () => {
-      for (;;) {
+      for (; ;) {
         const myIndex = index++;
         if (myIndex >= candidates.length) break;
         const userId = candidates[myIndex];
@@ -3532,8 +3578,8 @@ const keepAlive = async () => {
         t.antiGriefMode,
         t.userIds,
         !!t.paintTransparentPixels,
-		!!t.skipPaintedPixels, // Sei
-		!!t.outlineMode // Sei
+        !!t.skipPaintedPixels, // Sei
+        !!t.outlineMode // Sei
       );
       tm.burstSeeds = t.burstSeeds || null;
       tm.autoBuyNeededColors = !!t.autoBuyNeededColors;
@@ -3563,11 +3609,11 @@ const keepAlive = async () => {
   try {
     process.on('uncaughtException', (err) => {
       console.error('[Process] uncaughtException:', err?.stack || err);
-      try { appendFileSync(path.join(dataDir, 'errors.log'), `[${new Date().toLocaleString()}] uncaughtException: ${err?.stack || err}\n`); } catch (_) {}
+      try { appendFileSync(path.join(dataDir, 'errors.log'), `[${new Date().toLocaleString()}] uncaughtException: ${err?.stack || err}\n`); } catch (_) { }
     });
     process.on('unhandledRejection', (reason) => {
       console.error('[Process] unhandledRejection:', reason);
-      try { appendFileSync(path.join(dataDir, 'errors.log'), `[${new Date().toLocaleString()}] unhandledRejection: ${reason}\n`); } catch (_) {}
+      try { appendFileSync(path.join(dataDir, 'errors.log'), `[${new Date().toLocaleString()}] unhandledRejection: ${reason}\n`); } catch (_) { }
     });
     const shutdown = () => {
       console.log('Shutting down server...');
@@ -3575,5 +3621,5 @@ const keepAlive = async () => {
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
-  } catch (_) {}
+  } catch (_) { }
 })();

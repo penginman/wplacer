@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WPlacer AutoLogin",
-  "version": "1.0.0",
+  "version": "1.5.0",
   "description": "Checks the 'j' cookie on wplace.live and, if missing, triggers auto-login via Google and updates the token.",
   "background": {
     "service_worker": "background.js",
