@@ -44,8 +44,8 @@ const canBuyMaxCharges = $("canBuyMaxCharges");
 const canBuyCharges = $("canBuyCharges");
 const autoBuyNeededColors = $("autoBuyNeededColors");
 const antiGriefMode = $("antiGriefMode");
-const skipPaintedPixels = $("skipPaintedPixels"); // Sei
-const outlineMode = $("outlineMode"); // Sei
+const skipPaintedPixels = $("skipPaintedPixels");
+const outlineMode = $("outlineMode");
 const paintTransparent = $("paintTransparent");
 const heatmapEnabled = $("heatmapEnabled");
 const heatmapLimit = $("heatmapLimit");
@@ -1636,12 +1636,12 @@ templateForm.addEventListener('submit', async (e) => {
         templateName: templateName.value,
         coords: [tx.value, ty.value, px.value, py.value].map(Number),
         userIds: selectedUsers,
-        canBuyCharges: canBuyCharges.checked,
-        canBuyMaxCharges: canBuyMaxCharges.checked,
+        canBuyCharges: !!canBuyCharges.checked,
+        canBuyMaxCharges: !!canBuyMaxCharges.checked,
         autoBuyNeededColors: !!autoBuyNeededColors?.checked && !!(usePaidColors?.checked),
-        antiGriefMode: antiGriefMode.checked,
-		skipPaintedPixels: !!skipPaintedPixels.checked, // Sei
-		outlineMode: !!outlineMode.checked, // Sei
+        antiGriefMode: !!antiGriefMode.checked,
+		skipPaintedPixels: !!skipPaintedPixels.checked,
+		outlineMode: !!outlineMode.checked,
         paintTransparentPixels: !!paintTransparent.checked,
         heatmapEnabled: !!(heatmapEnabled && heatmapEnabled.checked),
         heatmapLimit: Math.max(1, Math.floor(Number(heatmapLimit && heatmapLimit.value ? heatmapLimit.value : 10000)))
@@ -2792,8 +2792,8 @@ openManageTemplates.addEventListener("click", () => {
                 if (t.autoBuyNeededColors) enabled.push('Buy premium colors');
                 if (t.paintTransparentPixels) enabled.push('Paint transparent pixels');
                 if (t.antiGriefMode) enabled.push('Anti‑grief mode');
-				if (t.skipPaintedPixels) enabled.push('Skip painted pixels'); // Sei
-				if (t.outlineMode) enabled.push('Outline first'); // Sei
+				if (t.skipPaintedPixels) enabled.push('Skip painted pixels');
+				if (t.outlineMode) enabled.push('Outline first');
                 const enabledLine = enabled.length ? `<div><span class="t-templates-enabled">Enabled:</span> ${enabled.join(', ')}</div>` : '';
 
                 meta.innerHTML = `
@@ -2893,12 +2893,12 @@ openManageTemplates.addEventListener("click", () => {
 
                     templateName.value = T.name;
                     [tx.value, ty.value, px.value, py.value] = T.coords;
-                    canBuyCharges.checked = T.canBuyCharges;
-                    canBuyMaxCharges.checked = T.canBuyMaxCharges;
+                    canBuyCharges.checked = !!T.canBuyCharges;
+                    canBuyMaxCharges.checked = !!T.canBuyMaxCharges;
                     if (autoBuyNeededColors) autoBuyNeededColors.checked = !!T.autoBuyNeededColors;
-                    antiGriefMode.checked = T.antiGriefMode;
-					skipPaintedPixels.checked = t.skipPaintedPixels; // Sei
-					outlineMode.checked = t.outlineMode; // Sei
+                    antiGriefMode.checked = !!T.antiGriefMode;
+					skipPaintedPixels.checked = !!T.skipPaintedPixels;
+					outlineMode.checked = !!T.outlineMode;
                     paintTransparent.checked = !!T.paintTransparentPixels;
                     if (typeof T.heatmapEnabled !== 'undefined' && heatmapEnabled) heatmapEnabled.checked = !!T.heatmapEnabled;
                     if (heatmapLimitWrap) heatmapLimitWrap.style.display = heatmapEnabled && heatmapEnabled.checked ? '' : 'none';
@@ -3399,11 +3399,11 @@ async function refreshActiveBar() {
 
                 templateName.value = T.name;
                 [tx.value, ty.value, px.value, py.value] = T.coords;
-                canBuyCharges.checked = T.canBuyCharges;
-                canBuyMaxCharges.checked = T.canBuyMaxCharges;
-                antiGriefMode.checked = T.antiGriefMode;
-                skipPaintedPixels.checked = !!t.skipPaintedPixels; // Sei
-                outlineMode.checked = !!t.outlineMode; // Sei
+                canBuyCharges.checked = !!T.canBuyCharges;
+                canBuyMaxCharges.checked = !!T.canBuyMaxCharges;
+                antiGriefMode.checked = !!T.antiGriefMode;
+                skipPaintedPixels.checked = !!T.skipPaintedPixels;
+                outlineMode.checked = !!T.outlineMode;
                 paintTransparent.checked = !!T.paintTransparentPixels;
                 if (typeof T.heatmapEnabled !== 'undefined' && heatmapEnabled) heatmapEnabled.checked = !!T.heatmapEnabled;
                 if (heatmapLimitWrap) heatmapLimitWrap.style.display = heatmapEnabled && heatmapEnabled.checked ? '' : 'none';
