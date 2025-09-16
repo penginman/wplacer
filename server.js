@@ -3879,9 +3879,11 @@ const keepAlive = async () => {
   console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
 
   const port = Number(process.env.PORT) || 80;
-  const host = "0.0.0.0";
+  const host = process.env.HOST || "0.0.0.0";
+  const hostname = host === "0.0.0.0" || host === "127.0.0.1" ? "localhost" : host;
+
   const server = app.listen(port, host, () => {
-    console.log(`✅ Server listening on http://localhost:${port}`);
+    console.log(`✅ Server listening on http://${hostname}:${port}`);
     console.log(`   Open the web UI in your browser to start!`);
     setInterval(keepAlive, 20 * 60 * 1000);
   });
