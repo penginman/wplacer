@@ -1884,7 +1884,7 @@ class TemplateManager {
         const painted = await wplacer.paint(currentSettings.drawingMethod);
         if(typeof painted === 'number' && painted > 0)
         {
-          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] ⏰ Estimated time left: ~${this.formatTime((this.pixelsRemaining - painted) / 10 * 30)}`); //30 seconds for 1 pixel
+          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] ⏰ Estimated time left: ~${this.formatTime((this.pixelsRemaining - painted) / this.userIds.length * 30)}`); //30 seconds for 1 pixel
         }
         // save back burst seeds if used
         this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : null;
