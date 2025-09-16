@@ -2222,8 +2222,10 @@ const getJwtExp = (j) => {
 app.get("/users", (_, res) => {
   const out = JSON.parse(JSON.stringify(users));
   for (const id of Object.keys(out)) {
-    if (!out[id].expirationDate && out[id].cookies?.j) {
-      const exp = getJwtExp(out[id].cookies.j);
+    if (!out[id]) continue;
+    if (out[id].cookies) delete out[id].cookies;
+    if (!out[id].expirationDate && users[id]?.cookies?.j) {
+      const exp = getJwtExp(users[id].cookies.j);
       if (exp) out[id].expirationDate = exp;
     }
   }
