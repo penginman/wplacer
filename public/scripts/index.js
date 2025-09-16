@@ -83,6 +83,98 @@ const previewSpeed = $("previewSpeed");
 const previewSpeedLabel = $("previewSpeedLabel");
 const showLatestInfo = $("showLatestInfo");
 const buyMaxUpgradesAll = $("buyMaxUpgradesAll");
+const buyChargesAll = $("buyChargesAll");
+const liveLogs = $("liveLogs");
+const logsOutput = $("logsOutput");
+const toggleMaskLogs = $("toggleMaskLogs");
+const clearLogs = $("clearLogs");
+let __logMaskEnabled = false;
+let __sse; // EventSource
+
+// Keep raw lines to allow re-render on mask toggle
+const __logsRaw = [];
+
+const renderLogLine = (raw) => {
+    try {
+        const masked = __logMaskEnabled ? maskLogText(raw.line) : raw.line;
+        const cat = String(raw.category || 'general');
+        const level = String(raw.level || 'info');
+        const isErrorSymbol = /❌/.test(raw.line || '');
+        const isPainted = /\uD83C\uDFA8|🎨\s*Painted/i.test(raw.line || '');
+        const isPurchase = /\uD83D\uDED2|🛒|\bBought\b/i.test(raw.line || '');
+        const cls = `log-line log-${cat} ${level === 'error' || isErrorSymbol ? 'log-error' : ''} ${isPainted ? 'log-success' : ''} ${isPurchase ? 'log-success-purchase' : ''}`;
+
+        const div = document.createElement('div');
+        div.className = cls;
+
+        // Split prefix: [time] (name#id) [Template]? — template part is optional
+        const m = String(masked).match(/^\[[^\]]+\]\s*\([^\)]+\)(?:\s*\[[^\]]+\])?\s*/);
+        if (m) {
+            const prefix = m[0];
+            const rest = masked.slice(prefix.length);
+            const spanPrefix = document.createElement('span');
+            spanPrefix.className = 'log-prefix';
+            spanPrefix.textContent = prefix;
+            const spanRest = document.createElement('span');
+            spanRest.textContent = rest;
+            div.appendChild(spanPrefix);
+            div.appendChild(spanRest);
+        } else {
+            div.textContent = masked;
+        }
+
+        logsOutput.appendChild(div);
+        logsOutput.parentElement.scrollTop = logsOutput.parentElement.scrollHeight;
+    } catch (_) { }
+};
+
+const rerenderAllLogs = () => {
+    if (!logsOutput) return;
+    logsOutput.innerHTML = '';
+    for (const raw of __logsRaw) renderLogLine(raw);
+};
+
+const maskLogText = (s) => {
+    try {
+        let t = String(s || '');
+        // (nick#123456) -> (NickName#1111111)
+        t = t.replace(/\([^)#]+#\d+\)/g, (m) => {
+            try { return m.replace(/\([^#)]+/, '(NickName').replace(/#\d+\)/, '#1111111)'); } catch { return '(NickName#1111111)'; }
+        });
+        // #11240474 -> #1111111 (for 3+ digits)
+        t = t.replace(/#\d{3,}/g, '#1111111');
+        // tile 1227, 674 -> tile 1, 1
+        t = t.replace(/tile\s+\d+\s*,\s*\d+/gi, 'tile 1, 1');
+        return t;
+    } catch (_) { return String(s || ''); }
+};
+
+function startLogsStream() {
+    try { if (__sse) { __sse.close(); __sse = null; } } catch (_) {}
+    try {
+        __sse = new EventSource('/logs/stream');
+        __sse.onmessage = (ev) => {
+            try {
+                const data = JSON.parse(ev.data || '{}');
+                const rawObj = { line: String(data.line || ''), category: String(data.category || 'general'), level: String(data.level || 'info') };
+                __logsRaw.push(rawObj);
+                renderLogLine(rawObj);
+            } catch (_) { }
+        };
+        __sse.onerror = () => { /* keep alive */ };
+    } catch (e) { console.warn('SSE init failed', e); }
+}
+
+toggleMaskLogs?.addEventListener('click', () => {
+    __logMaskEnabled = !__logMaskEnabled;
+    toggleMaskLogs.textContent = __logMaskEnabled ? 'Show Sensitive Info' : 'Hide Sensitive Info';
+    rerenderAllLogs();
+});
+
+clearLogs?.addEventListener('click', () => {
+    if (logsOutput) logsOutput.innerHTML = '';
+    __logsRaw.length = 0;
+});
 
 let pendingUserSelection = null;
 let editSelectedUserIds = null; // Set of selected user ids while editing template
@@ -1721,6 +1813,13 @@ const changeTab = (el) => {
     if (currentTab === colorsManager) {
         initColorsManager().catch(console.error);
     }
+
+    if (currentTab === liveLogs) {
+        // start SSE stream when entering logs tab
+        startLogsStream();
+    } else {
+        try { if (__sse) { __sse.close(); __sse = null; } } catch (_) {}
+    }
 };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const formatSpaces = (val) => {
@@ -1748,7 +1847,7 @@ openManageUsers.addEventListener("click", () => {
 
             const shortLabel = (users[id].shortLabel || '').trim();
             const shortLabelSafe = escapeHtml(shortLabel);
-            const shortLabelCut = shortLabelSafe ? (shortLabelSafe.length > 20 ? shortLabelSafe.slice(0, 20) + '…' : shortLabelSafe) : '';
+            const shortLabelCut = shortLabelSafe ? (shortLabelSafe.length > 20 ? shortLabelSafe.slice(0, 40) + '…' : shortLabelSafe) : '';
             user.innerHTML = `
                 <div class="user-info">
                     <span class="user-info-username">${users[id].name}${shortLabelCut ? ` <span class="user-info-id">(${shortLabelCut})</span>` : ''}</span>
@@ -1762,6 +1861,7 @@ openManageUsers.addEventListener("click", () => {
                     <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
                     <button class="json-btn" title="Get User Info"><img src="icons/code.svg"></button>
                     <button class="edit-btn" title="Edit User"><img src="icons/pencil.svg"></button>
+                    <!-- <button class="open-profile-btn" title="Open Profile"><img src="icons/eye.svg"></button> -->
                 </div>`;
 
             user.querySelector('.delete-btn').addEventListener("click", () => {
@@ -1816,8 +1916,8 @@ openManageUsers.addEventListener("click", () => {
                     </div>
                     <div class="form-card" style="margin:8px 0 0; text-align: left;">
                         <div class="field">
-                            <label for="edit-shortLabel-${id}">Personal note (max 20)</label>
-                            <input id="edit-shortLabel-${id}" type="text" maxlength="20" value="${(users[id].shortLabel || '').replace(/"/g, '&quot;')}" />
+                            <label for="edit-shortLabel-${id}">Personal note (max 40)</label>
+                            <input id="edit-shortLabel-${id}" type="text" maxlength="40" value="${(users[id].shortLabel || '').replace(/"/g, '&quot;')}" />
                             <small class="help">Only for you. Not shared. Handy to store email/profile name for token updates.</small>
                         </div>
                     </div>
@@ -1845,7 +1945,7 @@ openManageUsers.addEventListener("click", () => {
                     const discordEl = document.getElementById(`edit-discord-${id}`);
                     const showEl = document.getElementById(`edit-showLastPixel-${id}`);
                     const name = (nameEl?.value || '').trim().slice(0, 15);
-                    const shortLabel = (shortLabelEl?.value || '').trim().slice(0, 20);
+                    const shortLabel = (shortLabelEl?.value || '').trim().slice(0, 40);
                     const discord = (discordEl?.value || '').trim().slice(0, 15);
                     const showLastPixel = !!showEl?.checked;
                     if (name.length < 2) { showMessage('Error', 'Name must be at least 2 characters.'); return; }
@@ -1855,7 +1955,7 @@ openManageUsers.addEventListener("click", () => {
                         if (resp.status === 200 && resp.data?.success) {
                             // Update username + short label inline
                             const usernameEl = user.querySelector('.user-info-username');
-                            const shortCut = shortLabel ? escapeHtml(shortLabel.length > 20 ? shortLabel.slice(0, 20) + '…' : shortLabel) : '';
+                            const shortCut = shortLabel ? escapeHtml(shortLabel.length > 40 ? shortLabel.slice(0, 40) + '…' : shortLabel) : '';
                             if (usernameEl) usernameEl.innerHTML = `${escapeHtml(name)}${shortCut ? ` <span class=\"user-info-id\">(${shortCut})</span>` : ''}`;
                             users[id].name = name;
                             users[id].shortLabel = shortLabel;
@@ -1982,6 +2082,36 @@ openManageUsers.addEventListener("click", () => {
                     handleError(error);
                 }
             });
+
+            /*
+            // Open Brave profile by shortLabel (if exists)
+            const openProfileBtn = user.querySelector('.open-profile-btn');
+            openProfileBtn?.addEventListener('click', async () => {
+                try {
+                    openProfileBtn.disabled = true;
+                    openProfileBtn.innerHTML = 'Opening...';
+                    const resp = await axios.post(`/user/${id}/open-profile`);
+                    if (resp.status === 200 && resp.data?.success) {
+                        // no-op
+                    } else {
+                        handleError({ response: { data: resp.data, status: resp.status } });
+                    }
+                } catch (error) {
+                    // if server returns bat_not_found — show friendly message
+                    if (error?.response?.data?.error === 'bat_not_found') {
+                        const p = error.response.data.path || '';
+                        showMessage('Profile not found', `File not found:<br><code>${escapeHtml(p)}</code>`);
+                    } else if (error?.response?.data?.error === 'no_profile_label') {
+                        showMessage('Missing shortLabel', 'The account does not have a shortLabel specified. Specify it in Manage Users.');
+                    } else {
+                        handleError(error);
+                    }
+                } finally {
+                    openProfileBtn.disabled = false;
+                    openProfileBtn.innerHTML = '<img src="icons/eye.svg" alt=""/>';
+                }
+            });
+            */
             userList.appendChild(user);
         }
 
@@ -2091,60 +2221,75 @@ checkUserStatus.addEventListener("click", async () => {
         const levelProgressEl = userEl.querySelector('.level-progress');
 
         infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
-        try {
-            const response = await axios.get(`/user/status/${id}`);
-            const userInfo = response.data;
 
-            const charges = Math.floor(userInfo.charges.count);
-            const max = userInfo.charges.max;
-            const droplets = userInfo.droplets;
-            const level = Math.floor(userInfo.level);
-            const progress = Math.round((userInfo.level % 1) * 100);
+        let success = false;
+        let lastReason = 'error';
+        let lastName = (() => { try { return userEl.querySelector('.user-info-username')?.textContent?.trim() || `#${id}` } catch(_) { return `#${id}` } })();
 
-            LAST_USER_STATUS[id] = { charges, max, droplets, level, progress, extraColorsBitmap: userInfo.extraColorsBitmap | 0 };
-            saveLastStatus();
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const response = await axios.get(`/user/status/${id}`);
+                const userInfo = response.data;
 
+                const charges = Math.floor(userInfo.charges.count);
+                const max = userInfo.charges.max;
+                const droplets = userInfo.droplets;
+                const level = Math.floor(userInfo.level);
+                const progress = Math.round((userInfo.level % 1) * 100);
 
-            colorReport.push({
-                userId: String(id),
-                name: userInfo.name,
-                extraColorsBitmap: userInfo.extraColorsBitmap | 0,
-                droplets,
-                charges: { count: charges, max },
-                level,
-                progress
-            });
+                LAST_USER_STATUS[id] = { charges, max, droplets, level, progress, extraColorsBitmap: userInfo.extraColorsBitmap | 0 };
+                saveLastStatus();
 
-            currentChargesEl.textContent = charges;
-            maxChargesEl.textContent = max;
-            currentLevelEl.textContent = level;
-            levelProgressEl.textContent = `(${progress}%)`;
-            currentDroplets.textContent = formatSpaces(droplets);
+                colorReport.push({
+                    userId: String(id),
+                    name: userInfo.name,
+                    extraColorsBitmap: userInfo.extraColorsBitmap | 0,
+                    droplets,
+                    charges: { count: charges, max },
+                    level,
+                    progress
+                });
 
+                currentChargesEl.textContent = charges;
+                maxChargesEl.textContent = max;
+                currentLevelEl.textContent = level;
+                levelProgressEl.textContent = `(${progress}%)`;
+                currentDroplets.textContent = formatSpaces(droplets);
 
-            USERS_COLOR_STATE[id] = {
-                name: userInfo.name || `#${id}`,
-                extraColorsBitmap: userInfo.extraColorsBitmap | 0,
-                droplets
-            };
-            totalCurrent += charges;
-            totalMax += max;
-            totalDroplets += Number(droplets) || 0;
+                USERS_COLOR_STATE[id] = {
+                    name: userInfo.name || `#${id}`,
+                    extraColorsBitmap: userInfo.extraColorsBitmap | 0,
+                    droplets
+                };
+                totalCurrent += charges;
+                totalMax += max;
+                totalDroplets += Number(droplets) || 0;
 
-            infoSpans.forEach(span => span.style.color = 'var(--success-color)');
-            accountResults.push({ id, name: (USERS_COLOR_STATE[id]?.name || userInfo.name || `#${id}`), ok: true, reason: 'ok' });
-        } catch (error) {
-            let reason = '';
-            try { reason = (error && error.response && error.response.data && error.response.data.error) ? String(error.response.data.error) : String(error && error.message || error) } catch (_) { reason = 'error'; }
-            currentChargesEl.textContent = "ERR";
-            maxChargesEl.textContent = "ERR";
-            currentLevelEl.textContent = "?";
-            levelProgressEl.textContent = "(?%)";
-            currentDroplets.textContent = "?";
-            infoSpans.forEach(span => span.style.color = 'var(--error-color)');
-            const uname = (() => { try { return userEl.querySelector('.user-info-username')?.textContent?.trim() || `#${id}` } catch(_) { return `#${id}` } })();
-            accountResults.push({ id, name: uname, ok: false, reason });
+                infoSpans.forEach(span => span.style.color = 'var(--success-color)');
+                lastName = USERS_COLOR_STATE[id]?.name || userInfo.name || `#${id}`;
+                success = true;
+                break;
+            } catch (error) {
+                try { lastReason = (error && error.response && error.response.data && error.response.data.error) ? String(error.response.data.error) : String(error && error.message || error) } catch (_) { lastReason = 'error'; }
+                currentChargesEl.textContent = "ERR";
+                maxChargesEl.textContent = "ERR";
+                currentLevelEl.textContent = "?";
+                levelProgressEl.textContent = "(?%)";
+                currentDroplets.textContent = "?";
+                infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+                if (attempt < 3) {
+                    await sleep(1000);
+                }
+            }
         }
+
+        // Save result only once per user
+        if (success) {
+            accountResults.push({ id, name: lastName, ok: true, reason: 'ok' });
+        } else {
+            accountResults.push({ id, name: lastName, ok: false, reason: lastReason });
+        }
+
         if (settingsAccountCheckCooldown > 0) {
             await sleep(settingsAccountCheckCooldown);
         }
@@ -2336,6 +2481,64 @@ buyMaxUpgradesAll?.addEventListener("click", () => {
                 buyMaxUpgradesAll.disabled = false;
                 buyMaxUpgradesAll.innerHTML = '<img src="icons/playAll.svg" alt=""/> Buy Max Charge Upgrades (All)';
                 try { const t = window.__bm_timer; if (t) clearInterval(t); window.__bm_timer = null; } catch (_) { }
+            }
+        }
+    );
+});
+
+
+buyChargesAll?.addEventListener("click", () => {
+    showConfirmation(
+        "Buy paint charges (all)",
+        `Buy the maximum number of paint charges for all accounts?
+        <br><br><b>Note: </b>Uses <i>Droplet reserve</i> from Settings and <i>Purchase Cooldown</i>.`,
+        async () => {
+            try {
+                buyChargesAll.disabled = true;
+                buyChargesAll.innerHTML = "Processing...";
+
+                window.__bc_timer = setInterval(async () => {
+                    try {
+                        const { data } = await axios.get('/users/buy-charges/progress');
+                        const total = data?.total || 0;
+                        const completed = data?.completed || 0;
+                        if (data?.active && total > 0) {
+                            buyChargesAll.innerHTML = `Processing... ${completed}/${total}`;
+                        }
+                    } catch (_) { }
+                }, 500);
+
+                const { data } = await axios.post("/users/buy-charges", {});
+                const rep = data?.report || [];
+
+                const ok = rep.filter(r => r.amount > 0).length;
+                const skippedBusy = rep.filter(r => r.skipped && r.reason === "busy").length;
+                const skippedNoFunds = rep.filter(r => r.skipped && r.reason === "insufficient_droplets_or_reserve").length;
+                const failed = rep.filter(r => r.error).length;
+
+                let html = `<b>Cooldown:</b> ${Math.round((data.cooldownMs || 0) / 1000)}s<br>
+                            <b>Reserve:</b> ${data.reserve || 0} droplets<br><br>
+                            <b>Purchased on:</b> ${ok}<br>
+                            <b>Skipped (busy):</b> ${skippedBusy}<br>
+                            <b>Skipped (no funds):</b> ${skippedNoFunds}<br>
+                            <b>Failed:</b> ${failed}<br><br>`;
+
+                const lines = rep.slice(0, 10).map(r => {
+                    if (r.error) return `❌ ${r.name} (#${r.userId}): ${r.error}`;
+                    if (r.skipped) return `⏭️ ${r.name} (#${r.userId}): ${r.reason}`;
+                    return `✅ ${r.name} (#${r.userId}): +${r.amount} (droplets ${r.beforeDroplets} → ${r.afterDroplets})`;
+                }).join("<br>");
+
+                html += lines;
+                if (rep.length > 10) html += `<br>...and ${rep.length - 10} more`;
+
+                showMessage("Bulk charge purchase finished", html);
+            } catch (error) {
+                handleError(error);
+            } finally {
+                buyChargesAll.disabled = false;
+                buyChargesAll.innerHTML = '<img src="icons/playAll.svg" alt=""/> Buy paint charges (All)';
+                try { const t = window.__bc_timer; if (t) clearInterval(t); window.__bc_timer = null; } catch (_) { }
             }
         }
     );
@@ -2612,6 +2815,21 @@ document.getElementById("HideSensInfo").addEventListener("click", function () {
             el.style.removeProperty("display");
         }
     });
+
+    // Also toggle the "User" column in checkUsersResult table (2nd column)
+    try {
+        if (checkUsersResult) {
+            const headerCells = checkUsersResult.querySelectorAll('table thead tr th:nth-child(2)');
+            const bodyCells = checkUsersResult.querySelectorAll('table tbody tr td:nth-child(2)');
+            if (!isHidden) {
+                headerCells.forEach(el => el.style.setProperty('display', 'none', 'important'));
+                bodyCells.forEach(el => el.style.setProperty('display', 'none', 'important'));
+            } else {
+                headerCells.forEach(el => el.style.removeProperty('display'));
+                bodyCells.forEach(el => el.style.removeProperty('display'));
+            }
+        }
+    } catch (_) { }
 
     btn.textContent = isHidden ? "Hide Sensitive Info" : "Show Sensitive Info";
     btn.dataset.hidden = !isHidden;
@@ -5027,3 +5245,169 @@ loadColorsCacheBtn?.addEventListener('click', async () => {
     const id = CURRENT_SELECTED_COLOR ?? (COLORS.find(c => c.id >= 32)?.id ?? 32);
     showColorDetails(id);
 });
+
+// --- Import JWT tokens from file ---
+if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile !== 'undefined' && importJwtFile) {
+    const CONCURRENCY = 6; // tune this (requests at once)
+    const short = (s, n = 8) => (typeof s === 'string' ? `${s.slice(0, n)}…` : '');
+
+    importJwtBtn.addEventListener('click', () => importJwtFile.click());
+
+    importJwtFile.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        const originalHtml = importJwtBtn.innerHTML;
+        const showBusy = (done, total) => {
+            importJwtBtn.disabled = true;
+            importJwtBtn.innerHTML = total ? `Importing (${done}/${total})` : 'Importing…';
+        };
+        const clearBusy = () => {
+            importJwtBtn.disabled = false;
+            importJwtBtn.innerHTML = originalHtml;
+        };
+
+        try {
+            const text = await file.text();
+
+            // Parse lines, trim, ignore comments, strip quotes, remove empties
+            const rawLines = text.split(/\r?\n/).map(l => l.trim());
+            const parsed = rawLines
+                .map(l => {
+                    if (!l) return '';
+                    // handle "j=..." or cookies style lines gracefully by extracting last token-like chunk
+                    // but keep it simple: remove surrounding quotes and whitespace
+                    let t = l.replace(/(^["']|["']$)/g, '').trim();
+                    return t;
+                })
+                .filter(l => l && !l.startsWith('#') && !l.startsWith('//'));
+
+            const inputCount = rawLines.length;
+            const deduped = Array.from(new Set(parsed)); // de-duplicate within file
+            const dedupedCount = deduped.length;
+
+            if (dedupedCount === 0) {
+                showMessage('Error', 'No JWT tokens found in the selected file.');
+                importJwtFile.value = null;
+                return;
+            }
+
+            // Try to fetch existing users and filter out tokens that already exist
+            let skippedExisting = 0;
+            let tokensToProcess = deduped.slice(); // copy
+            try {
+                const resp = await axios.get('/users');
+                const existingUsers = resp?.data ?? {};
+                const existingJ = new Set(
+                    Object.values(existingUsers || {})
+                        .map(u => u?.cookies?.j)
+                        .filter(Boolean)
+                        .map(String)
+                        .map(s => s.trim())
+                );
+
+                const before = tokensToProcess.length;
+                tokensToProcess = tokensToProcess.filter(t => !existingJ.has(t));
+                skippedExisting = before - tokensToProcess.length;
+            } catch (fetchErr) {
+                // if we fail to fetch, proceed but warn in console (we'll attempt to import everything)
+                console.warn('Could not fetch existing users; proceeding without server-side dedupe:', fetchErr?.message ?? fetchErr);
+            }
+
+            // Nothing left to import
+            if (tokensToProcess.length === 0) {
+                showMessage('Import Summary', `All provided tokens already exist.<br>Input lines: ${inputCount}<br>Unique tokens in file: ${dedupedCount}<br>Skipped existing: ${skippedExisting}`);
+                importJwtFile.value = null;
+                return;
+            }
+
+            // Helper: run a function over items with limited concurrency
+            async function runWithConcurrency(items, fn, concurrency = 6) {
+                let i = 0;
+                let running = 0;
+                const results = [];
+                return new Promise((resolve) => {
+                    const next = async () => {
+                        if (i >= items.length && running === 0) return resolve(results);
+                        while (running < concurrency && i < items.length) {
+                            const idx = i++;
+                            running++;
+                            Promise.resolve(fn(items[idx], idx))
+                                .then(r => results[idx] = { status: 'fulfilled', value: r })
+                                .catch(err => results[idx] = { status: 'rejected', reason: err })
+                                .finally(() => {
+                                    running--;
+                                    // schedule next; microtask to avoid deep recursion
+                                    setTimeout(next, 0);
+                                });
+                        }
+                    };
+                    next();
+                });
+            }
+
+            const total = tokensToProcess.length;
+            let success = 0;
+            let failed = 0;
+            const errors = [];
+            const addedUsers = [];
+
+            showBusy(0, total);
+
+            // worker function for each token
+            const worker = async (token, idx) => {
+                try {
+                    const resp = await axios.post('/user', { cookies: { j: token } });
+                    success++;
+                    const name = resp?.data?.name;
+                    const id = resp?.data?.id;
+                    if (name && id) {
+                        const line = `${name} (#${id})`;
+                        addedUsers.push(line);
+                        try { console.log(`[Import] Added user ${line}`); } catch {}
+                    } else {
+                        // if no nice response body, still count as success
+                        addedUsers.push(`Imported ${short(token)}`);
+                    }
+                    showBusy(success + failed, total);
+                    return { ok: true };
+                } catch (err) {
+                    failed++;
+                    const msg = err?.response?.data?.error || err?.message || 'Unknown error';
+                    errors.push({ token: short(token), message: msg });
+                    console.error('Import token failed:', short(token), msg);
+                    showBusy(success + failed, total);
+                    return { ok: false, error: msg };
+                }
+            };
+
+            // run imports with controlled concurrency
+            await runWithConcurrency(tokensToProcess, worker, CONCURRENCY);
+
+            clearBusy();
+            importJwtFile.value = null;
+
+            // Build summary
+            const processed = total;
+            const summaryLines = [
+                `Input lines: ${inputCount}`,
+                `Unique tokens in file: ${dedupedCount}`,
+                `Processed: ${processed}`,
+                `Success: ${success}`,
+                `Failed: ${failed}`,
+                `Skipped existing: ${skippedExisting}`
+            ];
+            if (addedUsers.length) summaryLines.push(`Added: ${addedUsers.join(', ')}`);
+            if (errors.length) summaryLines.push(`Errors: ${errors.map(e => `${e.token} → ${e.message}`).join('; ')}`);
+
+            showMessage('Import Summary', summaryLines.join('<br>'));
+            // Refresh Manage Users view
+            try { openManageUsers.click(); } catch (e) {}
+
+        } catch (readErr) {
+            clearBusy();
+            importJwtFile.value = null;
+            handleError(readErr);
+        }
+    });
+}

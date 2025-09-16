@@ -1,3 +1,14 @@
+## Changelog v4.2.8 – Quick Fixes
+- Added bulk “Buy paint charges (All)” action: buys pixel charges for all accounts using available droplets while honoring the configured droplet reserve and purchase cooldown. Includes a progress display and a result summary.
+- Added a Live Logs section with an option to hide sensitive information.
+- Fixed auto‑buying of charges during painting.
+- Added automatic activation of inactive tiles during painting (places 1 pixel to activate, then retries).
+- Added import of JWT tokens (.txt file). Thanks for the feature, Chris (@leachit)!
+- Added several features and improvements from pull requests (including Skip Painted Pixels and Outline Mode). Thanks to [lulz](https://github.com/Udyz), [SeiRruf Wilde](https://github.com/SeiRruf), and [Hayden Andreyka](https://github.com/Technoguyfication)!
+- Miscellaneous improvements.
+Note: Many other bugs and issues are known; unfortunately, there isn’t much time right now to fix everything. Fixes and improvements will be made as time permits, and there are also several ideas planned for future implementation.
+
+
 ## Changelog v4.2.6-4.2.7
 - Added an "Active/Expired accounts" table shown after the status check (you can remove non‑working accounts with one click).
 - Added an extension that automates account re‑login. See the AutoLogin README: [WPlace AutoLogin — Chrome Extension](https://github.com/lllexxa/wplacer/blob/main/Wplacer-AutoLogin-Profiles/README.md)

@@ -1,3 +1,66 @@
+.logs-output {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.log-line {
+    padding: 2px 6px;
+    border-left: 3px solid transparent;
+}
+
+.log-general {
+    color: #ddd;
+}
+
+.log-tokenManager {
+    color: #a0e3ff;
+}
+
+.log-cache {
+    color: #ffd580;
+}
+
+.log-queuePreview {
+    color: #b5ffa0;
+}
+
+/* .log-painting { color: #ffb3c1; } */
+.log-startTurn {
+    color: #c2b5ff;
+}
+
+.log-mismatches {
+    color: #ffdf91;
+}
+
+.log-error {
+    color: #ff7a7a;
+    border-left-color: #ff7a7a;
+    background: rgba(255, 0, 0, 0.06);
+}
+
+.log-success {
+    color: #7aff9a;
+    border-left-color: #7aff9a;
+    background: rgba(0, 255, 0, 0.04);
+}
+
+.log-success-purchase {
+    color: #7adfff;
+    border-left-color: #7adfff;
+    background: rgba(0, 180, 255, 0.06);
+}
+
+.log-muted {
+    opacity: .7;
+}
+
+.log-prefix {
+    color: #7f7f7f;
+    opacity: .9;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&display=swap');
 
 /* THEME */
@@ -486,6 +549,7 @@ input::-webkit-inner-spin-button {
 
 .form-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 8px
 }

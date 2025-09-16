@@ -76,6 +76,10 @@
                 <img src="icons/palette.svg" alt="" />
                 <span>Colors</span>
             </button>
+            <button class="nav-btn" onclick="changeTab(liveLogs)">
+                <img src="icons/code.svg" alt="" />
+                <span>Live Logs</span>
+            </button>
             <button class="nav-btn" onclick="document.getElementById('openSettings').click()">
                 <img src="icons/settings.svg" alt="" />
                 <span>Settings</span>
@@ -173,9 +177,20 @@
                                 <img src="icons/addUser.svg" alt="" /> Add User
                             </button>
 
+                            <div>
+                                <button id="importJwtBtn" class="primary-button" type="button">
+                                    <img src="icons/addUser.svg" alt="">Import JWT Tokens (.txt)</button>
+                                <input type="file" id="importJwtFile" accept=".txt" style="display: none;">
+                            </div>
+                        </div>
+                        <div class="form-actions">
                             <button id="buyMaxUpgradesAll" class="primary-button">
                                 <img src="icons/playAll.svg" alt="" />
                                 Buy Max Charge Upgrades (All)
+                            </button>
+                            <button id="buyChargesAll" class="primary-button">
+                                <img src="icons/playAll.svg" alt="" />
+                                Buy paint charges (All)
                             </button>
                         </div>
                     </form>
@@ -339,16 +354,16 @@
                                     <span class="slider"></span>
                                 </label>
                             </div>
-							
-							<div class="setting-toggle">
+
+                            <div class="setting-toggle">
                                 <label for="skipPaintedPixels" class="label-margin0">Skip painted pixels</label>
                                 <label class="switch" class="label-margin0">
                                     <input id="skipPaintedPixels" name="skipPaintedPixels" type="checkbox" />
                                     <span class="slider"></span>
                                 </label>
                             </div>
-							
-							<div class="setting-toggle">
+
+                            <div class="setting-toggle">
                                 <label for="outlineMode" class="label-margin0">Outline-First mode</label>
                                 <label class="switch" class="label-margin0">
                                     <input id="outlineMode" name="outlineMode" type="checkbox" />
@@ -400,7 +415,7 @@
                                 </div>
 
                                 <div class="setting-toggle">
-                                    <label for="canBuyCharges" class="label-margin0">Buy paint charges when running out
+                                    <label for="canBuyCharges" class="label-margin0">Buy paint charges
                                         <span class="muted">(500)</span></label>
                                     <label class="switch" class="label-margin0">
                                         <input id="canBuyCharges" name="canBuyCharges" type="checkbox" />
@@ -530,6 +545,24 @@
                     </div>
                 </section>
 
+                <!-- ====== LOGS (LIVE) ====== -->
+                <section id="liveLogs" style="display:none;">
+                    <header class="section-head">
+                        <h2>Live Logs</h2>
+                        <div class="section-actions">
+                            <button onclick="changeTab(main);" class="ghost-btn">
+                                <img src="icons/return.svg" alt="" /> Return
+                            </button>
+                            <button id="toggleMaskLogs" class="secondary-button">Hide Sensitive Info</button>
+                            <button id="clearLogs" class="secondary-button">Clear</button>
+                        </div>
+                    </header>
+
+                    <div class="settings-card" style="max-height:360px; overflow:auto; background-color: #15161a;">
+                        <pre id="logsOutput" class="logs-output"
+                            style="white-space:pre-wrap; word-break:break-word; margin:0;"></pre>
+                    </div>
+                </section>
 
                 <!-- ====== SETTINGS ====== -->
                 <section id="settings" style="display:none;">

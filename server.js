@@ -1,10 +1,11 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs";
+import { spawn, exec } from "node:child_process";
 import path from "node:path";
 import express from "express";
 import cors from "cors";
 import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
-import { Image, createCanvas } from "canvas";
+import { Image, createCanvas, loadImage } from "canvas";
 
 // --- Setup Data Directory ---
 const dataDir = "./data";
@@ -24,6 +25,25 @@ const proxiesBackupsDir = path.join(backupsRootDir, "proxies");
 try { if (!existsSync(backupsRootDir)) mkdirSync(backupsRootDir, { recursive: true }); } catch (_) { }
 try { if (!existsSync(usersBackupsDir)) mkdirSync(usersBackupsDir, { recursive: true }); } catch (_) { }
 try { if (!existsSync(proxiesBackupsDir)) mkdirSync(proxiesBackupsDir, { recursive: true }); } catch (_) { }
+
+// --- Live log streaming (SSE) ---
+const sseClients = [];
+const broadcastLog = (payload) => {
+  try {
+    const data = `data: ${JSON.stringify(payload)}\n\n`;
+    for (let i = sseClients.length - 1; i >= 0; i--) {
+      const res = sseClients[i];
+      try { res.write(data); } catch { sseClients.splice(i, 1); }
+    }
+  } catch (_) { }
+};
+
+// Keep recent logs in memory for this process session
+const RECENT_LOGS_LIMIT = 5000;
+const recentLogs = [];
+
+// Track open sockets to allow forced shutdown
+const sockets = new Set();
 
 // --- Logging & utils ---
 const log = async (id, name, data, error) => {
@@ -48,6 +68,11 @@ const log = async (id, name, data, error) => {
     console.error(outLine, error);
     const errText = `${error.stack || error.message}`;
     appendFileSync(path.join(dataDir, `errors.log`), `${outLine} ${maskOn ? maskMsg(errText) : errText}\n`);
+    try {
+      const obj = { line: `${outLine} ${maskOn ? maskMsg(errText) : errText}`, category: "error", level: "error", ts: timestamp };
+      recentLogs.push(obj); if (recentLogs.length > RECENT_LOGS_LIMIT) recentLogs.shift();
+      broadcastLog(obj);
+    } catch (_) { }
   } else {
     try {
       // Category-based filtering (non-error logs only)
@@ -64,11 +89,26 @@ const log = async (id, name, data, error) => {
       const cfg = (currentSettings && currentSettings.logCategories) || {};
       const enabled = (cat == null) ? true : (cfg[cat] !== false);
       if (!enabled) return; // skip suppressed category
-    } catch (_) { }
-    const identOut = maskOn ? maskMsg(identifier) : identifier;
-    const outLine = `[${timestamp}] ${identOut} ${maskOn ? maskMsg(data) : data}`;
-    console.log(outLine);
-    appendFileSync(path.join(dataDir, `logs.log`), `${outLine}\n`);
+      const identOut = maskOn ? maskMsg(identifier) : identifier;
+      const outLine = `[${timestamp}] ${identOut} ${maskOn ? maskMsg(data) : data}`;
+      console.log(outLine);
+      appendFileSync(path.join(dataDir, `logs.log`), `${outLine}\n`);
+      try {
+        const obj = { line: outLine, category: cat || 'general', level: 'info', ts: timestamp };
+        recentLogs.push(obj); if (recentLogs.length > RECENT_LOGS_LIMIT) recentLogs.shift();
+        broadcastLog(obj);
+      } catch (_) { }
+    } catch (_) {
+      const identOut = maskOn ? maskMsg(identifier) : identifier;
+      const outLine = `[${timestamp}] ${identOut} ${maskOn ? maskMsg(data) : data}`;
+      console.log(outLine);
+      appendFileSync(path.join(dataDir, `logs.log`), `${outLine}\n`);
+      try {
+        const obj = { line: outLine, category: 'general', level: 'info', ts: timestamp };
+        recentLogs.push(obj); if (recentLogs.length > RECENT_LOGS_LIMIT) recentLogs.shift();
+        broadcastLog(obj);
+      } catch (_) { }
+    }
   }
 };
 
@@ -507,37 +547,90 @@ class WPlacer {
     const endTx = tx + Math.floor(endPx / 1000);
     const endTy = ty + Math.floor(endPy / 1000);
 
+    const loadOneTile = async (targetTx, targetTy, allowActivate = true) => {
+      try {
+        const url = `https://backend.wplace.live/files/s0/tiles/${targetTx}/${targetTy}.png?t=${Date.now()}`;
+        const resp = await fetch(url, { headers: { Accept: "image/*" } });
+        if (resp.status === 404) {
+          // Tile might be not initialized yet
+          if (allowActivate && this.token) {
+            try {
+              const activated = await this._activateTileIfPossible(targetTx, targetTy);
+              if (activated) {
+                // brief wait and retry once
+                await new Promise((r) => setTimeout(r, 500));
+                return loadOneTile(targetTx, targetTy, false);
+              }
+            } catch (_) {
+              // ignore activation failures
+            }
+          }
+          try { log(this.userInfo?.id || "SYSTEM", this.userInfo?.name || "wplacer", `[${this.templateName}] ⚠️ Tile ${targetTx}, ${targetTy} may be inactive (404). Trying to activate and reload...`); } catch (_) {}
+          return null;
+        }
+        if (!resp.ok) return null;
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        const image = await loadImage(buffer);
+        const canvas = createCanvas(image.width, image.height);
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(image, 0, 0);
+        const tileData = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
+        const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        for (let x = 0; x < canvas.width; x++) {
+          for (let y = 0; y < canvas.height; y++) {
+            const i = (y * canvas.width + x) * 4;
+            const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
+            tileData.data[x][y] = a === 255 ? (pallete[`${r},${g},${b}`] || 0) : 0;
+          }
+        }
+        return tileData;
+      } catch (_) {
+        return null;
+      }
+    };
+
     const promises = [];
     for (let currentTx = tx; currentTx <= endTx; currentTx++) {
       for (let currentTy = ty; currentTy <= endTy; currentTy++) {
-        const promise = new Promise((resolve) => {
-          const image = new Image();
-          image.crossOrigin = "Anonymous";
-          image.onload = () => {
-            const canvas = createCanvas(image.width, image.height);
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(image, 0, 0);
-            const tileData = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
-            const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            for (let x = 0; x < canvas.width; x++) {
-              for (let y = 0; y < canvas.height; y++) {
-                const i = (y * canvas.width + x) * 4;
-                const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
-                tileData.data[x][y] = a === 255 ? (pallete[`${r},${g},${b}`] || 0) : 0;
-              }
-            }
-            resolve(tileData);
-          };
-          image.onerror = () => resolve(null);
-          image.src = `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`;
-        }).then((tileData) => {
+        const p = loadOneTile(currentTx, currentTy).then((tileData) => {
           if (tileData) this.tiles.set(`${currentTx}_${currentTy}`, tileData);
         });
-        promises.push(promise);
+        promises.push(p);
       }
     }
     await Promise.all(promises);
     return true;
+  }
+
+  async _activateTileIfPossible(targetTx, targetTy) {
+    try {
+      const [startTileX, startTileY, startPx, startPy] = this.coords;
+      const tileSize = 1000;
+      // iterate template area to find any pixel that belongs to this tile
+      for (let y = 0; y < this.template.height; y++) {
+        for (let x = 0; x < this.template.width; x++) {
+          const templateColor = this.template.data?.[x]?.[y];
+          if (templateColor == null) continue;
+          if (templateColor === 0 && !this.paintTransparentPixels) continue;
+          const globalPx = startPx + x;
+          const globalPy = startPy + y;
+          const tx = startTileX + Math.floor(globalPx / tileSize);
+          const ty = startTileY + Math.floor(globalPy / tileSize);
+          if (tx !== targetTx || ty !== targetTy) continue;
+          const localPx = globalPx % tileSize;
+          const localPy = globalPy % tileSize;
+          const body = { colors: [templateColor], coords: [localPx, localPy], t: this.token };
+          if (globalThis.__wplacer_last_fp) body.fp = globalThis.__wplacer_last_fp;
+          const res = await this._executePaint(targetTx, targetTy, body);
+          if (res && res.success && res.painted > 0) {
+            try { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ℹ️ Tile ${targetTx},${targetTy} might be inactive. Tried to activate by painting 1 pixel.`); } catch (_) {}
+            return true;
+          }
+          return false;
+        }
+      }
+    } catch (_) { }
+    return false;
   }
 
   hasColor(id) {
@@ -864,11 +957,6 @@ class WPlacer {
         const localPx = globalPx % 1000;
         const localPy = globalPy % 1000;
 
-        const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-        if (!tile || !tile.data[localPx]) continue;
-
-        const tileColor = tile.data[localPx][localPy];
-
         const neighbors = [
           this.template.data[x - 1]?.[y],
           this.template.data[x + 1]?.[y],
@@ -876,6 +964,17 @@ class WPlacer {
           this.template.data[x]?.[y + 1],
         ];
         const isEdge = neighbors.some((n) => n === 0 || n === undefined);
+
+        const tile = this.tiles.get(`${targetTx}_${targetTy}`);
+        if (!tile || !tile.data[localPx]) {
+          // Treat missing tile data as mismatch to avoid premature finish
+          if (this.hasColor(templateColor)) {
+            mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge: isEdge });
+          }
+          continue;
+        }
+
+        const tileColor = tile.data[localPx][localPy];
 
         // Setting to paint "behind" other's artwork, by not painting over already painted pixels.
         const shouldPaint = this.skipPaintedPixels
@@ -958,7 +1057,12 @@ class WPlacer {
       if (method === "burst-mixed") {
         const pool = ["outline-then-burst", "burst", "colors-burst-rare"];
         activeMethod = pool[Math.floor(Math.random() * pool.length)];
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎲 Mixed mode picked this turn: ${activeMethod}`);
+        try {
+          const cfg = (currentSettings && currentSettings.logCategories) || {};
+          if (cfg.painting !== false) {
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎲 Mixed mode picked this turn: ${activeMethod}`);
+          }
+        } catch (_) { }
       }
 
       // Sei - Moved this below "burst-mixed" check above; Makes more sense in console.
@@ -1087,12 +1191,12 @@ class WPlacer {
           const desired = Math.max(1, Math.min(this.settings?.seedCount ?? 2, 16));
           if (!this._burstSeeds || this._burstSeeds.length !== desired) {
             this._burstSeeds = this._pickBurstSeeds(mismatchedPixels, desired);
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 💥 Burst seeds (${desired}): ${JSON.stringify(this._burstSeeds)}`);
+            try { const cfg = (currentSettings && currentSettings.logCategories) || {}; if (cfg.painting !== false) { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 💥 Burst seeds (${desired}): ${JSON.stringify(this._burstSeeds)}`); } } catch (_) { }
           }
           if (this._activeBurstSeedIdx == null || this._activeBurstSeedIdx >= this._burstSeeds.length) {
             this._activeBurstSeedIdx = Math.floor(Math.random() * this._burstSeeds.length);
             const s = this._burstSeeds[this._activeBurstSeedIdx];
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎯 Using single seed this turn: ${JSON.stringify(s)} (#${this._activeBurstSeedIdx + 1}/${this._burstSeeds.length})`);
+            try { const cfg = (currentSettings && currentSettings.logCategories) || {}; if (cfg.painting !== false) { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎯 Using single seed this turn: ${JSON.stringify(s)} (#${this._activeBurstSeedIdx + 1}/${this._burstSeeds.length})`); } } catch (_) { }
           }
           const seedForThisTurn = [this._burstSeeds[this._activeBurstSeedIdx]];
           mismatchedPixels = this._orderByBurst(mismatchedPixels, seedForThisTurn);
@@ -1264,7 +1368,11 @@ class WPlacer {
         const localPx = globalPx % 1000;
         const localPy = globalPy % 1000;
         const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-        if (!tile || !tile.data[localPx]) continue;
+        if (!tile || !tile.data[localPx]) {
+          // Treat missing tile as mismatch so template doesn't finish prematurely
+          count++;
+          continue;
+        }
         const tileColor = tile.data[localPx][localPy];
         if (templateColor !== tileColor) count++;
       }
@@ -1289,12 +1397,14 @@ class WPlacer {
         const localPx = globalPx % 1000;
         const localPy = globalPy % 1000;
         const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-        if (!tile || !tile.data[localPx]) continue;
-        const tileColor = tile.data[localPx][localPy];
-
-        const shouldPaint = this.skipPaintedPixels
-          ? tileColor === 0
-          : templateColor !== tileColor;
+        let shouldPaint = false;
+        if (!tile || !tile.data[localPx]) {
+          // Missing tile -> treat as mismatch
+          shouldPaint = true;
+        } else {
+          const tileColor = tile.data[localPx][localPy];
+          shouldPaint = this.skipPaintedPixels ? (tileColor === 0) : (templateColor !== tileColor);
+        }
 
         if (shouldPaint) {
           total++;
@@ -1402,6 +1512,17 @@ let purchaseColorJob = {
 
 // Buy Max Upgrades job progress state
 let buyMaxJob = {
+  active: false,
+  total: 0,
+  completed: 0,
+  startedAt: 0,
+  finishedAt: 0,
+  lastUserId: null,
+  lastUserName: null
+};
+
+// Buy Charges job progress state
+let buyChargesJob = {
   active: false,
   total: 0,
   completed: 0,
@@ -1712,23 +1833,42 @@ class TemplateManager {
   }
 
   async handleUpgrades(wplacer) {
-    if (!this.canBuyMaxCharges) return;
     await wplacer.loadUserInfo();
 
-    // Sei - Only buy Max Charges when we're at full charges so we can immediately use the +5
-    //const charges = wplacer.userInfo.charges;
-    //if (Math.floor(charges.count) < charges.max) return;
+    // 1) Buy Max Charge Upgrades if enabled
+    if (this.canBuyMaxCharges) {
+      const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
+      const amountToBuy = Math.floor(affordableDroplets / 500);
+      if (amountToBuy > 0) {
+        log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
+        try {
+          await wplacer.buyProduct(70, amountToBuy);
+          await sleep(currentSettings.purchaseCooldown);
+          await wplacer.loadUserInfo();
+        } catch (error) {
+          logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades");
+        }
+      }
+    }
 
-    const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
-    const amountToBuy = Math.floor(affordableDroplets / 500);
-    if (amountToBuy > 0) {
-      log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
+    // 2) Buy Pixel Charges (500) if enabled and affordable
+    if (this.canBuyCharges) {
       try {
-        await wplacer.buyProduct(70, amountToBuy);
-        await sleep(currentSettings.purchaseCooldown);
-        await wplacer.loadUserInfo();
+        const reserve = Number(currentSettings.dropletReserve || 0);
+        const droplets = Math.max(0, Number(wplacer?.userInfo?.droplets || 0));
+        const affordableDroplets = Math.max(0, droplets - reserve);
+        if (affordableDroplets >= 500) {
+          const packs = Math.floor(affordableDroplets / 500);
+          const target = Math.min(Math.ceil(Math.max(0, this.pixelsRemaining | 0) / 30), packs);
+          if (target > 0) {
+            log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy pixel charges (${target}×500) before painting...`);
+            await wplacer.buyProduct(80, target);
+            await sleep(currentSettings.purchaseCooldown || 0);
+            try { await wplacer.loadUserInfo(); } catch (_) { }
+          }
+        }
       } catch (error) {
-        logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades");
+        logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase pixel charges");
       }
     }
   }
@@ -2052,8 +2192,6 @@ class TemplateManager {
             const { id, name } = await wplacer.login(users[foundUserForTurn].cookies);
             this.status = `Running user ${name}#${id}`;
 
-
-            // Better to buy upgrades BEFORE painting.
             await this.handleUpgrades(wplacer);
 
             const pred = ChargeCache.predict(foundUserForTurn, Date.now());
@@ -2066,32 +2204,10 @@ class TemplateManager {
                 this._lastSummary.total = Math.max(0, (this._lastSummary.total | 0) - paintedNow);
               }
             }
-
-            // Sei - but what if we didn't paint anything because some how we failed to check if this account physically can?
             else {
               try {
-                // Enhanced diagnostics to avoid misleading message
-                const rawMismatches = await wplacer.pixelsLeftRawMismatch().catch(() => -1);
-                const canPaintNow = Math.max(0, Math.floor(wplacer?.userInfo?.charges?.count || 0));
-                const { total: ownableMismatches } = await wplacer.mismatchesSummary().catch(() => ({ total: -1 }));
-                const skip = !!wplacer.skipPaintedPixels;
-
-                if (rawMismatches === 0) {
-                  log(id, name, `[${this.name}] ✅ Nothing to paint: template already matches the board.`);
-                } else if (canPaintNow <= 0) {
-                  log(id, name, `[${this.name}] ⏳ Nothing painted: no charges available right now.`);
-                } else if (ownableMismatches === 0 && rawMismatches > 0) {
-                  if (skip) {
-                    log(id, name, `[${this.name}] ⚠️ Nothing painted: 'Skip painted pixels' is enabled and target spots are not empty.`);
-                  } else {
-                    log(id, name, `[${this.name}] ❌ Nothing painted: required colors not owned for current mismatches.`);
-                  }
-                } else {
-                  log(id, name, `[${this.name}] ❌ Nothing painted: unknown constraint (raw=${rawMismatches}, ownable=${ownableMismatches}, charges=${canPaintNow}).`);
-                }
-              } catch (_) {
-                log(id, name, `[${this.name}] ❌ Nothing painted (diagnostics failed).`);
-              }
+                log(id, name, `[${this.name}] ℹ️ Nothing painted. Skipping this turn and retrying soon.`);
+              } catch (_) { }
               await this._sleepInterruptible(5000);
             }
             // cache any new seeds
@@ -2172,6 +2288,29 @@ app.use(express.static("public"));
 app.use('/data', express.static('data'));
 app.use(express.json({ limit: Infinity }));
 
+// SSE endpoint for live logs of current session
+app.get("/logs/stream", (req, res) => {
+  try {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+    res.write(':ok\n\n');
+    try {
+      // send backlog first
+      const snapshot = recentLogs.slice(-1000);
+      for (const item of snapshot) {
+        res.write(`data: ${JSON.stringify(item)}\n\n`);
+      }
+    } catch (_) { }
+    sseClients.push(res);
+    req.on('close', () => {
+      const idx = sseClients.indexOf(res);
+      if (idx !== -1) sseClients.splice(idx, 1);
+    });
+  } catch (_) { try { res.end(); } catch { } }
+});
+
 // Global express error handler (keeps server alive and logs)
 app.use((err, req, res, next) => {
   try {
@@ -2238,7 +2377,7 @@ app.post("/user", async (req, res) => {
     const userInfo = await wplacer.login(req.body.cookies);
     const exp = getJwtExp(req.body.cookies.j);
     const profileNameRaw = typeof req.body?.profileName === "string" ? String(req.body.profileName) : "";
-    const shortLabelFromProfile = profileNameRaw.trim().slice(0, 20);
+    const shortLabelFromProfile = profileNameRaw.trim().slice(0, 40);
     const prev = users[userInfo.id] || {};
     users[userInfo.id] = {
       ...prev,
@@ -2372,7 +2511,7 @@ app.put("/user/:id/update-profile", async (req, res) => {
   const discord = typeof req.body?.discord === "string" ? String(req.body.discord).trim() : "";
   const showLastPixel = typeof req.body?.showLastPixel === "boolean" ? !!req.body.showLastPixel : !!users[id]?.showLastPixel;
   const shortLabelRaw = typeof req.body?.shortLabel === "string" ? String(req.body.shortLabel) : "";
-  const shortLabel = shortLabelRaw.trim().slice(0, 20);
+  const shortLabel = shortLabelRaw.trim().slice(0, 40);
 
   if (name && name.length > 15) return res.status(400).json({ error: "Name must be at most 15 characters" });
   if (discord && discord.length > 15) return res.status(400).json({ error: "Discord must be at most 15 characters" });
@@ -2412,6 +2551,61 @@ app.put("/user/:id/update-profile", async (req, res) => {
     res.status(500).json({ error: error.message });
   } finally {
     activeBrowserUsers.delete(id);
+  }
+});
+
+// Open local Brave profile launcher (.bat) by user's shortLabel
+app.post("/user/:id/open-profile", (req, res) => {
+  try {
+    const { id } = req.params;
+    const u = users[id];
+    if (!u) return res.status(404).json({ error: "user_not_found" });
+    const short = String(u.shortLabel || "").trim();
+    if (!short) return res.status(400).json({ error: "no_profile_label" });
+
+    // D:\Projects\pixels\wplacer-main\v4\brave\data\launch-{PROFILE}.bat
+    const fileName = `launch-${short}.bat`;
+    const profilePath = path.resolve(process.cwd(), "..", "brave", "data", fileName);
+    if (!existsSync(profilePath)) {
+      return res.status(404).json({ error: "bat_not_found", path: profilePath });
+    }
+
+    // Robust Windows CMD invocation: call "fullpath.bat" [brave.exe]
+    try {
+      try { log("SYSTEM", "Profiles", `Launching: ${profilePath}`); } catch(_) {}
+      const batDir = path.dirname(profilePath);
+      const debug = String(req.query?.debug || "").trim() === "1";
+
+      // Try to detect Brave path and pass as first argument to .bat (so it doesn't rely on default)
+      const envPf = process.env["ProgramFiles"] || "C:\\Program Files";
+      const envPf86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+      const envLocal = process.env["LocalAppData"] || "C:\\Users\\%USERNAME%\\AppData\\Local";
+      const candidates = [
+        path.join(envPf, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+        path.join(envPf86, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+        path.join(envLocal, "BraveSoftware", "Brave-Browser", "Application", "brave.exe")
+      ];
+      let braveExe = candidates.find(p => {
+        try { return existsSync(p); } catch { return false; }
+      }) || "";
+      if (braveExe) { try { log("SYSTEM", "Profiles", `Detected Brave: ${braveExe}`); } catch(_) {} }
+
+      const args = [debug ? "/k" : "/c", "call", profilePath];
+      if (braveExe) args.push(braveExe);
+      const child = spawn(process.env.COMSPEC || "cmd.exe", args, {
+        windowsHide: !debug,
+        detached: !debug,
+        stdio: debug ? "inherit" : "ignore",
+        cwd: batDir
+      });
+      if (!debug) child.unref();
+    } catch (e) {
+      return res.status(500).json({ error: String(e && e.message || e) });
+    }
+
+    return res.status(200).json({ success: true, path: profilePath });
+  } catch (e) {
+    return res.status(500).json({ error: String(e && e.message || e) });
   }
 });
 
@@ -2584,6 +2778,80 @@ app.post("/users/buy-max-upgrades", async (req, res) => {
 
   buyMaxJob.active = false; buyMaxJob.finishedAt = Date.now();
   res.json({ ok: true, cooldownMs: cooldown, reserve: currentSettings.dropletReserve || 0, report });
+});
+
+// Bulk buy paint charges for all users (uses dropletReserve and purchaseCooldown)
+app.post("/users/buy-charges", async (req, res) => {
+  if (buyChargesJob.active) return res.status(409).json({ error: "buy_charges_in_progress" });
+  const report = [];
+  const cooldown = currentSettings.purchaseCooldown || 5000;
+  const dummyTemplate = { width: 0, height: 0, data: [] };
+  const dummyCoords = [0, 0, 0, 0];
+  const userIds = Object.keys(users);
+
+  buyChargesJob = { active: true, total: userIds.length, completed: 0, startedAt: Date.now(), finishedAt: 0, lastUserId: null, lastUserName: null };
+
+  const doOne = async (userId) => {
+    const urec = users[userId];
+    if (!urec) { report.push({ userId, name: `#${userId}`, skipped: true, reason: "unknown_user" }); buyChargesJob.completed++; return; }
+    if (activeBrowserUsers.has(userId)) { report.push({ userId, name: urec.name, skipped: true, reason: "busy" }); buyChargesJob.completed++; return; }
+
+    activeBrowserUsers.add(userId);
+    const wplacer = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "AdminPurchaseCharges");
+    try {
+      await wplacer.login(urec.cookies);
+      await wplacer.loadUserInfo();
+      buyChargesJob.lastUserId = userId; buyChargesJob.lastUserName = wplacer.userInfo.name;
+      const beforeDroplets = Number(wplacer.userInfo.droplets || 0);
+      const reserve = Number(currentSettings.dropletReserve || 0);
+      const affordable = Math.max(0, beforeDroplets - reserve);
+      const amountToBuy = Math.floor(affordable / 500);
+      if (amountToBuy > 0) {
+        await wplacer.buyProduct(80, amountToBuy);
+        report.push({ userId, name: wplacer.userInfo.name, amount: amountToBuy, beforeDroplets, afterDroplets: beforeDroplets - amountToBuy * 500 });
+      } else {
+        report.push({ userId, name: wplacer.userInfo.name, amount: 0, skipped: true, reason: "insufficient_droplets_or_reserve" });
+      }
+    } catch (error) {
+      logUserError(error, userId, urec.name, "bulk buy paint charges");
+      report.push({ userId, name: urec.name, error: error?.message || String(error) });
+    } finally {
+      activeBrowserUsers.delete(userId);
+      buyChargesJob.completed++;
+    }
+  };
+
+  try {
+    const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+    if (useParallel) {
+      const ids = userIds.map(String);
+      const desired = Math.max(1, Math.floor(Number(currentSettings.parallelWorkers || 0)) || 1);
+      const concurrency = Math.max(1, Math.min(desired, loadedProxies.length || desired, 32));
+      console.log(`[BuyCharges] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
+      let index = 0;
+      const worker = async () => {
+        for (;;) {
+          const i = index++;
+          if (i >= ids.length) break;
+          await doOne(ids[i]);
+          const cd = Math.max(0, Number(currentSettings.purchaseCooldown || 0));
+          if (cd > 0) await sleep(cd);
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    } else {
+      for (let i = 0; i < userIds.length; i++) {
+        await doOne(userIds[i]);
+        if (i < userIds.length - 1 && cooldown > 0) { await sleep(cooldown); }
+      }
+    }
+    buyChargesJob.active = false; buyChargesJob.finishedAt = Date.now();
+    res.json({ ok: true, cooldownMs: cooldown, reserve: currentSettings.dropletReserve || 0, report });
+  } catch (e) {
+    buyChargesJob.active = false; buyChargesJob.finishedAt = Date.now();
+    console.error("buy-charges failed:", e);
+    res.status(500).json({ error: "Internal error" });
+  }
 });
 
 app.post("/users/purchase-color", async (req, res) => {
@@ -2860,6 +3128,12 @@ app.get("/users/purchase-color/progress", (req, res) => {
 // progress endpoint for buy-max-upgrades
 app.get("/users/buy-max-upgrades/progress", (req, res) => {
   const { active, total, completed, startedAt, finishedAt, lastUserId, lastUserName } = buyMaxJob;
+  res.json({ active, total, completed, startedAt, finishedAt, lastUserId, lastUserName });
+});
+
+// progress endpoint for buy-charges
+app.get("/users/buy-charges/progress", (req, res) => {
+  const { active, total, completed, startedAt, finishedAt, lastUserId, lastUserName } = buyChargesJob;
   res.json({ active, total, completed, startedAt, finishedAt, lastUserId, lastUserName });
 });
 
@@ -3609,6 +3883,12 @@ const keepAlive = async () => {
     console.log(`   Open the web UI in your browser to start!`);
     setInterval(keepAlive, 20 * 60 * 1000);
   });
+  try {
+    server.on('connection', (socket) => {
+      sockets.add(socket);
+      socket.on('close', () => sockets.delete(socket));
+    });
+  } catch (_) { }
   // Process-level safety nets and graceful shutdown
   try {
     process.on('uncaughtException', (err) => {
@@ -3621,7 +3901,13 @@ const keepAlive = async () => {
     });
     const shutdown = () => {
       console.log('Shutting down server...');
-      try { server.close(() => process.exit(0)); } catch (_) { process.exit(0); }
+      try { server.close(() => {
+          try { for (const s of Array.from(sockets)) { try { s.destroy(); } catch {} } } catch {}
+          process.exit(0);
+        });
+        // Fallback: hard exit after 2s
+        setTimeout(() => { try { for (const s of Array.from(sockets)) { try { s.destroy(); } catch {} } } catch {}; process.exit(0); }, 2000);
+      } catch (_) { process.exit(0); }
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
