@@ -84,6 +84,7 @@ const log = async (id, name, data, error) => {
         if (s.includes('🧱 painting') || s.includes(' painting (')) return 'painting';
         if (s.includes('start turn')) return 'startTurn';
         if (s.includes('mismatched')) return 'mismatches';
+        if (s.includes('estimated time')) return 'estimatedTime';
         return null;
       })();
       const cfg = (currentSettings && currentSettings.logCategories) || {};
@@ -1475,7 +1476,8 @@ let currentSettings = {
     queuePreview: false,
     painting: false,
     startTurn: false,
-    mismatches: false
+    mismatches: false,
+    estimatedTime: false,
   },
   logMaskPii: false
 };
@@ -1880,6 +1882,10 @@ class TemplateManager {
         // Pull latest pawtect token, if any
         try { wplacer.pawtect = globalThis.__wplacer_last_pawtect || null; } catch { }
         const painted = await wplacer.paint(currentSettings.drawingMethod);
+        if(typeof painted === 'number' && painted > 0)
+        {
+          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] ⏰ Estimated time left: ~${this.formatTime((this.pixelsRemaining - painted) / 10 * 30)}`); //30 seconds for 1 pixel
+        }
         // save back burst seeds if used
         this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : null;
         saveTemplates();
@@ -1905,6 +1911,22 @@ class TemplateManager {
         throw error;
       }
     }
+  }
+
+  //Used for time estimation, converting seconds value to more readable format
+  formatTime(seconds) {
+    const d = Math.floor(seconds / (3600 * 24));
+    const h = Math.floor((seconds % (3600 * 24)) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+
+    let parts = [];
+    if (d > 0) parts.push(d + "d");
+    if (h > 0) parts.push(h + "h");
+    if (m > 0) parts.push(m + "m");
+    if (s > 0 || parts.length === 0) parts.push(s + "s");
+
+    return parts.join(" ");
   }
 
   async start() {
