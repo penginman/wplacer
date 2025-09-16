@@ -2903,10 +2903,14 @@ const updateTemplateStatus = async () => {
             const progressBar = templateElement.querySelector('.progress-bar');
             const progressBarText = templateElement.querySelector('.progress-bar-text');
             const pixelCount = templateElement.querySelector('.pixel-count');
+            const estimatedTimeLeft = templateElement.querySelector('.estimated-time');
 
             if (progressBar) progressBar.style.width = `${percent}%`;
             if (progressBarText) progressBarText.textContent = `${percent}% | ${t.status}`;
             if (pixelCount) pixelCount.textContent = `${completed} / ${total}`;
+
+            //30 means 30 seconds (for 1 pixel)
+            if (estimatedTimeLeft) estimatedTimeLeft.textContent = `~${formatTime((total - completed) / t.userIds.length * 30)}`;
 
             if (t.status === "Finished." || t.status === "Finished") {
                 progressBar.classList.add('finished');
@@ -3018,6 +3022,7 @@ openManageTemplates.addEventListener("click", () => {
                     ${paletteLine}
                     <div><span class="t-templates-enabled">Coords:</span> ${t.coords.join(", ")}</div>
                     <div><span class="t-templates-enabled">Pixels:</span> <span class="pixel-count">${completed} / ${total}</span></div>
+                    <div><span class="t-templates-enabled">Estimated time left:</span> <span class="estimated-time">~${formatTime((total - completed) / t.userIds.length * 30)}</span></div>
                     ${enabledLine}
                 `;
 
@@ -3220,6 +3225,7 @@ openSettings.addEventListener("click", async () => {
             bind('log_painting', true);
             bind('log_startTurn', true);
             bind('log_mismatches', true);
+            bind('log_estimatedTime', true);
         } catch (_) {}
 
 
@@ -4552,7 +4558,7 @@ testProxiesBtn?.addEventListener('click', async () => {
 });
 
 // --- Logs toggles ---
-['tokenManager','cache','queuePreview','painting','startTurn','mismatches'].forEach(key => {
+['tokenManager','cache','queuePreview','painting','startTurn','mismatches','estimatedTime'].forEach(key => {
     const el = document.getElementById('log_' + key);
     el?.addEventListener('change', async () => {
         try {
@@ -5410,4 +5416,20 @@ if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile 
             handleError(readErr);
         }
     });
+}
+
+//Used for time estimation, converting seconds value to more readable format
+function formatTime(seconds) {
+  const d = Math.floor(seconds / (3600 * 24));
+  const h = Math.floor((seconds % (3600 * 24)) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+
+  let parts = [];
+  if (d > 0) parts.push(d + "d");
+  if (h > 0) parts.push(h + "h");
+  if (m > 0) parts.push(m + "m");
+  if (s > 0 || parts.length === 0) parts.push(s + "s");
+
+  return parts.join(" ");
 }
