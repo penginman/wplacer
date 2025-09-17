@@ -2379,6 +2379,118 @@ const getJwtExp = (j) => {
   }
 };
 
+// --- API: queue ---
+app.get("/queue", async (req, res) => {
+  try {
+    const now = Date.now();
+    const queueData = [];
+    let readyCount = 0;
+    let totalCount = 0;
+
+    for (const [id, user] of Object.entries(users)) {
+      // if (user.disabled) continue;
+      
+      totalCount++;
+      
+      const prediction = ChargeCache.predict(id, now);
+      const isSuspended = user.suspendedUntil && now < user.suspendedUntil;
+      const isActive = activeBrowserUsers.has(id);
+      
+      let status = 'waiting';
+      let cooldownTime = null;
+      
+      if (isSuspended) {
+        status = 'suspended';
+        cooldownTime = Math.ceil((user.suspendedUntil - now) / 1000);
+      } else if (isActive) {
+        status = 'active';
+      } else if (prediction) {
+        const threshold = currentSettings.alwaysDrawOnCharge ? 1 : Math.max(1, Math.floor(prediction.max * currentSettings.chargeThreshold));
+        if (Math.floor(prediction.count) >= threshold) {
+          status = 'ready';
+          readyCount++;
+        } else {
+          status = 'cooldown';
+          const deficit = Math.max(0, threshold - Math.floor(prediction.count));
+          cooldownTime = deficit * (prediction.cooldownMs || 30000) / 1000;
+        }
+      } else {
+        status = 'no-data';
+      }
+
+      queueData.push({
+        id: id,
+        name: user.name || `User #${id}`,
+        charges: prediction ? {
+          current: Math.floor(prediction.count),
+          max: prediction.max,
+          percentage: Math.round((prediction.count / prediction.max) * 100)
+        } : null,
+        status: status,
+        cooldownTime: cooldownTime,
+        retryCount: user.retryCount || 0,
+        maxRetryCount: currentSettings.maxRetryCount,
+        lastErrorTime: user.lastErrorTime || null
+      });
+    }
+
+    queueData.sort((a, b) => {
+      // Define priority order: active > ready > cooldown > waiting > suspended > no-data
+      const statusPriority = {
+        'active': 1,
+        'ready': 2,
+        'cooldown': 3,
+        'waiting': 4,
+        'suspended': 5,
+        'no-data': 6
+      };
+      
+      const aPriority = statusPriority[a.status] || 7;
+      const bPriority = statusPriority[b.status] || 7;
+      
+      // First sort by status priority
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // Within same status, sort by charges (higher first)
+      if (a.charges && b.charges) {
+        return b.charges.current - a.charges.current;
+      }
+      
+      // If one has charges and other doesn't, prioritize the one with charges
+      if (a.charges && !b.charges) return -1;
+      if (!a.charges && b.charges) return 1;
+      
+      // Finally sort by ID for consistency
+      return a.id.localeCompare(b.id);
+    });
+
+    res.json({
+      success: true,
+      data: {
+        users: queueData,
+        summary: {
+          total: totalCount,
+          ready: readyCount,
+          waiting: queueData.filter(u => u.status === 'waiting').length,
+          cooldown: queueData.filter(u => u.status === 'cooldown').length,
+          suspended: queueData.filter(u => u.status === 'suspended').length,
+          active: queueData.filter(u => u.status === 'active').length,
+          noData: queueData.filter(u => u.status === 'no-data').length
+        },
+        lastUpdate: now,
+        settings: {
+          chargeThreshold: currentSettings.chargeThreshold,
+          alwaysDrawOnCharge: currentSettings.alwaysDrawOnCharge
+        }
+      }
+    });
+  } catch (error) {
+    logUserError(error, "SYSTEM", "queue-preview", "get queue preview");
+    res.status(500).json({ error: "Failed to get queue preview" });
+  }
+});
 
 app.get("/users", (_, res) => {
   const out = JSON.parse(JSON.stringify(users));
