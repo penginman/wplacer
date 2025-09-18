@@ -80,6 +80,10 @@
                 <img src="icons/code.svg" alt="" />
                 <span>Live Logs</span>
             </button>
+            <button class="nav-btn" onclick="changeTab(queuePreview)">
+                <img src="icons/heat-map.svg" alt="" />
+                <span>Queue</span>
+            </button>
             <button class="nav-btn" onclick="document.getElementById('openSettings').click()">
                 <img src="icons/settings.svg" alt="" />
                 <span>Settings</span>
@@ -561,6 +565,70 @@
                     <div class="settings-card" style="max-height:360px; overflow:auto; background-color: #15161a;">
                         <pre id="logsOutput" class="logs-output"
                             style="white-space:pre-wrap; word-break:break-word; margin:0;"></pre>
+                    </div>
+                </section>
+
+                <!-- ====== QUEUE PREVIEW ====== -->
+                <section id="queuePreview" style="display:none;">
+                    <header class="section-head">
+                        <h2>Queue Preview</h2>
+                        <div class="section-actions">
+                            <button id="refreshQueuePreview" class="secondary-button">
+                                <img src="icons/refresh.svg" alt="" />
+                                Refresh Queue
+                            </button>
+                            <button onclick="changeTab(main);" class="ghost-btn">
+                                <img src="icons/return.svg" alt="" />
+                                Return
+                            </button>
+                        </div>
+                    </header>
+
+                    <div class="settings-card">
+                        <div class="settings-card-head">
+                            <h3 class="settings-card-title">Queue Status</h3>
+                            <p class="settings-card-sub">Predicted charges of users in queue</p>
+                        </div>
+                        
+                        <div class="summary" style="margin-bottom:8px">
+                            <div class="summary-line">
+                                <span><b>Last Update:</b> <span id="queueLastUpdate">–</span></span>
+                                <span><b>Total Users:</b> <span id="queueTotalUsers">0</span></span>
+                                <span><b>Ready to Paint:</b> <span id="queueReadyUsers">0</span></span>
+                            </div>
+                        </div>
+
+                        <div class="queue-controls">
+                            <div class="setting-toggle">
+                                <div class="auto-refresh-group" id="autoRefreshGroup">
+                                    <label for="autoRefreshQueue" class="label-margin0">Auto refresh</label>
+                                    <input id="queueRefreshInterval" type="number" min="1" max="300" value="5" class="interval-input" style="display: none;" />
+                                    <span class="interval-label" id="intervalLabel" style="display: none;">(seconds)</span>
+                                </div>
+                                <label class="switch">
+                                    <input id="autoRefreshQueue" name="autoRefreshQueue" type="checkbox" checked />
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-toggle">
+                                <label for="hideSensitiveInfoQueue" class="label-margin0">Hide sensitive info</label>
+                                <label class="switch">
+                                    <input id="hideSensitiveInfoQueue" name="hideSensitiveInfoQueue" type="checkbox" />
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-head">
+                            <h3 class="settings-card-title">User Queue</h3>
+                            <p class="settings-card-sub">List of users and predicted charges</p>
+                        </div>
+                        
+                        <div id="queueUserList" class="queue-user-list">
+                            <div class="queue-loading">Loading queue data...</div>
+                        </div>
                     </div>
                 </section>
 

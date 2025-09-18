@@ -88,6 +88,22 @@ const liveLogs = $("liveLogs");
 const logsOutput = $("logsOutput");
 const toggleMaskLogs = $("toggleMaskLogs");
 const clearLogs = $("clearLogs");
+
+const queuePreview = $("queuePreview");
+const refreshQueuePreview = $("refreshQueuePreview");
+const autoRefreshQueue = $("autoRefreshQueue");
+const autoRefreshGroup = $("autoRefreshGroup");
+const queueRefreshIntervalInput = $("queueRefreshInterval");
+const intervalLabel = $("intervalLabel");
+const hideSensitiveInfoQueue = $("hideSensitiveInfoQueue");
+const queueLastUpdate = $("queueLastUpdate");
+const queueTotalUsers = $("queueTotalUsers");
+const queueReadyUsers = $("queueReadyUsers");
+const queueUserList = $("queueUserList");
+
+let queueRefreshInterval = null;
+let currentQueueData = null;
+let isFirstLoad = true;
 let __logMaskEnabled = false;
 let __sse; // EventSource
 
@@ -1793,6 +1809,9 @@ const changeTab = (el) => {
     if (currentTab === settings && typeof MODE_PREVIEW !== 'undefined' && MODE_PREVIEW.stopAll) {
         MODE_PREVIEW.stopAll();
     }
+    if (currentTab === queuePreview) {
+        try { stopQueueAutoRefresh(); } catch (_) {}
+    }
     if (currentTab === manageTemplates && templateUpdateInterval) {
         clearInterval(templateUpdateInterval);
         templateUpdateInterval = null;
@@ -1819,6 +1838,13 @@ const changeTab = (el) => {
         startLogsStream();
     } else {
         try { if (__sse) { __sse.close(); __sse = null; } } catch (_) {}
+    }
+
+    if (currentTab === queuePreview) {
+        try { loadQueueSettings(); } catch (_) {}
+        try { loadQueuePreview(); } catch (_) {}
+        try { if (autoRefreshQueue && autoRefreshQueue.checked) startQueueAutoRefresh(); } catch (_) {}
+        try { toggleRefreshIntervalInput(); } catch (_) {}
     }
 };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -5433,3 +5459,221 @@ function formatTime(seconds) {
 
   return parts.join(" ");
 }
+
+// ====== QUEUE PREVIEW LOGIC ======
+function startQueueAutoRefresh() {
+    if (queueRefreshInterval) {
+        clearInterval(queueRefreshInterval);
+    }
+    
+    if (autoRefreshQueue.checked) {
+        const interval = Math.max(1000, (queueRefreshIntervalInput.value || 5) * 1000);
+        queueRefreshInterval = setInterval(() => {
+            loadQueuePreview();
+        }, interval);
+    }
+    toggleRefreshIntervalInput();
+}
+
+function toggleRefreshIntervalInput() {
+    if (autoRefreshQueue.checked) {
+        queueRefreshIntervalInput.style.display = 'inline-block';
+        intervalLabel.style.display = 'inline';
+    } else {
+        queueRefreshIntervalInput.style.display = 'none';
+        intervalLabel.style.display = 'none';
+    }
+}
+
+function stopQueueAutoRefresh() {
+    if (queueRefreshInterval) {
+        clearInterval(queueRefreshInterval);
+        queueRefreshInterval = null;
+    }
+}
+
+async function loadQueuePreview() {
+    try {
+        const response = await axios.get('/queue');
+        const data = response.data;
+        
+        if (data.success) {
+            currentQueueData = data.data;
+            updateQueueSummary(data.data.summary);
+            updateQueueUserList(data.data.users);
+            updateQueueLastUpdate(data.data.lastUpdate);
+            isFirstLoad = false;
+        } else {
+            console.error('Failed to load queue preview:', data.error);
+            showQueueError('Failed to load queue data');
+        }
+    } catch (error) {
+        console.error('Error loading queue preview:', error);
+        showQueueError('Error loading queue data');
+    }
+}
+
+function updateQueueSummary(summary) {
+    queueTotalUsers.textContent = summary.total;
+    queueReadyUsers.textContent = summary.ready;
+}
+
+function updateQueueUserList(users) {
+    if (users.length === 0) {
+        queueUserList.innerHTML = `
+            <div class="queue-empty">
+                <img src="icons/manageUsers.svg" alt="" />
+                <p>No users in queue</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const hideSensitive = hideSensitiveInfoQueue.checked;
+    
+    const html = users.map(user => {
+        const statusClass = getStatusClass(user.status);
+        const statusText = getStatusText(user.status);
+        const cooldownText = user.cooldownTime ? formatCooldownTime(user.cooldownTime) : '';
+        
+        let chargesHtml = '';
+        if (user.charges) {
+            chargesHtml = `
+                <div class="queue-charges-current">${user.charges.current}</div>
+                <div class="queue-charges-max">/ ${user.charges.max}</div>
+            `;
+        } else {
+            chargesHtml = `
+                <div class="queue-charges-current">–</div>
+                <div class="queue-charges-max">/ –</div>
+            `;
+        }
+        
+        const displayName = hideSensitive ? `User #${user.id.slice(-4)}` : user.name;
+        const displayId = hideSensitive ? `#${user.id.slice(-4)}` : `#${user.id}`;
+        
+        const animateClass = isFirstLoad ? 'animate-in' : '';
+        // let barWidth = 0;
+        // if (user.charges) {
+        //     const settings = currentQueueData?.settings || {};
+        //     const always = !!settings.alwaysDrawOnCharge;
+        //     const rawThresh = Number(settings.chargeThreshold);
+        //     const threshRatio = isFinite(rawThresh) ? (rawThresh > 1 ? rawThresh / 100 : rawThresh) : 0.5;
+        //     const thresholdCount = always ? 1 : Math.max(1, Math.floor(user.charges.max * (threshRatio || 0)));
+        //     barWidth = Math.min(100, Math.round((user.charges.current / thresholdCount) * 100));
+        // }
+        const barWidth = user.charges ? user.charges.percentage : 0;
+        return `
+            <div class="queue-user-item ${animateClass}">
+                <div class="queue-user-name">${displayName} <span class="queue-user-id">${displayId}</span> <span class="queue-charges-current">${user.charges ? user.charges.current : '--'}</span>/${user.charges ? user.charges.max : '--'}</div>
+                <div class="queue-progress-bar">
+                    <div class="queue-progress-fill" style="width: ${barWidth}%"></div>
+                </div>
+                <div class="queue-charges-percentage">${barWidth + '%'}</div>
+                <div class="queue-status-badge ${statusClass}">${statusText}${cooldownText ? ' - ' + cooldownText : ''}</div>
+            </div>
+        `;
+    }).join('');
+    
+    queueUserList.innerHTML = html;
+}
+
+function getStatusClass(status) {
+    switch (status) {
+        case 'ready': return 'queue-status-ready';
+        case 'waiting': return 'queue-status-waiting';
+        case 'cooldown': return 'queue-status-cooldown';
+        case 'suspended': return 'queue-status-suspended';
+        case 'active': return 'queue-status-ready';
+        case 'no-data': return 'queue-status-cooldown';
+        default: return 'queue-status-waiting';
+    }
+}
+
+function getStatusText(status) {
+    switch (status) {
+        case 'ready': return 'Ready';
+        case 'waiting': return 'Waiting';
+        case 'cooldown': return 'Cooldown';
+        case 'suspended': return 'Suspended';
+        case 'active': return 'Active';
+        case 'no-data': return 'No Data';
+        default: return 'Unknown';
+    }
+}
+
+function formatCooldownTime(seconds) {
+    if (seconds < 60) {
+        return `${Math.ceil(seconds)}s`;
+    } else if (seconds < 3600) {
+        return `${Math.ceil(seconds / 60)}m`;
+    } else {
+        return `${Math.ceil(seconds / 3600)}h`;
+    }
+}
+
+function updateQueueLastUpdate(timestamp) {
+    const date = new Date(timestamp);
+    queueLastUpdate.textContent = date.toLocaleTimeString();
+}
+
+function showQueueError(message) {
+    queueUserList.innerHTML = `
+        <div class="queue-empty">
+            <img src="icons/error.svg" alt="" />
+            <p>${message}</p>
+        </div>
+    `;
+}
+
+function saveQueueSettings() {
+    const settings = {
+        autoRefresh: autoRefreshQueue.checked,
+        hideSensitive: hideSensitiveInfoQueue.checked,
+        refreshInterval: queueRefreshIntervalInput.value || 5
+    };
+    localStorage.setItem('queuePreviewSettings', JSON.stringify(settings));
+}
+
+function loadQueueSettings() {
+    try {
+        const saved = localStorage.getItem('queuePreviewSettings');
+        if (saved) {
+            const settings = JSON.parse(saved);
+            autoRefreshQueue.checked = settings.autoRefresh !== false;
+            hideSensitiveInfoQueue.checked = settings.hideSensitive === true;
+            queueRefreshIntervalInput.value = settings.refreshInterval || 5;
+        }
+    } catch (error) {
+        console.error('Error loading queue settings:', error);
+    }
+}
+
+// Event listeners for queue preview
+refreshQueuePreview.addEventListener('click', () => {
+    loadQueuePreview();
+});
+
+autoRefreshQueue.addEventListener('change', () => {
+    saveQueueSettings();
+    toggleRefreshIntervalInput();
+    if (autoRefreshQueue.checked) {
+        startQueueAutoRefresh();
+    } else {
+        stopQueueAutoRefresh();
+    }
+});
+
+queueRefreshIntervalInput.addEventListener('change', () => {
+    saveQueueSettings();
+    if (autoRefreshQueue.checked) {
+        startQueueAutoRefresh();
+    }
+});
+
+hideSensitiveInfoQueue.addEventListener('change', () => {
+    saveQueueSettings();
+    if (currentQueueData && currentQueueData.users) {
+        updateQueueUserList(currentQueueData.users);
+    }
+});
