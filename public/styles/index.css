@@ -2060,10 +2060,11 @@ p.credits a img {
 
 .queue-user-item {
     display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 12px 14px;
-    margin-bottom: 8px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin-bottom: 4px;
     background: var(--bg-2);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -2071,6 +2072,8 @@ p.credits a img {
     opacity: 1;
     transform: translateY(0);
     will-change: auto;
+    display: flex;
+    align-items: center;
 }
 
 .queue-user-item:first-child {
@@ -2147,24 +2150,27 @@ p.credits a img {
 .queue-user-name {
     font-weight: 500;
     color: var(--text-0);
-    font-size: 14px;
+    font-size: 12px;
+    white-space: nowrap;
+    min-width: 150px;
+    flex-shrink: 0;
 }
 
 .queue-user-id {
     font-size: 12px;
     color: var(--muted);
+    font-weight: 400;
 }
 
 .queue-progress-section { display: flex; align-items: center; gap: 8px; }
 
 .queue-bottom-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .queue-charges-info { display: flex; align-items: baseline; gap: 6px; }
-.queue-charges-current { font-size: 18px; }
-.queue-charges-max { font-size: 12px; color: var(--text-2); }
+.queue-charges-max { font-size: 10px; color: var(--text-2); }
 .queue-status { flex-direction: row; align-items: center; gap: 8px; min-width: auto; }
 
 .queue-charges-current {
-    font-size: 16px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--accent);
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -2179,15 +2185,13 @@ p.credits a img {
 }
 
 .queue-charges-percentage {
-    font-size: 12px;
+    font-size: 10px;
     color: var(--text-2);
     font-weight: 500;
     white-space: nowrap;
-    min-width: 40px;
-    text-align: right;
-    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    will-change: auto;
     flex-shrink: 0;
+    min-width: 35px;
+    text-align: right;
 }
 
 .queue-status {
@@ -2199,14 +2203,18 @@ p.credits a img {
 }
 
 .queue-status-badge {
-    padding: 4px 8px;
+    padding: 2px 6px;
     border-radius: 6px;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     animation: pulse 2s infinite;
     transition: all 0.3s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 50px;
+    text-align: center;
 }
 
 .queue-status-ready {
@@ -2234,7 +2242,7 @@ p.credits a img {
 }
 
 .queue-cooldown-time {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--muted);
     white-space: nowrap;
 }
@@ -2351,15 +2359,76 @@ p.credits a img {
 }
 
 .queue-stat-value {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
     color: var(--accent);
     margin-bottom: 4px;
 }
 
 .queue-stat-label {
-    font-size: 12px;
+    font-size: 10px;
     color: var(--text-2);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+.auto-refresh-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.interval-input {
+    width: 50px;
+    padding: 2px 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg-1);
+    color: var(--text-0);
+    font-size: 11px;
+    text-align: center;
+    margin-top: 3px;
+}
+
+.interval-label {
+    font-size: 11px;
+    color: var(--text-2);
+}
+
+@media (max-width: 768px) { /* Mobile */
+    .queue-user-item {
+        flex-direction: row;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 6px;
+        margin-bottom: 2px;
+        font-size: 10px;
+    }
+    
+    .queue-user-name {
+        min-width: 100px;
+        font-size: 10px;
+        flex-shrink: 0;
+    }
+    
+    .queue-progress-bar {
+        flex: 1;
+        height: 4px;
+        margin: 0 3px;
+    }
+    
+    .queue-charges-percentage {
+        font-size: 8px;
+        min-width: 20px;
+    }
+    
+    .queue-status-badge {
+        font-size: 7px;
+        padding: 1px 3px;
+        min-width: 40px;
+    }
+    
+    .queue-summary-stats {
+        grid-template-columns: 1fr;
+    }
 }
