@@ -2221,6 +2221,7 @@ class TemplateManager {
             const rec = users[uid];
             if (!rec) return false;
             if (rec.suspendedUntil && nowSel < rec.suspendedUntil) return false;
+            if (rec.authFailureUntil && nowSel < rec.authFailureUntil) return false;
             if (activeBrowserUsers.has(uid)) return false;
             return true;
           })
@@ -2239,6 +2240,7 @@ class TemplateManager {
           const rec = users[userId];
           if (!rec) continue;
           if (rec.suspendedUntil && nowSel < rec.suspendedUntil) continue;
+          if (rec.authFailureUntil && nowSel < rec.authFailureUntil) continue;
           if (activeBrowserUsers.has(userId)) continue;
 
           if (!resyncScheduled && ChargeCache.stale(userId, nowSel) && (nowSel - this._lastResyncAt) >= this._resyncCooldownMs) {
@@ -2302,6 +2304,11 @@ class TemplateManager {
           try { wplacer.shouldStop = () => !this.running; } catch (_) { }
           try {
             const { id, name } = await wplacer.login(users[foundUserForTurn].cookies);
+            // Clear auth failure flag on successful login
+            if (users[foundUserForTurn].authFailureUntil) {
+              delete users[foundUserForTurn].authFailureUntil;
+              saveUsers();
+            }
             this.status = `Running user ${name}#${id}`;
 
             await this.handleUpgrades(wplacer);
@@ -2328,8 +2335,15 @@ class TemplateManager {
             //await this.handleUpgrades(wplacer);
           } catch (error) {
             // Handle authentication errors gracefully
-            if (error.message && error.message.includes("Authentication expired")) {
-              log(foundUserForTurn, users[foundUserForTurn]?.name || `#${foundUserForTurn}`, `[${this.name}] ❌ Authentication expired (401/403) - please update cookies or try later`);
+            if (error.message && (error.message.includes("Authentication failed (401)") || error.message.includes("Authentication expired"))) {
+              const userName = users[foundUserForTurn]?.name || `#${foundUserForTurn}`;
+              log(foundUserForTurn, userName, `[${this.name}] ❌ Authentication failed (401) - skipping user temporarily`);
+              
+              // Temporarily exclude user from queue for 5 minutes to avoid repeated auth failures
+              if (!users[foundUserForTurn].authFailureUntil) {
+                users[foundUserForTurn].authFailureUntil = Date.now() + (5 * 60 * 1000); // 5 minutes
+                saveUsers();
+              }
             } else {
               logUserError(error, foundUserForTurn, users[foundUserForTurn]?.name || `#${foundUserForTurn}`, "perform paint turn");
             }
@@ -4399,7 +4413,13 @@ const keepAlive = async () => {
   }
 
   const allIds = Object.keys(users);
-  const candidates = allIds.filter((uid) => !activeBrowserUsers.has(uid));
+  const candidates = allIds.filter((uid) => {
+    if (activeBrowserUsers.has(uid)) return false;
+    const rec = users[uid];
+    if (!rec) return false;
+    if (rec.authFailureUntil && Date.now() < rec.authFailureUntil) return false;
+    return true;
+  });
   if (candidates.length === 0) {
     log("SYSTEM", "wplacer", "⚙️ Keep-alive: no idle users to check.");
     return;
@@ -4424,8 +4444,20 @@ const keepAlive = async () => {
         const wplacer = new WPlacer();
         try {
           await wplacer.login(users[userId].cookies);
+          // Clear auth failure flag on successful keep-alive
+          if (users[userId].authFailureUntil) {
+            delete users[userId].authFailureUntil;
+            saveUsers();
+          }
           log(userId, users[userId].name, "✅ Cookie keep-alive successful.");
         } catch (error) {
+          // Handle authentication errors in keep-alive
+          if (error.message && (error.message.includes("Authentication failed (401)") || error.message.includes("Authentication expired"))) {
+            if (!users[userId].authFailureUntil) {
+              users[userId].authFailureUntil = Date.now() + (5 * 60 * 1000); // 5 minutes
+              saveUsers();
+            }
+          }
           // Always delegate to unified error logger to keep original messages
           logUserError(error, userId, users[userId].name, "perform keep-alive check");
         } finally {
@@ -4448,15 +4480,28 @@ const keepAlive = async () => {
       log(userId, users[userId].name, "⚠️ Skipping keep-alive check: user is currently busy.");
       continue;
     }
+    if (users[userId].authFailureUntil && Date.now() < users[userId].authFailureUntil) {
+      log(userId, users[userId].name, "⚠️ Skipping keep-alive check: user has recent auth failure.");
+      continue;
+    }
     activeBrowserUsers.add(userId);
     const wplacer = new WPlacer();
     try {
       await wplacer.login(users[userId].cookies);
+      // Clear auth failure flag on successful keep-alive
+      if (users[userId].authFailureUntil) {
+        delete users[userId].authFailureUntil;
+        saveUsers();
+      }
       log(userId, users[userId].name, "✅ Cookie keep-alive successful.");
     } catch (error) {
-      // Don't log auth errors as they're expected when cookies expire
-      if (error.message && error.message.includes("Authentication expired")) {
-        log(userId, users[userId].name, "🛑 Cookies expired (401/403) - please update");
+      // Handle authentication errors in keep-alive
+      if (error.message && (error.message.includes("Authentication failed (401)") || error.message.includes("Authentication expired"))) {
+        if (!users[userId].authFailureUntil) {
+          users[userId].authFailureUntil = Date.now() + (5 * 60 * 1000); // 5 minutes
+          saveUsers();
+        }
+        log(userId, users[userId].name, "🛑 Cookies expired (401/403) - skipping user temporarily");
       } else {
         logUserError(error, userId, users[userId].name, "perform keep-alive check");
       }
