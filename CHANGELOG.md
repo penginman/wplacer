@@ -1,5 +1,5 @@
 ## Changelog v4.2.9
-- Added exclusion of restricted/banned users from the drawing queue.
+- Added exclusion of restricted/banned users from the template list.
 - Moved log settings out of general settings into Live Logs.
 - Added estimated time left info on template & fix host value env that was unused (Thanks to [Aglglg](https://github.com/Aglglg)).
 - Added queue preview system feature. Thanks to [lulz](https://github.com/Udyz)!
