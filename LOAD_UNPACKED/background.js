@@ -3,12 +3,14 @@ const POLL_ALARM_NAME = 'wplacer-poll-alarm';
 const COOKIE_ALARM_NAME = 'wplacer-cookie-alarm';
 const SAFETY_REFRESH_ALARM_NAME = 'wplacer-safety-refresh-alarm';
 const TOKEN_TIMEOUT_ALARM_NAME = 'wplacer-token-timeout-alarm';
+const AUTO_RELOAD_ALARM_NAME = 'wplacer-auto-reload-alarm';
 
 const getSettings = async () => {
-    const result = await chrome.storage.local.get(['wplacerPort']);
+    const result = await chrome.storage.local.get(['wplacerPort', 'wplacerAutoReload']);
     return {
         port: result.wplacerPort || 80,
-        host: '127.0.0.1'
+        host: '127.0.0.1',
+        autoReloadInterval: result.wplacerAutoReload || 0
     };
 };
 
@@ -28,6 +30,44 @@ const FAST_RETRY_MAX = 3;
 let fastRetriesLeft = 0;
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Auto-reload management
+const updateAutoReloadAlarm = async () => {
+    try {
+        await chrome.alarms.clear(AUTO_RELOAD_ALARM_NAME);
+        const settings = await getSettings();
+        if (settings.autoReloadInterval > 0) {
+            await chrome.alarms.create(AUTO_RELOAD_ALARM_NAME, {
+                delayInMinutes: settings.autoReloadInterval / 60,
+                periodInMinutes: settings.autoReloadInterval / 60
+            });
+            console.log(`wplacer: Auto-reload alarm set for ${settings.autoReloadInterval} seconds`);
+        } else {
+            console.log("wplacer: Auto-reload disabled");
+        }
+    } catch (error) {
+        console.error("wplacer: Failed to update auto-reload alarm:", error);
+    }
+};
+
+const performAutoReload = async () => {
+    try {
+        const tabs = await chrome.tabs.query({ url: "https://wplace.live/*" });
+        if (tabs && tabs.length > 0) {
+            console.log(`wplacer: Auto-reloading ${tabs.length} wplace.live tab(s)`);
+            for (const tab of tabs) {
+                try {
+                    await injectPawtectIntoTab(tab.id);
+                    await chrome.tabs.reload(tab.id, { bypassCache: true });
+                } catch (error) {
+                    console.warn(`wplacer: Failed to reload tab ${tab.id}:`, error);
+                }
+            }
+        }
+    } catch (error) {
+        console.error("wplacer: Auto-reload failed:", error);
+    }
+};
 
 async function startLongPoll() {
     if (LP_ACTIVE) return;
@@ -314,6 +354,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "settingsUpdated") {
         LP_ACTIVE = false;
         setTimeout(startLongPoll, 100);
+        updateAutoReloadAlarm();
         if (sendResponse) sendResponse({ ok: true });
         return false;
     }
@@ -795,6 +836,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
                 await maybeInitiateReload();
             } catch {}
         })();
+    } else if (alarm.name === AUTO_RELOAD_ALARM_NAME) {
+        // Auto-reload alarm: reload wplace.live tabs periodically
+        performAutoReload();
     }
 });
 
@@ -811,6 +855,7 @@ const initializeAlarms = () => {
         delayInMinutes: 1,
         periodInMinutes: 1
     });
+    updateAutoReloadAlarm();
     console.log("wplacer: Alarms initialized.");
 };
 

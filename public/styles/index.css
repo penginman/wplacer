@@ -377,6 +377,7 @@ button img {
 }
 
 .secondary-button {
+    padding: 8px 12px;
     background: rgba(255, 255, 255, .06);
     color: var(--text-1);
     border: 1px solid var(--border);
@@ -1783,6 +1784,10 @@ p.credits a img {
     justify-content: center;
 }
 
+.swatch.flag-emoji {
+    border: none;
+}
+
 .palette-meta {
     display: flex;
     flex-direction: column;
@@ -1853,6 +1858,12 @@ p.credits a img {
     color: #fff;
 }
 
+
+.swatch.large.flags-detail-emoji {
+    background: none;
+    border: none;
+}
+
 .color-compact-meta {
     display: flex;
     flex-direction: column;
@@ -1866,13 +1877,19 @@ p.credits a img {
 
 /* users lists inside color details */
 #usersNoColor,
-#usersHaveColor {
+#usersHaveColor,
+#usersHaveFlag,
+#usersNoFlag {
     background: rgba(255, 255, 255, .04);
     border: 1px solid var(--border);
     border-radius: 10px;
     max-height: 220px;
     overflow: auto;
     padding: 6px;
+}
+
+#usersHaveFlag {
+    margin-top: 6px;
 }
 
 .chips {
@@ -1908,8 +1925,15 @@ p.credits a img {
     padding: 6px 8px;
 }
 
-#paletteAllColors .palette-item.color-tile {
+#paletteAllColors,
+#flagsAllList .palette-item.color-tile {
     cursor: pointer;
+}
+
+#flagsAllList {
+    padding: 6px 8px;
+    max-height: 500px;
+    overflow: auto;
 }
 
 #paletteAllColors .swatch {
@@ -1917,6 +1941,8 @@ p.credits a img {
     height: 20px;
     font-size: 11px;
 }
+
+
 
 #paletteAllColors .palette-meta .name {
     font-size: 13px;
@@ -1946,6 +1972,22 @@ p.credits a img {
     color: var(--text-1);
 }
 
+/* Flags catalog adopts same visuals */
+#flagsAllList .palette-item {
+    position: relative;
+}
+
+#flagsAllList .color-tile.selected {
+    box-shadow: 0 0 0 3px var(--ring);
+    border-color: var(--accent);
+}
+
+#flagsAllList .count-badge {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+}
+
 /* Compact chips for users without color */
 .user-chip {
     display: inline-flex;
@@ -1972,6 +2014,7 @@ p.credits a img {
     border: 1px solid var(--hair);
     font-size: 11px;
     color: var(--text-2);
+    text-align: center;
 }
 
 .user-chip input[type="checkbox"] {
@@ -2174,9 +2217,10 @@ p.credits a img {
 .queue-user-name {
     font-weight: 500;
     color: var(--text-0);
-    font-size: 12px;
+    font-size: 14px;
     white-space: nowrap;
-    min-width: 150px;
+    min-width: 300px;
+    max-width: 300px;
     flex-shrink: 0;
 }
 
@@ -2218,7 +2262,7 @@ p.credits a img {
 }
 
 .queue-charges-current {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--accent);
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -2233,7 +2277,7 @@ p.credits a img {
 }
 
 .queue-charges-percentage {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--text-2);
     font-weight: 500;
     white-space: nowrap;
@@ -2253,22 +2297,23 @@ p.credits a img {
 .queue-status-badge {
     padding: 2px 6px;
     border-radius: 6px;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 500;
-    text-transform: uppercase;
     letter-spacing: 0.5px;
     animation: pulse 2s infinite;
     transition: all 0.3s ease;
     white-space: nowrap;
     flex-shrink: 0;
-    min-width: 50px;
-    text-align: center;
+    min-width: 100px;
+    max-width: 100px;
+    text-align: justify;
 }
 
 .queue-status-ready {
     background: rgba(145, 63%, 45%, 0.2);
     color: var(--success);
     border: 1px solid var(--success);
+    text-align: center;
 }
 
 .queue-status-waiting {
@@ -2466,9 +2511,18 @@ p.credits a img {
         font-size: 10px;
     }
 
-    .queue-user-name {
-        min-width: 100px;
+    .queue-charges-current {
         font-size: 10px;
+    }
+
+    .queue-charges-max {
+        font-size: 10px;
+    }
+
+    .queue-user-name {
+        min-width: 200px;
+        max-width: 200px;
+        font-size: 9px;
         flex-shrink: 0;
     }
 
@@ -2491,5 +2545,50 @@ p.credits a img {
 
     .queue-summary-stats {
         grid-template-columns: 1fr;
+    }
+}
+
+.palette-item {
+    display: flex;
+    align-items: center;
+    gap: 8px
+}
+
+.swatch {
+    flex: 0 0 auto
+}
+
+.palette-meta {
+    flex: 1 1 auto;
+    min-width: 0
+}
+
+.palette-meta .name {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.palette-meta .name>.scroll {
+    display: inline-block;
+    will-change: transform;
+}
+
+.palette-item:hover .palette-meta .name.overflow {
+    text-overflow: clip;
+}
+
+.palette-item:hover .palette-meta .name.overflow>.scroll {
+    animation: marquee var(--marquee-duration, 4s) linear infinite;
+}
+
+@keyframes marquee {
+    from {
+        transform: translateX(0)
+    }
+
+    to {
+        transform: translateX(calc(-1 * var(--marquee-distance, 0px)))
     }
 }

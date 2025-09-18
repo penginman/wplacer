@@ -1,32 +1,49 @@
 document.addEventListener('DOMContentLoaded', () => {
     const statusEl = document.getElementById('status');
     const portInput = document.getElementById('port');
+    const autoReloadInput = document.getElementById('autoReloadInterval');
     const saveBtn = document.getElementById('saveSettingsBtn');
     const sendCookieBtn = document.getElementById('sendCookieBtn');
     const logoutBtn = document.getElementById('logoutBtn');
 
     let initialPort = 80;
+    let initialAutoReload = 0;
 
     // Load current settings
-    chrome.storage.local.get(['wplacerPort'], (result) => {
+    chrome.storage.local.get(['wplacerPort', 'wplacerAutoReload'], (result) => {
         initialPort = result.wplacerPort || 80;
+        initialAutoReload = result.wplacerAutoReload || 0;
         portInput.value = initialPort;
+        autoReloadInput.value = initialAutoReload;
     });
 
     // Save settings
     saveBtn.addEventListener('click', () => {
         const port = parseInt(portInput.value, 10);
+        const autoReload = parseInt(autoReloadInput.value, 10);
+        
         if (isNaN(port) || port < 1 || port > 65535) {
             statusEl.textContent = 'Error: Invalid port number.';
             return;
         }
+        
+        if (isNaN(autoReload) || autoReload < 0 || autoReload > 3600) {
+            statusEl.textContent = 'Error: Invalid auto-reload interval (0-3600 seconds).';
+            return;
+        }
 
-        chrome.storage.local.set({ wplacerPort: port }, () => {
-            statusEl.textContent = `Settings saved. Server on port ${port}.`;
-            // Inform background script if port changed, so it can reconnect SSE
-            if (port !== initialPort) {
+        chrome.storage.local.set({ 
+            wplacerPort: port,
+            wplacerAutoReload: autoReload
+        }, () => {
+            const reloadText = autoReload > 0 ? ` Auto-reload: ${autoReload}s.` : ' Auto-reload: disabled.';
+            statusEl.textContent = `Settings saved. Server on port ${port}.${reloadText}`;
+            
+            // Inform background script if settings changed
+            if (port !== initialPort || autoReload !== initialAutoReload) {
                 chrome.runtime.sendMessage({ action: "settingsUpdated" });
                 initialPort = port;
+                initialAutoReload = autoReload;
             }
         });
     });

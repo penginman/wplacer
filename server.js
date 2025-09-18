@@ -1315,6 +1315,7 @@ class WPlacer {
       if (productId === 80) msg = `🛒 Bought ${amount * 30} pixels for ${amount * 500} droplets`;
       else if (productId === 70) msg = `🛒 Bought ${amount} Max Charge Upgrade(s) for ${amount * 500} droplets`;
       else if (productId === 100 && typeof variant === "number") msg = `🛒 Bought color #${variant}`;
+      else if (productId === 110 && typeof variant === "number") msg = `🛒 Bought flag #${variant}`;
       log(this.userInfo?.id || "SYSTEM", this.userInfo?.name || "wplacer", `[${this.templateName}] ${msg}`);
       return true;
     }
@@ -1330,6 +1331,29 @@ class WPlacer {
     }
 
     throw new Error(`Unexpected response during purchase: ${JSON.stringify(response)}`);
+  }
+
+  async equipFlag(flagId) {
+    const id = Number(flagId) || 0;
+    const url = `https://backend.wplace.live/flag/equip/${id}`;
+    const res = await this.post(url, {});
+    if (res.status === 200 && res.data && res.data.success === true) {
+      if (id === 0) {
+        log(this.userInfo?.id || "SYSTEM", this.userInfo?.name || "wplacer", `[${this.templateName}] 🏳️ Unequipped flag`);
+      } else {
+        log(this.userInfo?.id || "SYSTEM", this.userInfo?.name || "wplacer", `[${this.templateName}] 🏳️ Equipped flag #${id}`);
+      }
+      return true;
+    }
+    if (res.status === 403) {
+      const err = new Error("FORBIDDEN_OR_INSUFFICIENT");
+      err.code = 403;
+      throw err;
+    }
+    if (res.status === 429 || (res.data?.error && res.data.error.includes("Error 1015"))) {
+      throw new Error("(1015) You are being rate-limited while trying to equip a flag. Please wait.");
+    }
+    throw new Error(`Unexpected response during flag equip: ${JSON.stringify(res)}`);
   }
 
   async pixelsLeft() {
@@ -1464,7 +1488,8 @@ const saveTemplates = () => {
       outlineMode: !!t.outlineMode,
       burstSeeds: t.burstSeeds || null,
       heatmapEnabled: !!t.heatmapEnabled,
-      heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000)))
+      heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000))),
+      autoStart: !!t.autoStart
     };
   }
   saveJSON("templates.json", templatesToSave);
@@ -1520,6 +1545,29 @@ let colorsCheckJob = {
 
 // Purchase color job progress state
 let purchaseColorJob = {
+  active: false,
+  total: 0,
+  completed: 0,
+  startedAt: 0,
+  finishedAt: 0,
+  lastUserId: null,
+  lastUserName: null
+};
+
+// Flags check job progress state
+let flagsCheckJob = {
+  active: false,
+  total: 0,
+  completed: 0,
+  startedAt: 0,
+  finishedAt: 0,
+  lastUserId: null,
+  lastUserName: null,
+  report: []
+};
+
+// Purchase flag job progress state
+let purchaseFlagJob = {
   active: false,
   total: 0,
   completed: 0,
@@ -3180,6 +3228,388 @@ app.post("/users/purchase-color", async (req, res) => {
   }
 });
 
+// --- API: users flags check (parallel with proxies, else sequential) ---
+app.post("/users/flags-check", async (req, res) => {
+  try {
+    if (flagsCheckJob.active) {
+      return res.status(409).json({ error: "flags_check_in_progress" });
+    }
+
+    const cooldown = currentSettings.accountCheckCooldown || 0;
+
+    const dummyTemplate = { width: 0, height: 0, data: [] };
+    const dummyCoords = [0, 0, 0, 0];
+
+    const ids = Object.keys(users);
+    flagsCheckJob = {
+      active: true,
+      total: ids.length,
+      completed: 0,
+      startedAt: Date.now(),
+      finishedAt: 0,
+      lastUserId: null,
+      lastUserName: null,
+      report: []
+    };
+
+    const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+    const desired = Math.max(1, Math.floor(Number(currentSettings.parallelWorkers || 0)) || 1);
+    const concurrency = Math.max(1, Math.min(desired, loadedProxies.length || desired, 32));
+    if (useParallel) {
+      console.log(`[FlagsCheck] Parallel: ${ids.length} accounts (concurrency=${concurrency}, proxies=${loadedProxies.length})`);
+    } else {
+      console.log(`[FlagsCheck] Sequential: ${ids.length} accounts. Cooldown=${cooldown}ms`);
+    }
+
+    const workerIds = ids.map(String);
+
+    const doOne = async (uid) => {
+      if (!users[uid]) return;
+      if (activeBrowserUsers.has(uid)) return;
+      activeBrowserUsers.add(uid);
+      const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "FlagsCheck");
+      try {
+        await w.login(users[uid].cookies);
+        await w.loadUserInfo();
+        const u = w.userInfo || {};
+        flagsCheckJob.lastUserId = uid; flagsCheckJob.lastUserName = u.name;
+        flagsCheckJob.report.push({
+          userId: String(uid),
+          name: u.name,
+          flagsBitmap: u.flagsBitmap || "",
+          equippedFlag: Number(u.equippedFlag || 0),
+          droplets: Number(u.droplets || 0)
+        });
+      } catch (e) {
+        logUserError(e, uid, users[uid]?.name || `#${uid}`, "flags check");
+        flagsCheckJob.report.push({ userId: String(uid), name: users[uid]?.name || `#${uid}`, error: e?.message || "failed" });
+      } finally {
+        activeBrowserUsers.delete(uid);
+        flagsCheckJob.completed++;
+      }
+      if (cooldown > 0) await sleep(cooldown);
+    };
+
+    if (useParallel) {
+      let index = 0;
+      const worker = async () => {
+        for (;;) {
+          const i = index++; if (i >= workerIds.length) break;
+          await doOne(workerIds[i]);
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    } else {
+      for (let i = 0; i < workerIds.length; i++) {
+        await doOne(workerIds[i]);
+      }
+    }
+
+    flagsCheckJob.active = false; flagsCheckJob.finishedAt = Date.now();
+    const tookMs = (flagsCheckJob.finishedAt - (flagsCheckJob.startedAt || flagsCheckJob.finishedAt));
+    const tookS = Math.max(1, Math.round(tookMs / 1000));
+    console.log(`[FlagsCheck] Finished: ${flagsCheckJob.completed}/${flagsCheckJob.total} in ${tookS}s.`);
+    res.json({ ok: true, ts: flagsCheckJob.finishedAt || Date.now(), cooldownMs: cooldown, report: flagsCheckJob.report });
+  } catch (e) {
+    flagsCheckJob.active = false; flagsCheckJob.finishedAt = Date.now();
+    console.error("flags-check failed:", e);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// progress endpoint for flags-check
+app.get("/users/flags-check/progress", (req, res) => {
+  const { active, total, completed, startedAt, finishedAt, lastUserId, lastUserName } = flagsCheckJob;
+  res.json({ active, total, completed, startedAt, finishedAt, lastUserId, lastUserName });
+});
+
+// --- API: users purchase flag ---
+app.post("/users/purchase-flag", async (req, res) => {
+  try {
+    const { flagId, userIds } = req.body || {};
+    const fid = Number(flagId);
+    if (!Number.isFinite(fid) || fid < 1 || fid > 10000) {
+      return res.status(400).json({ error: "flagId must be a valid flag id" });
+    }
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: "userIds must be a non-empty array" });
+    }
+
+    const cooldown = currentSettings.purchaseCooldown || 5000;
+    const reserve = currentSettings.dropletReserve || 0;
+    const FLAG_COST = 20000;
+
+    const dummyTemplate = { width: 0, height: 0, data: [] };
+    const dummyCoords = [0, 0, 0, 0];
+
+    const report = [];
+
+    if (purchaseFlagJob.active) {
+      return res.status(409).json({ error: "purchase_in_progress" });
+    }
+    purchaseFlagJob = { active: true, total: userIds.length, completed: 0, startedAt: Date.now(), finishedAt: 0, lastUserId: null, lastUserName: null };
+
+    const decodeFlags = (b64) => {
+      if (!b64 || typeof b64 !== 'string') return [];
+      try {
+        const bytes = Uint8Array.from(Buffer.from(b64, 'base64'));
+        const L = bytes.length; const ids = [];
+        for (let i = 0; i < L; i++) {
+          const v = bytes[i]; if (v === 0) continue;
+          for (let bit = 0; bit < 8; bit++) if (v & (1 << bit)) ids.push((L - 1 - i) * 8 + bit);
+        }
+        return ids.sort((a, b) => a - b);
+      } catch (_) { return []; }
+    };
+
+    const doOne = async (uid) => {
+      if (!users[uid]) { report.push({ userId: uid, error: 'not_found' }); purchaseFlagJob.completed++; return; }
+      if (activeBrowserUsers.has(uid)) { report.push({ userId: uid, error: 'busy' }); purchaseFlagJob.completed++; return; }
+      activeBrowserUsers.add(uid);
+      const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "FlagPurchase");
+      try {
+        await w.login(users[uid].cookies);
+        await w.loadUserInfo();
+        const name = w.userInfo?.name;
+        purchaseFlagJob.lastUserId = uid; purchaseFlagJob.lastUserName = name;
+        const beforeDroplets = Number(w.userInfo?.droplets || 0);
+        const owned = new Set(decodeFlags(String(w.userInfo?.flagsBitmap || '')));
+        if (owned.has(fid)) {
+          report.push({ userId: uid, name, skipped: true, reason: 'already_has_flag' });
+        } else if (beforeDroplets < FLAG_COST) {
+          report.push({ userId: uid, name, skipped: true, reason: 'forbidden_or_insufficient_droplets' });
+        } else {
+          try {
+            // product id 110 per user: flags, variant = flagId
+            await w.buyProduct(110, 1, fid);
+            await w.loadUserInfo().catch(() => { });
+            report.push({ userId: uid, name, ok: true, success: true, beforeDroplets, afterDroplets: w.userInfo?.droplets });
+          } catch (err) {
+            if (err?.code === 403 || /FORBIDDEN_OR_INSUFFICIENT/i.test(err?.message)) {
+              report.push({ userId: uid, name, skipped: true, reason: "forbidden_or_insufficient_droplets" });
+            } else if (/(1015)/.test(err?.message)) {
+              report.push({ userId: uid, name, error: "rate_limited" });
+            } else {
+              report.push({ userId: uid, name, error: err?.message || "purchase_failed" });
+            }
+          }
+        }
+      } catch (e) {
+        logUserError(e, uid, users[uid]?.name || `#${uid}`, "purchase flag");
+        report.push({ userId: uid, name: users[uid]?.name || `#${uid}`, error: e?.message || 'login_failed' });
+      } finally {
+        activeBrowserUsers.delete(uid);
+        purchaseFlagJob.completed++;
+      }
+    };
+
+    const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+    if (useParallel) {
+      const ids = userIds.map(String);
+      const desired = Math.max(1, Math.floor(Number(currentSettings.parallelWorkers || 0)) || 1);
+      const concurrency = Math.max(1, Math.min(desired, loadedProxies.length || desired, 32));
+      console.log(`[FlagPurchase] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
+      let index = 0;
+      const worker = async () => {
+        for (;;) {
+          const i = index++;
+          if (i >= ids.length) break;
+          await doOne(ids[i]);
+          const cd = Math.max(0, Number(currentSettings.purchaseCooldown || 0));
+          if (cd > 0) await sleep(cd);
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    } else {
+      console.log(`[FlagPurchase] Sequential: ${userIds.length} accounts. Cooldown=${cooldown}ms`);
+      for (let idx = 0; idx < userIds.length; idx++) {
+        await doOne(String(userIds[idx]));
+        if (idx < userIds.length - 1 && cooldown > 0) { await sleep(cooldown); }
+      }
+    }
+
+    purchaseFlagJob.active = false; purchaseFlagJob.finishedAt = Date.now();
+    const tookMs = (purchaseFlagJob.finishedAt - (purchaseFlagJob.startedAt || purchaseFlagJob.finishedAt));
+    const tookS = Math.max(1, Math.round(tookMs / 1000));
+    console.log(`[FlagPurchase] Finished: ${purchaseFlagJob.completed}/${purchaseFlagJob.total} in ${tookS}s.`);
+    res.json({ flagId: fid, cooldownMs: cooldown, reserve, report });
+  } catch (e) {
+    purchaseFlagJob.active = false; purchaseFlagJob.finishedAt = Date.now();
+    console.error("purchase-flag failed:", e);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// progress endpoint for purchase-flag
+app.get("/users/purchase-flag/progress", (req, res) => {
+  const { active, total, completed, startedAt, finishedAt, lastUserId, lastUserName } = purchaseFlagJob;
+  res.json({ active, total, completed, startedAt, finishedAt, lastUserId, lastUserName });
+});
+
+// --- API: equip/unequip flag for specific user ---
+app.post("/user/:id/flag/equip", async (req, res) => {
+  const uid = String(req.params.id);
+  const fid = Number(req.body?.flagId || 0) || 0;
+  if (!users[uid]) return res.sendStatus(404);
+  if (activeBrowserUsers.has(uid)) return res.sendStatus(409);
+  activeBrowserUsers.add(uid);
+  const dummyTemplate = { width: 0, height: 0, data: [] };
+  const dummyCoords = [0, 0, 0, 0];
+  const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "FlagEquip");
+  try {
+    await w.login(users[uid].cookies); await w.loadUserInfo();
+    await w.equipFlag(fid);
+    await w.loadUserInfo().catch(() => {});
+    res.json({ success: true, equippedFlag: Number(w.userInfo?.equippedFlag || fid) });
+  } catch (e) {
+    logUserError(e, uid, users[uid]?.name || `#${uid}`, "equip flag");
+    if (e?.code === 403) return res.status(403).json({ error: 'forbidden' });
+    res.status(500).json({ error: e?.message || 'failed' });
+  } finally {
+    activeBrowserUsers.delete(uid);
+  }
+});
+
+// --- API: users batch equip flag ---
+let equipFlagJob = { active: false, total: 0, completed: 0, startedAt: 0, finishedAt: 0, lastUserId: null, lastUserName: null };
+app.post("/users/equip-flag", async (req, res) => {
+  try {
+    const { flagId, userIds } = req.body || {};
+    const fid = Number(flagId) || 0;
+    if (!Array.isArray(userIds) || userIds.length === 0) return res.status(400).json({ error: "userIds must be a non-empty array" });
+    if (equipFlagJob.active) return res.status(409).json({ error: "equip_in_progress" });
+    equipFlagJob = { active: true, total: userIds.length, completed: 0, startedAt: Date.now(), finishedAt: 0, lastUserId: null, lastUserName: null };
+
+    const dummyTemplate = { width: 0, height: 0, data: [] };
+    const dummyCoords = [0, 0, 0, 0];
+    const report = [];
+    const cooldown = currentSettings.purchaseCooldown || 0;
+
+    const doOne = async (uid) => {
+      if (!users[uid]) { report.push({ userId: uid, error: 'not_found' }); equipFlagJob.completed++; return; }
+      if (activeBrowserUsers.has(uid)) { report.push({ userId: uid, error: 'busy' }); equipFlagJob.completed++; return; }
+      activeBrowserUsers.add(uid);
+      const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "FlagEquipBatch");
+      try {
+        await w.login(users[uid].cookies); await w.loadUserInfo();
+        equipFlagJob.lastUserId = uid; equipFlagJob.lastUserName = w.userInfo?.name;
+        await w.equipFlag(fid);
+        await w.loadUserInfo().catch(() => {});
+        report.push({ userId: uid, name: w.userInfo?.name, ok: true, success: true, equippedFlag: Number(w.userInfo?.equippedFlag || fid) });
+      } catch (e) {
+        logUserError(e, uid, users[uid]?.name || `#${uid}`, "equip flag batch");
+        report.push({ userId: uid, name: users[uid]?.name || `#${uid}`, error: e?.message || 'failed' });
+      } finally {
+        activeBrowserUsers.delete(uid);
+        equipFlagJob.completed++;
+      }
+    };
+
+    const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+    if (useParallel) {
+      const ids = userIds.map(String);
+      const desired = Math.max(1, Math.floor(Number(currentSettings.parallelWorkers || 0)) || 1);
+      const concurrency = Math.max(1, Math.min(desired, loadedProxies.length || desired, 32));
+      console.log(`[FlagEquip] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
+      let index = 0;
+      const worker = async () => {
+        for (;;) {
+          const i = index++;
+          if (i >= ids.length) break;
+          await doOne(ids[i]);
+          const cd = Math.max(0, Number(currentSettings.purchaseCooldown || 0));
+          if (cd > 0) await sleep(cd);
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    } else {
+      for (let i = 0; i < userIds.length; i++) {
+        await doOne(String(userIds[i]));
+        if (i < userIds.length - 1 && cooldown > 0) await sleep(cooldown);
+      }
+    }
+
+    equipFlagJob.active = false; equipFlagJob.finishedAt = Date.now();
+    res.json({ flagId: fid, cooldownMs: cooldown, report });
+  } catch (e) {
+    equipFlagJob.active = false; equipFlagJob.finishedAt = Date.now();
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+app.get("/users/equip-flag/progress", (req, res) => {
+  const { active, total, completed, startedAt, finishedAt, lastUserId, lastUserName } = equipFlagJob;
+  res.json({ active, total, completed, startedAt, finishedAt, lastUserId, lastUserName });
+});
+
+// --- API: users batch unequip flag (flagId=0) ---
+let unequipFlagJob = { active: false, total: 0, completed: 0, startedAt: 0, finishedAt: 0, lastUserId: null, lastUserName: null };
+app.post("/users/unequip-flag", async (req, res) => {
+  try {
+    const { userIds } = req.body || {};
+    if (!Array.isArray(userIds) || userIds.length === 0) return res.status(400).json({ error: "userIds must be a non-empty array" });
+    if (unequipFlagJob.active) return res.status(409).json({ error: "unequip_in_progress" });
+    unequipFlagJob = { active: true, total: userIds.length, completed: 0, startedAt: Date.now(), finishedAt: 0, lastUserId: null, lastUserName: null };
+
+    const dummyTemplate = { width: 0, height: 0, data: [] };
+    const dummyCoords = [0, 0, 0, 0];
+    const report = [];
+    const cooldown = currentSettings.purchaseCooldown || 0;
+
+    const doOne = async (uid) => {
+      if (!users[uid]) { report.push({ userId: uid, error: 'not_found' }); unequipFlagJob.completed++; return; }
+      if (activeBrowserUsers.has(uid)) { report.push({ userId: uid, error: 'busy' }); unequipFlagJob.completed++; return; }
+      activeBrowserUsers.add(uid);
+      const w = new WPlacer(dummyTemplate, dummyCoords, currentSettings, "FlagUnequipBatch");
+      try {
+        await w.login(users[uid].cookies); await w.loadUserInfo();
+        unequipFlagJob.lastUserId = uid; unequipFlagJob.lastUserName = w.userInfo?.name;
+        await w.equipFlag(0);
+        await w.loadUserInfo().catch(() => {});
+        report.push({ userId: uid, name: w.userInfo?.name, ok: true, success: true, equippedFlag: Number(w.userInfo?.equippedFlag || 0) });
+      } catch (e) {
+        logUserError(e, uid, users[uid]?.name || `#${uid}`, "unequip flag batch");
+        report.push({ userId: uid, name: users[uid]?.name || `#${uid}`, error: e?.message || 'failed' });
+      } finally {
+        activeBrowserUsers.delete(uid);
+        unequipFlagJob.completed++;
+      }
+    };
+
+    const useParallel = !!currentSettings.proxyEnabled && loadedProxies.length > 0;
+    if (useParallel) {
+      const ids = userIds.map(String);
+      const desired = Math.max(1, Math.floor(Number(currentSettings.parallelWorkers || 0)) || 1);
+      const concurrency = Math.max(1, Math.min(desired, loadedProxies.length || desired, 32));
+      console.log(`[FlagUnequip] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
+      let index = 0;
+      const worker = async () => {
+        for (;;) {
+          const i = index++;
+          if (i >= ids.length) break;
+          await doOne(ids[i]);
+          const cd = Math.max(0, Number(currentSettings.purchaseCooldown || 0));
+          if (cd > 0) await sleep(cd);
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    } else {
+      for (let i = 0; i < userIds.length; i++) {
+        await doOne(String(userIds[i]));
+        if (i < userIds.length - 1 && cooldown > 0) await sleep(cooldown);
+      }
+    }
+
+    unequipFlagJob.active = false; unequipFlagJob.finishedAt = Date.now();
+    res.json({ cooldownMs: cooldown, report });
+  } catch (e) {
+    unequipFlagJob.active = false; unequipFlagJob.finishedAt = Date.now();
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+app.get("/users/unequip-flag/progress", (req, res) => {
+  const { active, total, completed, startedAt, finishedAt, lastUserId, lastUserName } = unequipFlagJob;
+  res.json({ active, total, completed, startedAt, finishedAt, lastUserId, lastUserName });
+});
 // --- API: users colors check (parallel with proxies, else sequential) ---
 app.post("/users/colors-check", async (req, res) => {
   try {
@@ -3237,7 +3667,7 @@ app.post("/users/colors-check", async (req, res) => {
             const levelNum = Number(u?.level || 0);
             const level = Math.floor(levelNum);
             const progress = Math.round((levelNum % 1) * 100);
-            colorsCheckJob.report.push({ userId: uid, name: u?.name || urec.name, extraColorsBitmap: Number(u?.extraColorsBitmap || 0), droplets: Number(u?.droplets || 0), charges, level, progress });
+            colorsCheckJob.report.push({ userId: uid, name: u?.name || urec.name, extraColorsBitmap: Number(u?.extraColorsBitmap || 0), droplets: Number(u?.droplets || 0), charges, level, progress, flagsBitmap: String(u?.flagsBitmap || ""), equippedFlag: Number(u?.equippedFlag || 0) });
           } catch (e) {
             logUserError(e, uid, urec.name, "colors check");
             colorsCheckJob.report.push({ userId: uid, name: urec.name, error: e?.message || "login_failed" });
@@ -3276,7 +3706,7 @@ app.post("/users/colors-check", async (req, res) => {
           const levelNum = Number(u?.level || 0);
           const level = Math.floor(levelNum);
           const progress = Math.round((levelNum % 1) * 100);
-          colorsCheckJob.report.push({ userId: uid, name: u?.name || urec.name, extraColorsBitmap: Number(u?.extraColorsBitmap || 0), droplets: Number(u?.droplets || 0), charges, level, progress });
+          colorsCheckJob.report.push({ userId: uid, name: u?.name || urec.name, extraColorsBitmap: Number(u?.extraColorsBitmap || 0), droplets: Number(u?.droplets || 0), charges, level, progress, flagsBitmap: String(u?.flagsBitmap || ""), equippedFlag: Number(u?.equippedFlag || 0) });
         } catch (e) {
           logUserError(e, uid, urec.name, "colors check");
           colorsCheckJob.report.push({ userId: uid, name: urec.name, error: e?.message || "login_failed" });
@@ -3351,7 +3781,8 @@ app.get("/templates", (_, res) => {
       pixelsRemaining: t.pixelsRemaining,
       totalPixels: t.totalPixels,
       heatmapEnabled: !!t.heatmapEnabled,
-      heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000)))
+      heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000))),
+      autoStart: !!t.autoStart
     };
   }
   res.json(sanitized);
@@ -3379,13 +3810,14 @@ app.get("/template/:id", (req, res) => {
     pixelsRemaining: t.pixelsRemaining,
     totalPixels: t.totalPixels,
     heatmapEnabled: !!t.heatmapEnabled,
-    heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000)))
+    heatmapLimit: Math.max(0, Math.floor(Number(t.heatmapLimit || 10000))),
+    autoStart: !!t.autoStart
   };
   res.json(sanitized);
 });
 
 app.post("/template", async (req, res) => {
-  const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, paintTransparentPixels, skipPaintedPixels, outlineMode, heatmapEnabled, heatmapLimit } = req.body;
+  const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, paintTransparentPixels, skipPaintedPixels, outlineMode, heatmapEnabled, heatmapLimit, autoStart } = req.body;
   if (!templateName || !template || !coords || !userIds || !userIds.length) return res.sendStatus(400);
   if (Object.values(templates).some((t) => t.name === templateName)) {
     return res.status(409).json({ error: "A template with this name already exists." });
@@ -3416,6 +3848,10 @@ app.post("/template", async (req, res) => {
     const lim = Math.max(0, Math.floor(Number(heatmapLimit)));
     templates[templateId].heatmapLimit = lim > 0 ? lim : 10000;
   } catch (_) { templates[templateId].heatmapEnabled = false; templates[templateId].heatmapLimit = 10000; }
+  
+  // Auto-start setting
+  templates[templateId].autoStart = !!autoStart;
+  
   saveTemplates();
   res.status(200).json({ id: templateId });
 });
@@ -3433,7 +3869,7 @@ app.put("/template/edit/:id", async (req, res) => {
   if (!templates[id]) return res.sendStatus(404);
   const manager = templates[id];
 
-  const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, template, paintTransparentPixels, skipPaintedPixels, outlineMode, heatmapEnabled, heatmapLimit } = req.body;
+  const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, template, paintTransparentPixels, skipPaintedPixels, outlineMode, heatmapEnabled, heatmapLimit, autoStart } = req.body;
 
   const prevCoords = manager.coords;
   const prevTemplateStr = JSON.stringify(manager.template);
@@ -3469,6 +3905,11 @@ app.put("/template/edit/:id", async (req, res) => {
     const lim = Math.max(0, Math.floor(Number(heatmapLimit)));
     manager.heatmapLimit = lim > 0 ? lim : 10000;
   } catch (_) { }
+  
+  // Auto-start setting
+  if (typeof autoStart !== 'undefined') {
+    manager.autoStart = !!autoStart;
+  }
 
   let templateChanged = false;
   if (template) {
@@ -4058,6 +4499,10 @@ const keepAlive = async () => {
         const lim = Math.max(0, Math.floor(Number(t.heatmapLimit)));
         tm.heatmapLimit = lim > 0 ? lim : 10000;
       } catch (_) { tm.heatmapEnabled = false; tm.heatmapLimit = 10000; }
+      
+      // auto-start setting load
+      tm.autoStart = !!t.autoStart;
+      
       templates[id] = tm;
     } else {
       console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
@@ -4066,7 +4511,7 @@ const keepAlive = async () => {
 
   loadProxies();
   console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
-
+  
   const port = Number(process.env.PORT) || 80;
   const host = process.env.HOST || "0.0.0.0";
   const hostname = host === "0.0.0.0" || host === "127.0.0.1" ? "localhost" : host;
@@ -4075,6 +4520,25 @@ const keepAlive = async () => {
     console.log(`✅ Server listening on http://${hostname}:${port}`);
     console.log(`   Open the web UI in your browser to start!`);
     setInterval(keepAlive, 20 * 60 * 1000);
+    
+    // Auto-start templates with autoStart enabled (after server is fully started)
+    setTimeout(async () => {
+      let autoStartedCount = 0;
+      for (const [id, template] of Object.entries(templates)) {
+        if (template.autoStart && !template.running) {
+          try {
+            await template.start();
+            autoStartedCount++;
+            console.log(`🚀 Auto-started template: ${template.name}`);
+          } catch (error) {
+            console.error(`❌ Failed to auto-start template "${template.name}":`, error.message);
+          }
+        }
+      }
+      if (autoStartedCount > 0) {
+        console.log(`✅ Auto-started ${autoStartedCount} template(s)`);
+      }
+    }, 1000); // Wait 1 second after server start
   });
   try {
     server.on('connection', (socket) => {

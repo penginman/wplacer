@@ -103,3 +103,14 @@ button.destructive:hover {
 #port {
     width: 60px;
 }
+
+#autoReloadInterval {
+    width: 48px;
+}
+
+.settings small {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    display: block;
+}

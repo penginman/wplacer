@@ -65,6 +65,7 @@ const paintTransparent = $("paintTransparent");
 const heatmapEnabled = $("heatmapEnabled");
 const heatmapLimit = $("heatmapLimit");
 const heatmapLimitWrap = $("heatmapLimitWrap");
+const autoStart = $("autoStart");
 const submitTemplate = $("submitTemplate");
 const manageTemplates = $("manageTemplates");
 const templateList = $("templateList");
@@ -125,6 +126,92 @@ let __sse; // EventSource
 // Keep raw lines to allow re-render on mask toggle
 const __logsRaw = [];
 
+
+// flagsManager
+const flagsManager = $("flagsManager");
+const flagsAllList = $("flagsAllList");
+const flagDetailsCard = $("flagDetailsCard");
+const selectedFlagTitle = $("selectedFlagTitle");
+const selectedFlagId = $("selectedFlagId");
+const selectedFlagEmoji = $("selectedFlagEmoji");
+const usersHaveFlag = $("usersHaveFlag");
+const usersNoFlag = $("usersNoFlag");
+const selectAllNoFlag = $("selectAllNoFlag");
+const UnselectAllNoFlag = $("UnselectAllNoFlag");
+const selectAllHaveFlag = $("selectAllHaveFlag");
+const unselectAllHaveFlag = $("unselectAllHaveFlag");
+const purchaseFlagBtn = $("purchaseFlagBtn");
+const equipFlagBtn = $("equipFlagBtn");
+const purchaseFlagReport = $("purchaseFlagReport");
+const flagsLastCheckLabel = $("flagsLastCheckLabel");
+const equipFlagBatchBtn = $("equipFlagBatchBtn");
+const unequipFlagBatchBtn = $("unequipFlagBatchBtn");
+
+let FLAGS_INIT = false;
+let CURRENT_SELECTED_FLAG = null;
+
+// ---- Flags helpers (shared) ----
+function countryCodeToEmoji(code) {
+    try {
+        const cc = String(code || '').trim().toUpperCase();
+        if (cc.length !== 2) return '';
+        const base = 0x1F1E6;
+        const a = cc.charCodeAt(0) - 0x41;
+        const b = cc.charCodeAt(1) - 0x41;
+        if (a < 0 || a > 25 || b < 0 || b > 25) return '';
+        return String.fromCodePoint(base + a) + String.fromCodePoint(base + b);
+    } catch { return ''; }
+}
+
+function flagMetaToEmoji(meta) {
+    if (!meta) return '';
+    const ccEmoji = countryCodeToEmoji(meta.code);
+    return ccEmoji || String(meta.flag || '') || '';
+}
+
+function parseTwemojiIn(container, sizePx) {
+    try {
+        if (!container) return;
+        if (window.twemoji && typeof window.twemoji.parse === 'function') {
+            window.twemoji.parse(container, {
+                folder: 'svg',
+                ext: '.svg',
+                base: 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/',
+                className: 'twemoji',
+            });
+            if (sizePx) {
+                container.querySelectorAll('img.twemoji').forEach(img => {
+                    img.style.width = `${sizePx}px`;
+                    img.style.height = `${sizePx}px`;
+                });
+            }
+        }
+    } catch (_) { }
+}
+
+const FLAGS_CACHE_KEY = 'wplacer_flags_cache_v1';
+let FLAGS_CACHE = null; try { FLAGS_CACHE = JSON.parse(localStorage.getItem(FLAGS_CACHE_KEY) || 'null'); } catch (_) { FLAGS_CACHE = null; }
+const saveFlagsCache = () => { try { localStorage.setItem(FLAGS_CACHE_KEY, JSON.stringify(FLAGS_CACHE)); } catch (_) { } };
+
+// USERS_FLAG_STATE[userId] = { name, flagsBitmap(b64), equippedFlag, droplets }
+const USERS_FLAG_STATE = {};
+
+function bitmapToFlagIds(b64) {
+    const bytes = (typeof Buffer !== 'undefined' && Buffer.from)
+        ? Uint8Array.from(Buffer.from(b64, 'base64'))
+        : Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const L = bytes.length; const ids = [];
+    for (let i = 0; i < L; i++) {
+        const v = bytes[i]; if (v === 0) continue;
+        for (let bit = 0; bit < 8; bit++) if (v & (1 << bit)) ids.push((L - 1 - i) * 8 + bit);
+    }
+    return ids.sort((a, b) => a - b);
+}
+
+let FLAGS_LIST = [];
+
+//
+
 const renderLogLine = (raw) => {
     try {
         const masked = __logMaskEnabled ? maskLogText(raw.line) : raw.line;
@@ -181,7 +268,7 @@ const maskLogText = (s) => {
 };
 
 function startLogsStream() {
-    try { if (__sse) { __sse.close(); __sse = null; } } catch (_) {}
+    try { if (__sse) { __sse.close(); __sse = null; } } catch (_) { }
     try {
         __sse = new EventSource('/logs/stream');
         __sse.onmessage = (ev) => {
@@ -742,7 +829,7 @@ function ensureMtPreviewOverlay() {
         background: var(--bg-2); border:1px solid var(--border); color:#ddd; padding:4px 8px; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:12px;
     `;
 
-    
+
 
     const btnRefresh = document.createElement('button');
     btnRefresh.id = 'mtRefreshCanvas';
@@ -752,7 +839,7 @@ function ensureMtPreviewOverlay() {
         background: var(--bg-2); border:1px solid var(--border); color:#ddd; padding:4px 8px; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:12px;
     `;
 
-    
+
 
     const overlayScaleWrap = document.createElement('div');
     overlayScaleWrap.style.cssText = 'display:flex; align-items:center; gap:6px; color:#ddd; font-size:12px;';
@@ -816,7 +903,7 @@ function ensureMtPreviewOverlay() {
     overlayGroup.className = 'mt-ctrl-group overlay';
     overlayGroup.style.cssText = groupStyle;
     // tighten overlay pixel label
-    try { overlayScaleWrap.querySelector('label')?.appendChild(document.createTextNode('')); } catch(_) {}
+    try { overlayScaleWrap.querySelector('label')?.appendChild(document.createTextNode('')); } catch (_) { }
     overlayGroup.append(btnOverlay, overlayScaleWrap);
 
     const heatGroup = document.createElement('div');
@@ -1192,11 +1279,11 @@ async function showManageTemplatePreview(t) {
         }
     }
 
-    
+
 
     function drawFit() {
         pctx.clearRect(0, 0, preview.width, preview.height);
-        
+
         pctx.drawImage(STATE.buffer, 0, 0, STATE.w, STATE.h, 0, 0, preview.width, preview.height);
         if (STATE.showHeatmap) drawHeatmapFit();
         else if (STATE.highlightMismatch) drawOverlayRedFit();
@@ -1216,7 +1303,7 @@ async function showManageTemplatePreview(t) {
         const sy = Math.floor(STATE.viewY);
 
         pctx.clearRect(0, 0, preview.width, preview.height);
-        
+
         pctx.drawImage(STATE.buffer, sx, sy, vw, vh, 0, 0, preview.width, preview.height);
         if (STATE.showHeatmap) drawHeatmapZoom(sx, sy, vw, vh, cellW, cellH);
         else if (STATE.highlightMismatch) drawOverlayRedZoom(sx, sy, vw, vh, cellW, cellH);
@@ -1427,7 +1514,7 @@ async function showManageTemplatePreview(t) {
         const used = STATE.heatData.slice(start);
         for (let i = 0; i < used.length; i++) {
             const rec = used[i];
-            const x = (rec['Px X']|0), y = (rec['Px Y']|0);
+            const x = (rec['Px X'] | 0), y = (rec['Px Y'] | 0);
             const ageIdx = used.length - 1 - i; // 0 = newest, grow older
             const alpha = 1.0 - (ageIdx / Math.max(1, used.length - 1)) * 0.9; // 1.0 .. 0.1
             pctx.fillStyle = `rgba(255,0,0,${alpha.toFixed(3)})`;
@@ -1445,7 +1532,7 @@ async function showManageTemplatePreview(t) {
         const used = STATE.heatData.slice(start);
         for (let i = 0; i < used.length; i++) {
             const rec = used[i];
-            const x = (rec['Px X']|0), y = (rec['Px Y']|0);
+            const x = (rec['Px X'] | 0), y = (rec['Px Y'] | 0);
             if (x < sx || y < sy || x >= sx + vw || y >= sy + vh) continue;
             const ageIdx = used.length - 1 - i;
             const alpha = 1.0 - (ageIdx / Math.max(1, used.length - 1)) * 0.9; // 1.0 .. 0.1
@@ -1541,7 +1628,7 @@ async function showManageTemplatePreview(t) {
         } catch (e) { handleError(e); }
     };
 
-    
+
 
     updateButtons();
     render();
@@ -1763,11 +1850,12 @@ templateForm.addEventListener('submit', async (e) => {
         canBuyMaxCharges: !!canBuyMaxCharges.checked,
         autoBuyNeededColors: !!autoBuyNeededColors?.checked && !!(usePaidColors?.checked),
         antiGriefMode: !!antiGriefMode.checked,
-		skipPaintedPixels: !!skipPaintedPixels.checked,
-		outlineMode: !!outlineMode.checked,
+        skipPaintedPixels: !!skipPaintedPixels.checked,
+        outlineMode: !!outlineMode.checked,
         paintTransparentPixels: !!paintTransparent.checked,
         heatmapEnabled: !!(heatmapEnabled && heatmapEnabled.checked),
-        heatmapLimit: Math.max(1, Math.floor(Number(heatmapLimit && heatmapLimit.value ? heatmapLimit.value : 10000)))
+        heatmapLimit: Math.max(1, Math.floor(Number(heatmapLimit && heatmapLimit.value ? heatmapLimit.value : 10000))),
+        autoStart: !!autoStart.checked
     };
 
     if (currentTemplate && currentTemplate.width > 0) {
@@ -1825,7 +1913,7 @@ const changeTab = (el) => {
         MODE_PREVIEW.stopAll();
     }
     if (currentTab === queuePreview) {
-        try { stopQueueAutoRefresh(); } catch (_) {}
+        try { stopQueueAutoRefresh(); } catch (_) { }
     }
     if (currentTab === manageTemplates && templateUpdateInterval) {
         clearInterval(templateUpdateInterval);
@@ -1847,6 +1935,570 @@ const changeTab = (el) => {
     if (currentTab === colorsManager) {
         initColorsManager().catch(console.error);
     }
+    if (currentTab === flagsManager) {
+        initFlagsManager().catch(console.error);
+    }
+
+
+
+
+    function applyFlagsCacheToState() {
+        try {
+            if (!FLAGS_CACHE?.report) return false;
+            (FLAGS_CACHE.report || []).forEach(r => {
+                if (!r || !r.userId) return;
+                USERS_FLAG_STATE[String(r.userId)] = {
+                    name: r.name,
+                    flagsBitmap: r.flagsBitmap,
+                    equippedFlag: (r.equippedFlag | 0),
+                    droplets: (r.droplets | 0)
+                };
+            });
+            if (flagsLastCheckLabel && FLAGS_CACHE?.ts) flagsLastCheckLabel.textContent = new Date(FLAGS_CACHE.ts).toLocaleString();
+            return true;
+        } catch (_) { return false; }
+    }
+
+    async function initFlagsManager() {
+        if (FLAGS_INIT) return;
+        FLAGS_INIT = true;
+        try { if (FLAGS_CACHE?.ts) flagsLastCheckLabel.textContent = new Date(FLAGS_CACHE.ts).toLocaleString(); } catch (_) { }
+
+        // load flags json
+        try {
+            const { data } = await axios.get('/flags.json');
+            if (Array.isArray(data)) FLAGS_LIST = data;
+        } catch (_) { }
+
+        // try applying cache on tab open
+        const hadCache = applyFlagsCacheToState();
+        buildFlagsCatalog();
+        if (hadCache && CURRENT_SELECTED_FLAG != null) {
+            try { renderFlagDetails(CURRENT_SELECTED_FLAG); } catch (_) { }
+        }
+
+        try {
+            await loadUsersColorState(true);
+        } catch (_) { }
+        try { buildFlagsCatalog(); } catch (_) { }
+
+        // click delegation like Colors
+        flagsAllList?.addEventListener('click', (e) => {
+            const art = e.target.closest('.palette-item');
+            if (!art) return;
+            const fid = parseInt(art.getAttribute('data-flag-id'), 10);
+            if (Number.isFinite(fid)) selectFlag(fid);
+            // highlight selected like Colors
+            flagsAllList.querySelectorAll('.palette-item.selected').forEach(el => el.classList.remove('selected'));
+            art.classList.add('selected');
+        });
+
+        try {
+            if (!COLORS_CACHE) {
+                await loadUsersColorState(false);
+                try { buildFlagsCatalog(); } catch (_) { }
+            }
+        } catch (_) { }
+
+        $("checkFlagsAll")?.addEventListener('click', async () => {
+            let timer = null;
+            try {
+                const btn = document.getElementById('checkFlagsAll');
+                if (btn) { btn.disabled = true; btn.textContent = 'Checking...'; }
+
+                const updateProgress = async () => {
+                    try {
+                        const { data } = await axios.get('/users/flags-check/progress');
+                        const total = data?.total || 0;
+                        const completed = data?.completed || 0;
+                        if (data?.active && total > 0 && btn) btn.textContent = `Checking... ${completed}/${total}`;
+                    } catch (_) { }
+                };
+                timer = setInterval(updateProgress, 500);
+                updateProgress().catch(() => { });
+
+                const { data } = await axios.post('/users/flags-check');
+                const nowTs = data?.ts || Date.now();
+                try {
+                    const existing = (COLORS_CACHE?.report || []).reduce((m, r) => { if (r?.userId) m[String(r.userId)] = r; return m; }, {});
+                    for (const r of (data?.report || [])) {
+                        const prev = existing[String(r.userId)] || { userId: String(r.userId), name: r.name };
+                        existing[String(r.userId)] = { ...prev, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag, droplets: r.droplets ?? prev.droplets };
+                    }
+                    COLORS_CACHE = { ts: nowTs, report: Object.values(existing) };
+                    saveColorsCache();
+                } catch (_) { }
+                FLAGS_CACHE = { ts: nowTs, report: data?.report || [] };
+                saveFlagsCache();
+                if (flagsLastCheckLabel) flagsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+                (FLAGS_CACHE.report || []).forEach(r => { USERS_FLAG_STATE[String(r.userId)] = { name: r.name, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag | 0, droplets: r.droplets | 0 }; });
+                buildFlagsCatalog();
+                if (CURRENT_SELECTED_FLAG != null) renderFlagDetails(CURRENT_SELECTED_FLAG);
+            } catch (e) { handleError(e); }
+            finally {
+                if (timer) clearInterval(timer);
+                const btn = document.getElementById('checkFlagsAll');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<img src="icons/check.svg" alt="" />Check Flags (All)'; }
+            }
+        });
+
+        $("loadFlagsCache")?.addEventListener('click', () => {
+            try {
+                if (!FLAGS_CACHE?.report) return;
+                (FLAGS_CACHE.report || []).forEach(r => { USERS_FLAG_STATE[String(r.userId)] = { name: r.name, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag | 0, droplets: r.droplets | 0 }; });
+
+                try {
+                    const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => { if (rr?.userId) m[String(rr.userId)] = rr; return m; }, {});
+                    for (const r of (FLAGS_CACHE.report || [])) {
+                        const prev = existing[String(r.userId)] || { userId: String(r.userId), name: r.name };
+                        existing[String(r.userId)] = { ...prev, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag, droplets: r.droplets ?? prev.droplets };
+                    }
+                    COLORS_CACHE = { ts: FLAGS_CACHE.ts, report: Object.values(existing) };
+                    saveColorsCache();
+                } catch (_) { }
+                if (flagsLastCheckLabel && FLAGS_CACHE?.ts) flagsLastCheckLabel.textContent = new Date(FLAGS_CACHE.ts).toLocaleString();
+                buildFlagsCatalog();
+                if (CURRENT_SELECTED_FLAG != null) renderFlagDetails(CURRENT_SELECTED_FLAG);
+            } catch (_) { }
+        });
+
+        selectAllNoFlag?.addEventListener('click', () => { usersNoFlag.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true); });
+        UnselectAllNoFlag?.addEventListener('click', () => { usersNoFlag.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false); });
+        selectAllHaveFlag?.addEventListener('click', () => { usersHaveFlag.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true); });
+        unselectAllHaveFlag?.addEventListener('click', () => { usersHaveFlag.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false); });
+
+        purchaseFlagBtn?.addEventListener('click', async () => {
+            if (CURRENT_SELECTED_FLAG == null) { showMessage('Error', 'Select a flag first.'); return; }
+            const flagId = CURRENT_SELECTED_FLAG;
+            const selectedUserIds = Array.from(usersNoFlag.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+            if (!selectedUserIds.length) { showMessage('Error', 'Select at least one user without this flag.'); return; }
+
+            const COUNT = selectedUserIds.length;
+            const COST_PER = 20000;
+            const totalCost = COUNT * COST_PER;
+            const confirmHtml = `
+      <div style="text-align:left; line-height:1.45">
+        <b>Flag:</b> #${flagId}<br>
+        <b>Users:</b> ${COUNT}<br>
+        <b>Cost per user:</b> ${COST_PER} droplets<br>
+        <b>Total cost (max):</b> ${totalCost} droplets<br>
+      </div>`;
+
+            showConfirmation('Confirm purchase', confirmHtml, async () => {
+                let timer = null;
+                try {
+                    purchaseFlagBtn.disabled = true; purchaseFlagBtn.textContent = 'Processing...';
+                    const updateProgress = async () => {
+                        try {
+                            const { data } = await axios.get('/users/purchase-flag/progress');
+                            const total = data?.total || 0; const completed = data?.completed || 0;
+                            if (data?.active && total > 0) purchaseFlagBtn.textContent = `Processing... ${completed}/${total}`;
+                        } catch (_) { }
+                    };
+                    timer = setInterval(updateProgress, 500); updateProgress().catch(() => { });
+
+                    const { data } = await axios.post('/users/purchase-flag', { flagId, userIds: selectedUserIds });
+                    const report = data?.report || [];
+                    let ok = 0, skipped = 0, failed = 0;
+                    const lines = report.map(r => {
+                        if (r.error) { failed++; return `❌ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.error)}`; }
+                        if (r.skipped) { skipped++; return `⏭️ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.reason || 'skipped')}`; }
+                        if (r.ok || r.success) {
+                            ok++;
+                            const before = (r.beforeDroplets ?? '-'), after = (r.afterDroplets ?? '-');
+                            return `✅ ${escapeHtml(r.name || '')} (#${r.userId}) — purchased. Droplets ${before} → ${after}`;
+                        }
+                        return `– ${escapeHtml(r.name || '')} (#${r.userId})`;
+                    });
+
+                    const html = `
+          <b>Flag:</b> #${flagId}<br>
+          <b>Purchased:</b> ${ok}<br>
+          <b>Skipped:</b> ${skipped}<br>
+          <b>Failed:</b> ${failed}<br><br>
+          ${lines.slice(0, 20).join('<br>')}
+          ${lines.length > 20 ? `<br>...and ${lines.length - 20} more` : ''}
+        `;
+                    showMessage('Purchase Report', html);
+
+                    // Update local caches for flags and combined cache similarly to colors flow
+                    try {
+                        // helpers to set a bit in base64 bitmap (big-endian byte ordering like backend)
+                        const setFlagInBitmap = (b64, id) => {
+                            const bitIndex = Number(id);
+                            const byteIndexFromEnd = Math.floor(bitIndex / 8);
+                            const bitInByte = bitIndex % 8;
+                            const bytes = (function () {
+                                try {
+                                    const binaryString = atob(String(b64 || ''));
+                                    return new Uint8Array(binaryString.length).map((_, i) => binaryString.charCodeAt(i));
+                                } catch (_) { return new Uint8Array(0); }
+                            })();
+                            const needLen = byteIndexFromEnd + 1;
+                            const arr = new Uint8Array(Math.max(bytes.length, needLen));
+                            // copy existing aligned to end
+                            if (bytes.length) arr.set(bytes, arr.length - bytes.length);
+                            const pos = arr.length - 1 - byteIndexFromEnd;
+                            arr[pos] = arr[pos] | (1 << bitInByte);
+                            try {
+                                const binaryString = String.fromCharCode(...arr);
+                                return btoa(binaryString);
+                            } catch (_) { return b64 || ''; }
+                        };
+
+                        const nowTs = Date.now();
+                        // Update USERS_FLAG_STATE and FLAGS_CACHE
+                        for (const r of report) {
+                            if (r && !r.error && !r.skipped) {
+                                const key = String(r.userId);
+                                const prev = USERS_FLAG_STATE[key] || { name: r.name, flagsBitmap: '', equippedFlag: 0, droplets: 0 };
+                                const updatedBitmap = setFlagInBitmap(prev.flagsBitmap, flagId);
+                                USERS_FLAG_STATE[key] = { name: r.name, flagsBitmap: updatedBitmap, equippedFlag: prev.equippedFlag | 0, droplets: r.afterDroplets ?? prev.droplets };
+                                console.log(`[FlagPurchase] Updated user ${r.name} (#${r.userId}) - flag #${flagId} added to bitmap: ${prev.flagsBitmap} -> ${updatedBitmap}`);
+                            }
+                        }
+                        // Rebuild FLAGS_CACHE.report from USERS_FLAG_STATE if it exists
+                        try {
+                            const entries = Object.entries(USERS_FLAG_STATE).map(([uid, v]) => ({ userId: uid, name: v.name, flagsBitmap: v.flagsBitmap, equippedFlag: v.equippedFlag | 0, droplets: v.droplets | 0 }));
+                            FLAGS_CACHE = { ts: nowTs, report: entries };
+                            saveFlagsCache();
+                            console.log(`[FlagPurchase] Rebuilt FLAGS_CACHE with ${entries.length} users, timestamp: ${nowTs}`);
+                        } catch (_) { }
+                        if (flagsLastCheckLabel) flagsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+
+                        // Merge into COLORS_CACHE like in colors purchase flow so badges align
+                        try {
+                            const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => { if (rr?.userId) m[String(rr.userId)] = rr; return m; }, {});
+                            for (const r of (FLAGS_CACHE?.report || [])) {
+                                const prev = existing[String(r.userId)] || { userId: String(r.userId), name: r.name };
+                                existing[String(r.userId)] = { ...prev, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag, droplets: r.droplets ?? prev.droplets };
+                            }
+                            COLORS_CACHE = { ts: FLAGS_CACHE?.ts || nowTs, report: Object.values(existing) };
+                            saveColorsCache();
+                        } catch (_) { }
+
+                        buildFlagsCatalog();
+                        if (CURRENT_SELECTED_FLAG != null) renderFlagDetails(CURRENT_SELECTED_FLAG);
+
+                        // Clear checkboxes after successful purchase
+                        usersNoFlag.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+                    } catch (_) { }
+                } catch (e) {
+                    handleError(e);
+                } finally {
+                    if (timer) clearInterval(timer);
+                    purchaseFlagBtn.disabled = false; purchaseFlagBtn.textContent = 'Attempt to Buy for Selected';
+                }
+            });
+        });
+
+        equipFlagBtn?.addEventListener('click', async () => {
+            if (CURRENT_SELECTED_FLAG == null) { showMessage('Error', 'Select a flag first.'); return; }
+            const selectedUserIds = Array.from(usersHaveFlag.querySelectorAll('input[type="radio"]:checked')).map(cb => cb.value);
+            if (selectedUserIds.length !== 1) { showMessage('Info', 'Select exactly one user to equip flag.'); return; }
+            const uid = selectedUserIds[0];
+            try {
+                equipFlagBtn.disabled = true; equipFlagBtn.textContent = 'Equipping...';
+                const { data } = await axios.post(`/user/${uid}/flag/equip`, { flagId: CURRENT_SELECTED_FLAG });
+                if (data?.success) showMessage('Success', 'Equipped');
+            } catch (e) { handleError(e); }
+            finally { equipFlagBtn.disabled = false; equipFlagBtn.textContent = 'Equip Selected (single)'; }
+        });
+
+        const setFlagButtonsBusy = (busy, textEquip, textUnequip) => {
+            if (equipFlagBatchBtn) { equipFlagBatchBtn.disabled = !!busy; if (typeof textEquip === 'string') equipFlagBatchBtn.textContent = textEquip; }
+            if (unequipFlagBatchBtn) { unequipFlagBatchBtn.disabled = !!busy; if (typeof textUnequip === 'string') unequipFlagBatchBtn.textContent = textUnequip; }
+            if (purchaseFlagBtn) purchaseFlagBtn.disabled = !!busy;
+        };
+
+        equipFlagBatchBtn?.addEventListener('click', async () => {
+            if (CURRENT_SELECTED_FLAG == null) { showMessage('Error', 'Select a flag first.'); return; }
+            const selectedUserIds = Array.from(usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+            if (!selectedUserIds.length) { showMessage('Info', 'Select users to equip.'); return; }
+            let timer = null;
+            try {
+                setFlagButtonsBusy(true, 'Equipping...', 'Unequip');
+                const updateProgress = async () => {
+                    try {
+                        const { data } = await axios.get('/users/equip-flag/progress');
+                        const total = data?.total || 0; const completed = data?.completed || 0;
+                        if (data?.active && total > 0 && equipFlagBatchBtn) equipFlagBatchBtn.textContent = `Equipping... ${completed}/${total}`;
+                    } catch (_) { }
+                };
+                timer = setInterval(updateProgress, 500); updateProgress().catch(() => { });
+                const { data } = await axios.post('/users/equip-flag', { flagId: CURRENT_SELECTED_FLAG, userIds: selectedUserIds });
+                const report = data?.report || [];
+                let ok = 0, skipped = 0, failed = 0;
+                const lines = report.map(r => {
+                    if (r.error) { failed++; return `❌ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.error)}`; }
+                    if (r.skipped) { skipped++; return `⏭️ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.reason || 'skipped')}`; }
+                    if (r.ok || r.success) { ok++; return `✅ ${escapeHtml(r.name || '')} (#${r.userId}) — equipped`; }
+                    return `– ${escapeHtml(r.name || '')} (#${r.userId})`;
+                });
+                const html = `
+        <b>Flag:</b> #${CURRENT_SELECTED_FLAG}<br>
+        <b>Equipped:</b> ${ok}<br>
+        <b>Skipped:</b> ${skipped}<br>
+        <b>Failed:</b> ${failed}<br><br>
+        ${lines.slice(0, 20).join('<br>')}
+        ${lines.length > 20 ? `<br>...and ${lines.length - 20} more` : ''}
+      `;
+                showMessage('Equip report', html);
+
+                // Update cache and UI after successful equip operations
+                try {
+                    const nowTs = Date.now();
+                    for (const r of report) {
+                        if (r && !r.error && !r.skipped) {
+                            const key = String(r.userId);
+                            const prev = USERS_FLAG_STATE[key] || { name: r.name, flagsBitmap: '', equippedFlag: 0, droplets: 0 };
+                            USERS_FLAG_STATE[key] = {
+                                name: r.name,
+                                flagsBitmap: prev.flagsBitmap,
+                                equippedFlag: CURRENT_SELECTED_FLAG,
+                                droplets: prev.droplets
+                            };
+                        }
+                    }
+                    // Rebuild FLAGS_CACHE.report from USERS_FLAG_STATE
+                    const entries = Object.entries(USERS_FLAG_STATE).map(([uid, v]) => ({
+                        userId: uid,
+                        name: v.name,
+                        flagsBitmap: v.flagsBitmap,
+                        equippedFlag: v.equippedFlag | 0,
+                        droplets: v.droplets | 0
+                    }));
+                    FLAGS_CACHE = { ts: nowTs, report: entries };
+                    saveFlagsCache();
+                    if (flagsLastCheckLabel) flagsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+
+                    // Update COLORS_CACHE as well
+                    const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => { if (rr?.userId) m[String(rr.userId)] = rr; return m; }, {});
+                    for (const r of (FLAGS_CACHE?.report || [])) {
+                        const prev = existing[String(r.userId)] || { userId: String(r.userId), name: r.name };
+                        existing[String(r.userId)] = { ...prev, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag, droplets: r.droplets ?? prev.droplets };
+                    }
+                    COLORS_CACHE = { ts: FLAGS_CACHE?.ts || nowTs, report: Object.values(existing) };
+                    saveColorsCache();
+
+                    buildFlagsCatalog();
+                    if (CURRENT_SELECTED_FLAG != null) renderFlagDetails(CURRENT_SELECTED_FLAG);
+                } catch (_) { }
+
+                // Clear checkboxes after successful operation
+                usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => cb.checked = false);
+            } catch (e) { handleError(e); }
+            finally {
+                if (timer) clearInterval(timer);
+                setFlagButtonsBusy(false, 'Equip', 'Unequip');
+            }
+        });
+
+        unequipFlagBatchBtn?.addEventListener('click', async () => {
+            const selectedUserIds = Array.from(usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+            if (!selectedUserIds.length) { showMessage('Info', 'Select users to unequip.'); return; }
+            let timer = null;
+            try {
+                setFlagButtonsBusy(true, 'Equip', 'Unequipping...');
+                const updateProgress = async () => {
+                    try {
+                        const { data } = await axios.get('/users/unequip-flag/progress');
+                        const total = data?.total || 0; const completed = data?.completed || 0;
+                        if (data?.active && total > 0 && unequipFlagBatchBtn) unequipFlagBatchBtn.textContent = `Unequipping... ${completed}/${total}`;
+                    } catch (_) { }
+                };
+                timer = setInterval(updateProgress, 500); updateProgress().catch(() => { });
+                const { data } = await axios.post('/users/unequip-flag', { userIds: selectedUserIds });
+                const report = data?.report || [];
+                let ok = 0, skipped = 0, failed = 0;
+                const lines = report.map(r => {
+                    if (r.error) { failed++; return `❌ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.error)}`; }
+                    if (r.skipped) { skipped++; return `⏭️ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.reason || 'skipped')}`; }
+                    if (r.ok || r.success) { ok++; return `✅ ${escapeHtml(r.name || '')} (#${r.userId}) — unequipped`; }
+                    return `– ${escapeHtml(r.name || '')} (#${r.userId})`;
+                });
+                const html = `
+        <b>Flag:</b> #${CURRENT_SELECTED_FLAG}<br>
+        <b>Unequipped:</b> ${ok}<br>
+        <b>Skipped:</b> ${skipped}<br>
+        <b>Failed:</b> ${failed}<br><br>
+        ${lines.slice(0, 20).join('<br>')}
+        ${lines.length > 20 ? `<br>...and ${lines.length - 20} more` : ''}
+      `;
+                showMessage('Unequip report', html);
+
+                // Update cache and UI after successful unequip operations
+                try {
+                    const nowTs = Date.now();
+                    for (const r of report) {
+                        if (r && !r.error && !r.skipped) {
+                            const key = String(r.userId);
+                            const prev = USERS_FLAG_STATE[key] || { name: r.name, flagsBitmap: '', equippedFlag: 0, droplets: 0 };
+                            USERS_FLAG_STATE[key] = {
+                                name: r.name,
+                                flagsBitmap: prev.flagsBitmap,
+                                equippedFlag: 0, // unequip = 0
+                                droplets: prev.droplets
+                            };
+                        }
+                    }
+                    // Rebuild FLAGS_CACHE.report from USERS_FLAG_STATE
+                    const entries = Object.entries(USERS_FLAG_STATE).map(([uid, v]) => ({
+                        userId: uid,
+                        name: v.name,
+                        flagsBitmap: v.flagsBitmap,
+                        equippedFlag: v.equippedFlag | 0,
+                        droplets: v.droplets | 0
+                    }));
+                    FLAGS_CACHE = { ts: nowTs, report: entries };
+                    saveFlagsCache();
+                    if (flagsLastCheckLabel) flagsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+
+                    // Update COLORS_CACHE as well
+                    const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => { if (rr?.userId) m[String(rr.userId)] = rr; return m; }, {});
+                    for (const r of (FLAGS_CACHE?.report || [])) {
+                        const prev = existing[String(r.userId)] || { userId: String(r.userId), name: r.name };
+                        existing[String(r.userId)] = { ...prev, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag, droplets: r.droplets ?? prev.droplets };
+                    }
+                    COLORS_CACHE = { ts: FLAGS_CACHE?.ts || nowTs, report: Object.values(existing) };
+                    saveColorsCache();
+
+                    buildFlagsCatalog();
+                    if (CURRENT_SELECTED_FLAG != null) renderFlagDetails(CURRENT_SELECTED_FLAG);
+                } catch (_) { }
+
+                // Clear checkboxes after successful operation
+                usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => cb.checked = false);
+            } catch (e) { handleError(e); }
+            finally {
+                if (timer) clearInterval(timer);
+                setFlagButtonsBusy(false, 'Equip', 'Unequip');
+            }
+        });
+    }
+
+    function renderFlagDetails(flagId) {
+        CURRENT_SELECTED_FLAG = flagId;
+        const meta = FLAGS_LIST.find(f => f.id === flagId);
+        selectedFlagTitle.textContent = `${meta?.name || 'Flag'} (${meta?.code || 'XX'})`;
+        selectedFlagId.textContent = `ID: ${flagId}`;
+        // render emoji and parse with Twemoji like in tiles
+        (function () {
+            const emoji = flagMetaToEmoji(meta) || '🏳️';
+            selectedFlagEmoji.textContent = emoji;
+            parseTwemojiIn(selectedFlagEmoji, 40);
+        })();
+        flagDetailsCard.style.display = '';
+
+        try {
+            flagsAllList?.querySelectorAll('.color-tile').forEach(el => {
+                if (parseInt(el.getAttribute('data-flag-id'), 10) === flagId) el.classList.add('selected');
+                else el.classList.remove('selected');
+            });
+        } catch (_) { }
+
+        // group users
+        const have = []; const no = [];
+        const byId = FLAGS_CACHE?.report ? new Map(FLAGS_CACHE.report.map(r => [String(r.userId), r])) : new Map();
+        for (const [id, u] of Object.entries(USERS_FLAG_STATE)) {
+            try {
+                const ids = bitmapToFlagIds(String(u.flagsBitmap || ''));
+                if (ids.includes(flagId)) have.push([id, u]); else no.push([id, u]);
+            } catch (_) { no.push([id, u]); }
+        }
+
+        usersHaveFlag.innerHTML = have.length
+            ? have.map(([id, u]) => {
+                const equippedFlagId = Number(u.equippedFlag || 0);
+                const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find(f => f.id === equippedFlagId) : null;
+                const equippedEmoji = equippedFlag ? flagMetaToEmoji(equippedFlag) : '';
+                return `
+        <div class="user-select-item">
+          <input type="checkbox" id="flag_have_${id}" value="${id}">
+          <label class="label-margin0" for="flag_have_${id}">
+            ${equippedEmoji ? `<span class="flag-emoji-inline" style="margin-right:6px;font-size:16px;line-height:1">${equippedEmoji}</span>` : ''}${u.name} <span class="muted">(#${id})</span>
+          </label>
+          <span class="drops-badge" title="Droplets at last check">${u.droplets | 0} drops</span>
+        </div>
+      `;
+            }).join('')
+            : `<span class="muted">Nobody has this flag yet.</span>`;
+
+        // toggle bulk select and actions visibility depending on availability
+        try {
+            const bulkWrap = document.getElementById('haveFlagBulkSelectWrap');
+            const actionsWrap = document.getElementById('haveFlagActionsWrap');
+            const showControls = have.length > 0;
+            if (bulkWrap) bulkWrap.style.display = showControls ? '' : 'none';
+            if (actionsWrap) actionsWrap.style.display = showControls ? '' : 'none';
+        } catch (_) { }
+
+        usersNoFlag.innerHTML = no.length
+            ? no.map(([id, u]) => {
+                const equippedFlagId = Number(u.equippedFlag || 0);
+                const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find(f => f.id === equippedFlagId) : null;
+                const equippedEmoji = equippedFlag ? flagMetaToEmoji(equippedFlag) : '';
+                return `
+        <div class="user-select-item">
+          <input type="checkbox" id="flag_user_${id}" value="${id}">
+          <label class="label-margin0" for="flag_user_${id}">
+            ${equippedEmoji ? `<span class="flag-emoji-inline" style="margin-right:6px;font-size:16px;line-height:1">${equippedEmoji}</span>` : ''}${u.name} <span class="muted">(#${id})</span>
+          </label>
+          <span class="drops-badge" title="Droplets at last check">${u.droplets | 0} drops</span>
+        </div>
+      `;
+            }).join('')
+            : `<span class="muted">Everyone already has this flag.</span>`;
+
+        // parse Twemoji for flag emojis in user lists (after HTML is set)
+        [usersHaveFlag, usersNoFlag].filter(Boolean).forEach(el => parseTwemojiIn(el, 16));
+    }
+
+    function selectFlag(flagId) {
+        renderFlagDetails(flagId);
+    }
+
+    function buildFlagsCatalog() {
+        if (!flagsAllList || !Array.isArray(FLAGS_LIST)) return;
+        // build owners count per flag from USERS_FLAG_STATE
+        const countByFlag = new Map();
+        try {
+            for (const [uid, rec] of Object.entries(USERS_FLAG_STATE)) {
+                const ids = bitmapToFlagIds(String(rec.flagsBitmap || ''));
+                for (const id of ids) countByFlag.set(id, (countByFlag.get(id) || 0) + 1);
+            }
+        } catch (_) { }
+
+        const toFlagEmoji = (code, fallback) => flagMetaToEmoji({ code, flag: fallback }) || '🏳️';
+
+        // Sort flags: first those with badge > 0, then by ID
+        const sortedFlags = [...FLAGS_LIST].sort((a, b) => {
+            const cntA = countByFlag.get(a.id) || 0;
+            const cntB = countByFlag.get(b.id) || 0;
+            return (cntB > 0) - (cntA > 0) || a.id - b.id;
+        });
+
+        const html = sortedFlags.map(f => {
+            const cnt = countByFlag.get(f.id) || 0;
+            const badge = cnt > 0 ? `<span class="count-badge" title="Users with this flag">${cnt}</span>` : '';
+            const type = `${f.code} (#${f.id})`;
+            const emoji = toFlagEmoji(f.code, f.flag);
+            return `
+      <article class="palette-item color-tile" data-flag-id="${f.id}" title="${f.name} ${type}">
+        <div class="swatch flag-emoji" style="display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1">${emoji}</div>
+        <div class="palette-meta">
+          <span class="name"><span class="scroll">${f.name}</span></span>
+          <span class="type basic">${type}</span>
+        </div>
+        ${badge}
+      </article>
+    `;
+        }).join('');
+        flagsAllList.innerHTML = html;
+
+        parseTwemojiIn(flagsAllList, 20);
+    }
+
 
     if (currentTab === liveLogs) {
         // refresh log toggles from backend when opening Live Logs
@@ -1854,20 +2506,61 @@ const changeTab = (el) => {
             if (typeof applyLogSettingsFromServer === 'function') {
                 applyLogSettingsFromServer();
             }
-        } catch (_) {}
+        } catch (_) { }
         // start SSE stream when entering logs tab
         startLogsStream();
     } else {
-        try { if (__sse) { __sse.close(); __sse = null; } } catch (_) {}
+        try { if (__sse) { __sse.close(); __sse = null; } } catch (_) { }
     }
 
     if (currentTab === queuePreview) {
-        try { loadQueueSettings(); } catch (_) {}
-        try { loadQueuePreview(); } catch (_) {}
-        try { if (autoRefreshQueue && autoRefreshQueue.checked) startQueueAutoRefresh(); } catch (_) {}
-        try { toggleRefreshIntervalInput(); } catch (_) {}
+        try { loadQueueSettings(); } catch (_) { }
+        try { loadQueuePreview(); } catch (_) { }
+        try { if (autoRefreshQueue && autoRefreshQueue.checked) startQueueAutoRefresh(); } catch (_) { }
+        try { toggleRefreshIntervalInput(); } catch (_) { }
     }
 };
+
+(function () {
+    const SPEED_PX_S = 40;
+
+    function measureAndMark(nameEl) {
+        const scrollEl = nameEl.querySelector('.scroll');
+        if (!scrollEl) return;
+
+        nameEl.classList.remove('overflow');
+        nameEl.style.removeProperty('--marquee-distance');
+        nameEl.style.removeProperty('--marquee-duration');
+
+        const container = nameEl;
+        const textW = scrollEl.scrollWidth;
+        const boxW = container.clientWidth;
+
+        if (textW > boxW + 1) {
+            const distance = textW / 3 + boxW;
+            const duration = distance / SPEED_PX_S;
+
+            nameEl.classList.add('overflow');
+            nameEl.style.setProperty('--marquee-distance', distance + 'px');
+            nameEl.style.setProperty('--marquee-duration', duration.toFixed(2) + 's');
+        }
+    }
+
+    function scan() {
+        document.querySelectorAll('#flagsAllList .palette-meta .name').forEach(measureAndMark);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', scan);
+    } else {
+        scan();
+    }
+    window.addEventListener('resize', () => scan());
+    const list = document.getElementById('flagsAllList');
+    if (list) {
+        new MutationObserver(() => scan()).observe(list, { childList: true, subtree: true });
+    }
+})();
+
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const formatSpaces = (val) => {
     const n = Number(val);
@@ -1875,11 +2568,38 @@ const formatSpaces = (val) => {
     return String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 };
 
-openManageUsers.addEventListener("click", () => {
+openManageUsers.addEventListener("click", async () => {
     userList.innerHTML = "";
     userForm.reset();
     totalCharges.textContent = "?";
     totalMaxCharges.textContent = "?";
+
+    // Initialize flags state from cache if available
+    try {
+        if (FLAGS_CACHE?.report) {
+            (FLAGS_CACHE.report || []).forEach(r => {
+                USERS_FLAG_STATE[String(r.userId)] = {
+                    name: r.name,
+                    flagsBitmap: r.flagsBitmap,
+                    equippedFlag: r.equippedFlag | 0,
+                    droplets: r.droplets | 0
+                };
+            });
+        }
+
+        // Load FLAGS_LIST if not already loaded
+        if (!FLAGS_LIST || FLAGS_LIST.length === 0) {
+            try {
+                const response = await fetch('/flags.json');
+                FLAGS_LIST = await response.json();
+            } catch (e) {
+                console.error('[ManageUsers] Error loading FLAGS_LIST:', e);
+            }
+        }
+    } catch (e) {
+        console.error('[ManageUsers] Error loading flags cache:', e);
+    }
+
     loadUsers(users => {
         const userCount = Object.keys(users).length;
         if (manageUsersTitle) manageUsersTitle.textContent = `Existing Users (${userCount})`;
@@ -1895,9 +2615,16 @@ openManageUsers.addEventListener("click", () => {
             const shortLabel = (users[id].shortLabel || '').trim();
             const shortLabelSafe = escapeHtml(shortLabel);
             const shortLabelCut = shortLabelSafe ? (shortLabelSafe.length > 20 ? shortLabelSafe.slice(0, 40) + '…' : shortLabelSafe) : '';
+
+            // Get equipped flag for this user from flags cache
+            const userFlagData = USERS_FLAG_STATE[String(id)];
+            const equippedFlagId = userFlagData?.equippedFlag || 0;
+            const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find(f => f.id === equippedFlagId) : null;
+            const equippedEmoji = equippedFlag ? flagMetaToEmoji(equippedFlag) : '';
+
             user.innerHTML = `
                 <div class="user-info">
-                    <span class="user-info-username">${users[id].name}${shortLabelCut ? ` <span class="user-info-id">(${shortLabelCut})</span>` : ''}</span>
+                    <span class="user-info-username">${equippedEmoji ? `<span class="flag-emoji-inline" style="margin-right:6px;font-size:16px;line-height:1" title="${equippedFlag?.name || ''} (${equippedFlag?.code || ''}) - ID: ${equippedFlagId}">${equippedEmoji}</span>` : ''}${users[id].name}${shortLabelCut ? ` <span class="user-info-id">(${shortLabelCut})</span>` : ''}</span>
                     <span class="user-info-id">(#${id})</span>
                     <div class="user-stats">
                         Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span> | Droplets: <b>?</b> 
@@ -2088,6 +2815,32 @@ openManageUsers.addEventListener("click", () => {
                         const fg = meta ? getContrastColor(meta.rgb[0], meta.rgb[1], meta.rgb[2]) : '#fff';
                         return `<span class=\"tiny-swatch\" style=\"background:${rgb};color:${fg}\">${cid}</span>`;
                     }).join('');
+                    // Load FLAGS_LIST if not already loaded
+                    if (!FLAGS_LIST || FLAGS_LIST.length === 0) {
+                        try {
+                            const response = await fetch('/flags.json');
+                            FLAGS_LIST = await response.json();
+                        } catch (e) {
+                            console.error('[GetUserInfo] Error loading FLAGS_LIST:', e);
+                        }
+                    }
+
+                    // Get purchased and equipped flags for this user
+                    const purchasedFlagIds = u.flagsBitmap ? bitmapToFlagIds(u.flagsBitmap) : [];
+                    const purchasedFlags = purchasedFlagIds.map(flagId => FLAGS_LIST.find(f => f.id === flagId)).filter(Boolean);
+                    const flagSwatches = purchasedFlags.map(flag => {
+                        const emoji = flagMetaToEmoji(flag);
+                        const tooltip = `${flag.name} (${flag.code}) - ID: ${flag.id}`;
+                        return `<span class="flag-swatch" title="${tooltip}" style="font-size:16px;margin:2px;display:inline-block;">${emoji}</span>`;
+                    }).join('');
+
+                    // Get equipped flag
+                    const equippedFlagId = u.equippedFlag || 0;
+                    const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find(f => f.id === equippedFlagId) : null;
+                    const equippedEmoji = equippedFlag ? flagMetaToEmoji(equippedFlag) : '';
+                    const equippedFlagInfo = equippedFlag ? `${equippedFlag.name} (${equippedFlag.code}) - ID: ${equippedFlagId}` : 'None';
+
+
                     const info = `
                         <b>User:</b> <span style="color:#f97a1f">${u.name}</span><br>
                         <b>Charges:</b> <span style="color:#f97a1f">${Math.floor(u.charges.count)}</span>/<span style="color:#f97a1f">${u.charges.max}</span><br>
@@ -2099,7 +2852,10 @@ openManageUsers.addEventListener("click", () => {
                         <b>Pixels Painted:</b> <span style="color:#f97a1f">${u.pixelsPainted ?? "-"}</span><br>
                         <b>Alliance:</b> <span style="color:#f97a1f">${u.allianceId ?? "-"}</span> / <span style="color:#f97a1f">${u.allianceRole ?? "-"}</span><br>
                         <b>Paid colors:</b>
-                        <div class=\"tiny-swatches\">${paidSwatches || '<span class=\"muted\">none</span>'}</div><br>
+                        <div class=\"tiny-swatches\">${paidSwatches || '<span class=\"muted\">none</span>'}</div>
+                        <b>Purchased flags:</b>
+                        <div class=\"flag-swatches\">${flagSwatches || '<span class=\"muted\">none</span>'}</div>
+                        <b>Equipped flag:</b> ${equippedEmoji ? `<span class="flag-emoji-inline" style="font-size:16px;margin-right:4px;" title="${equippedFlag?.code || ''} (${equippedFlagId})">${equippedEmoji}</span>` : ''}<span style="color:#f97a1f">${equippedFlag?.name || 'None'}</span><br><br>
                         Copy RAW JSON to clipboard?
                     `;
 
@@ -2120,11 +2876,51 @@ openManageUsers.addEventListener("click", () => {
                         if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
                         if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
                         USERS_COLOR_STATE[String(id)] = { name: u.name, extraColorsBitmap: u.extraColorsBitmap | 0, droplets: u.droplets | 0 };
+
+                        // Update flags cache with fresh data from /user/status
+                        USERS_FLAG_STATE[String(id)] = {
+                            name: u.name,
+                            flagsBitmap: u.flagsBitmap || '',
+                            equippedFlag: u.equippedFlag || 0,
+                            droplets: u.droplets || 0
+                        };
+
+                        // Update FLAGS_CACHE if it exists
+                        if (FLAGS_CACHE?.report) {
+                            const flagReport = FLAGS_CACHE.report.filter(r => String(r.userId) !== String(id));
+                            flagReport.push({
+                                userId: String(id),
+                                name: u.name,
+                                flagsBitmap: u.flagsBitmap || '',
+                                equippedFlag: u.equippedFlag || 0,
+                                droplets: u.droplets || 0
+                            });
+                            FLAGS_CACHE = { ts: nowTs, report: flagReport };
+                            saveFlagsCache();
+                        }
                     } catch (_) { }
 
                     showConfirmation("User Info", info, () => {
                         navigator.clipboard.writeText(JSON.stringify(u, null, 2));
                     });
+
+                    // Parse Twemoji for flag emojis in the message box / modal
+                    setTimeout(() => {
+                        const container =
+                            document.querySelector('.modal-content') ||
+                            document.getElementById('messageBoxContent') ||
+                            document.getElementById('messageBox');
+
+                        if (!container) return;
+
+                        const flagSwatches = container.querySelector('.flag-swatches');
+                        const equippedFlags = container.querySelectorAll('.flag-emoji-inline');
+
+                        if (flagSwatches) parseTwemojiIn(flagSwatches, 16);
+                        equippedFlags.forEach(el => parseTwemojiIn(el, 16));
+                        parseTwemojiIn(container, 16);
+                    }, 0);
+
                 } catch (error) {
                     handleError(error);
                 }
@@ -2161,6 +2957,9 @@ openManageUsers.addEventListener("click", () => {
             */
             userList.appendChild(user);
         }
+
+        // Parse Twemoji for flag emojis in user list
+        parseTwemojiIn(userList, 16);
 
         const totals = loadLatestTotals();
         if (totals) {
@@ -2271,7 +3070,7 @@ checkUserStatus.addEventListener("click", async () => {
 
         let success = false;
         let lastReason = 'error';
-        let lastName = (() => { try { return userEl.querySelector('.user-info-username')?.textContent?.trim() || `#${id}` } catch(_) { return `#${id}` } })();
+        let lastName = (() => { try { return userEl.querySelector('.user-info-username')?.textContent?.trim() || `#${id}` } catch (_) { return `#${id}` } })();
 
         for (let attempt = 1; attempt <= 3; attempt++) {
             try {
@@ -2443,7 +3242,7 @@ checkUserStatus.addEventListener("click", async () => {
                 const expiredIds = accountResults.filter(r => !r.ok && (isExpired(r) || isBanned(r))).map(r => r.id);
                 if (cleanupExpiredWrap) cleanupExpiredWrap.style.display = 'block';
                 if (cleanupExpiredBtn) cleanupExpiredBtn.dataset.expiredIds = JSON.stringify(expiredIds);
-            } catch (_) {}
+            } catch (_) { }
         } else {
             if (cleanupExpiredWrap) cleanupExpiredWrap.style.display = 'none';
             if (cleanupExpiredBtn) cleanupExpiredBtn.dataset.expiredIds = '[]';
@@ -2848,7 +3647,7 @@ openAddTemplate.addEventListener("click", () => {
 });
 selectAllUsers.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
-    try { editSelectedUserIds = new Set(Array.from(document.querySelectorAll('#userSelectList input[name="user_checkbox"]:checked')).map(cb => String(cb.value))); } catch {}
+    try { editSelectedUserIds = new Set(Array.from(document.querySelectorAll('#userSelectList input[name="user_checkbox"]:checked')).map(cb => String(cb.value))); } catch { }
 });
 document.getElementById('unselectAllUsers')?.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = false);
@@ -3066,8 +3865,8 @@ openManageTemplates.addEventListener("click", () => {
                 if (t.autoBuyNeededColors) enabled.push('Buy premium colors');
                 if (t.paintTransparentPixels) enabled.push('Paint transparent pixels');
                 if (t.antiGriefMode) enabled.push('Anti‑grief mode');
-				if (t.skipPaintedPixels) enabled.push('Skip painted pixels');
-				if (t.outlineMode) enabled.push('Outline first');
+                if (t.skipPaintedPixels) enabled.push('Skip painted pixels');
+                if (t.outlineMode) enabled.push('Outline first');
                 const enabledLine = enabled.length ? `<div><span class="t-templates-enabled">Enabled:</span> ${enabled.join(', ')}</div>` : '';
 
                 meta.innerHTML = `
@@ -3172,12 +3971,13 @@ openManageTemplates.addEventListener("click", () => {
                     canBuyMaxCharges.checked = !!T.canBuyMaxCharges;
                     if (autoBuyNeededColors) autoBuyNeededColors.checked = !!T.autoBuyNeededColors;
                     antiGriefMode.checked = !!T.antiGriefMode;
-					skipPaintedPixels.checked = !!T.skipPaintedPixels;
-					outlineMode.checked = !!T.outlineMode;
+                    skipPaintedPixels.checked = !!T.skipPaintedPixels;
+                    outlineMode.checked = !!T.outlineMode;
                     paintTransparent.checked = !!T.paintTransparentPixels;
                     if (typeof T.heatmapEnabled !== 'undefined' && heatmapEnabled) heatmapEnabled.checked = !!T.heatmapEnabled;
                     if (heatmapLimitWrap) heatmapLimitWrap.style.display = heatmapEnabled && heatmapEnabled.checked ? '' : 'none';
                     if (typeof T.heatmapLimit !== 'undefined' && heatmapLimit) heatmapLimit.value = Math.max(1, Number(T.heatmapLimit || 10000));
+                    if (typeof T.autoStart !== 'undefined' && autoStart) autoStart.checked = !!T.autoStart;
 
 
                     if (autoBuyNeededColors?.checked) { canBuyCharges.checked = false; canBuyMaxCharges.checked = false; }
@@ -3191,6 +3991,13 @@ openManageTemplates.addEventListener("click", () => {
                     }, 0);
 
                     fillEditorFromTemplate(T);
+                    
+                    // Auto-scroll to autoStart setting if it's enabled
+                    if (T.autoStart && autoStart) {
+                        setTimeout(() => {
+                            autoStart.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+                    }
                 });
 
                 const delButton = document.createElement('button');
@@ -3355,7 +4162,7 @@ try {
         try {
             const { data } = await axios.get('/token-needed');
             if (data?.needed && turnstileNotifications?.checked) {
-                showMessage("Turnstile", "Проблема с получением токена. Попробуйте перезагрузить расширение и закрыть/открыть браузер. Возможна ошибка Cloudflare Turnstile (300030).");
+                showMessage("Turnstile", "Problem obtaining token. Please reload the extension and restart the browser. Possible Cloudflare Turnstile error (300030).");
             }
         } catch (_) { }
     }, 1000);
@@ -3670,6 +4477,7 @@ async function refreshActiveBar() {
                 if (typeof T.heatmapEnabled !== 'undefined' && heatmapEnabled) heatmapEnabled.checked = !!T.heatmapEnabled;
                 if (heatmapLimitWrap) heatmapLimitWrap.style.display = heatmapEnabled && heatmapEnabled.checked ? '' : 'none';
                 if (typeof T.heatmapLimit !== 'undefined' && heatmapLimit) heatmapLimit.value = Math.max(1, Number(T.heatmapLimit || 10000));
+                if (typeof T.autoStart !== 'undefined' && autoStart) autoStart.checked = !!T.autoStart;
 
                 setTimeout(() => {
                     document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
@@ -3678,6 +4486,13 @@ async function refreshActiveBar() {
                 }, 0);
 
                 fillEditorFromTemplate(T);
+                
+                // Auto-scroll to autoStart setting if it's enabled
+                if (T.autoStart && autoStart) {
+                    setTimeout(() => {
+                        autoStart.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                }
             });
 
             actions.appendChild(stopBtn);
@@ -3727,7 +4542,7 @@ const MODE_PREVIEW = (() => {
         SPEED = clip(v, 0.25, 3);
         localStorage.setItem('wplacer_preview_speed', String(SPEED));
         if (!opts.silent) {
-            // перезапускаем все превью
+            // restart all previews
             document.querySelectorAll('.mode-preview[data-mode]').forEach(cv => { stop(cv); start(cv); });
             const ref = document.getElementById('modeReference');
             if (ref) drawReference(ref);
@@ -4596,7 +5411,7 @@ testProxiesBtn?.addEventListener('click', async () => {
 });
 
 // --- Logs toggles ---
-['tokenManager','cache','queuePreview','painting','startTurn','mismatches','estimatedTime'].forEach(key => {
+['tokenManager', 'cache', 'queuePreview', 'painting', 'startTurn', 'mismatches', 'estimatedTime'].forEach(key => {
     const el = document.getElementById('log_' + key);
     el?.addEventListener('change', async () => {
         try {
@@ -4625,7 +5440,7 @@ cleanupBlockedBtn?.addEventListener('click', async () => {
                     try {
                         const { data } = await axios.post('/reload-proxies', {});
                         if (data && typeof data.count === 'number') proxyCount.textContent = String(data.count);
-                    } catch (_) {}
+                    } catch (_) { }
                     cleanupBlockedWrap.style.display = 'none';
                 } else {
                     showMessage('Error', 'Cleanup failed.');
@@ -5163,41 +5978,53 @@ purchaseColorBtn?.addEventListener('click', async () => {
         return;
     }
 
-    let timer = null;
-    try {
-        purchaseColorBtn.disabled = true;
-        purchaseColorBtn.textContent = "Processing...";
+    const COUNT = selectedUserIds.length;
+    const COST_PER = 2000;
+    const totalCost = COUNT * COST_PER;
+    const confirmHtml = `
+      <div style="text-align:left; line-height:1.45">
+        <b>Color:</b> #${colorId}<br>
+        <b>Users:</b> ${COUNT}<br>
+        <b>Cost per user:</b> ${COST_PER} droplets<br>
+        <b>Total cost (max):</b> ${totalCost} droplets
+      </div>`;
 
-        // progress polling like in Colors Check (All)
-        const updateProgress = async () => {
-            try {
-                const { data } = await axios.get('/users/purchase-color/progress');
-                const total = data?.total || 0;
-                const completed = data?.completed || 0;
-                if (data?.active && total > 0) {
-                    purchaseColorBtn.textContent = `Processing... ${completed}/${total}`;
-                }
-            } catch (_) { /* ignore */ }
-        };
-        timer = setInterval(updateProgress, 500);
-        updateProgress().catch(() => { });
+    showConfirmation('Confirm purchase', confirmHtml, async () => {
+        let timer = null;
+        try {
+            purchaseColorBtn.disabled = true;
+            purchaseColorBtn.textContent = "Processing...";
 
-        const { data } = await axios.post('/users/purchase-color', {
-            colorId,
-            userIds: selectedUserIds
-        });
+            // progress polling like in Colors Check (All)
+            const updateProgress = async () => {
+                try {
+                    const { data } = await axios.get('/users/purchase-color/progress');
+                    const total = data?.total || 0;
+                    const completed = data?.completed || 0;
+                    if (data?.active && total > 0) {
+                        purchaseColorBtn.textContent = `Processing... ${completed}/${total}`;
+                    }
+                } catch (_) { /* ignore */ }
+            };
+            timer = setInterval(updateProgress, 500);
+            updateProgress().catch(() => { });
 
-        const report = data?.report || [];
-        let ok = 0, skipped = 0, failed = 0;
-        const lines = report.map(r => {
-            if (r.error) { failed++; return `❌ ${r.name} (#${r.userId}): ${r.error}`; }
-            if (r.skipped) { skipped++; return `⏭️ ${r.name} (#${r.userId}): ${r.reason || 'skipped'}`; }
-            if (r.ok || r.success) { ok++; }
-            const before = (r.beforeDroplets ?? '-'), after = (r.afterDroplets ?? '-');
-            return `✅ ${r.name} (#${r.userId}) — purchased. Droplets ${before} → ${after}`;
-        });
+            const { data } = await axios.post('/users/purchase-color', {
+                colorId,
+                userIds: selectedUserIds
+            });
 
-        const html = `
+            const report = data?.report || [];
+            let ok = 0, skipped = 0, failed = 0;
+            const lines = report.map(r => {
+                if (r.error) { failed++; return `❌ ${r.name} (#${r.userId}): ${r.error}`; }
+                if (r.skipped) { skipped++; return `⏭️ ${r.name} (#${r.userId}): ${r.reason || 'skipped'}`; }
+                if (r.ok || r.success) { ok++; }
+                const before = (r.beforeDroplets ?? '-'), after = (r.afterDroplets ?? '-');
+                return `✅ ${r.name} (#${r.userId}) — purchased. Droplets ${before} → ${after}`;
+            });
+
+            const html = `
       <b>Color:</b> #${colorId}<br>
       <b>Purchased:</b> ${ok}<br>
       <b>Skipped:</b> ${skipped}<br>
@@ -5205,42 +6032,43 @@ purchaseColorBtn?.addEventListener('click', async () => {
       ${lines.slice(0, 20).join('<br>')}
       ${lines.length > 20 ? `<br>...and ${lines.length - 20} more` : ''}
     `;
-        showMessage("Purchase Report", html);
+            showMessage("Purchase Report", html);
 
-        // locally update cache only for users with ok/updated
-        try {
-            const nowTs = Date.now();
-            const byId = new Map((COLORS_CACHE?.report || []).map(r => [String(r.userId), r]));
-            for (const r of report) {
-                if (r && !r.error && !r.skipped) {
-                    const prev = byId.get(String(r.userId));
-                    byId.set(String(r.userId), {
-                        userId: String(r.userId),
-                        name: r.name,
-                        extraColorsBitmap: (prev?.extraColorsBitmap ?? 0) | (1 << (colorId - 32)),
-                        droplets: r.afterDroplets ?? prev?.droplets ?? 0,
-                        charges: prev?.charges ?? { count: 0, max: 0 },
-                        level: prev?.level ?? 0,
-                        progress: prev?.progress ?? 0
-                    });
+            // locally update cache only for users with ok/updated
+            try {
+                const nowTs = Date.now();
+                const byId = new Map((COLORS_CACHE?.report || []).map(r => [String(r.userId), r]));
+                for (const r of report) {
+                    if (r && !r.error && !r.skipped) {
+                        const prev = byId.get(String(r.userId));
+                        byId.set(String(r.userId), {
+                            userId: String(r.userId),
+                            name: r.name,
+                            extraColorsBitmap: (prev?.extraColorsBitmap ?? 0) | (1 << (colorId - 32)),
+                            droplets: r.afterDroplets ?? prev?.droplets ?? 0,
+                            charges: prev?.charges ?? { count: 0, max: 0 },
+                            level: prev?.level ?? 0,
+                            progress: prev?.progress ?? 0
+                        });
+                    }
                 }
-            }
-            COLORS_CACHE = { ts: nowTs, report: Array.from(byId.values()) };
-            saveColorsCache();
-            if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
-            if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
-        } catch (_) { }
-        await loadUsersColorState(true);
-        // Rebuild palette to update badges immediately and keep current selection
-        try { buildAllColorsPalette(); } catch (_) { }
-        showColorDetails(colorId);
-    } catch (error) {
-        handleError(error);
-    } finally {
-        if (timer) clearInterval(timer);
-        purchaseColorBtn.disabled = false;
-        purchaseColorBtn.textContent = "Attempt to Buy for Selected";
-    }
+                COLORS_CACHE = { ts: nowTs, report: Array.from(byId.values()) };
+                saveColorsCache();
+                if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+                if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+            } catch (_) { }
+            await loadUsersColorState(true);
+            // Rebuild palette to update badges immediately and keep current selection
+            try { buildAllColorsPalette(); } catch (_) { }
+            showColorDetails(colorId);
+        } catch (error) {
+            handleError(error);
+        } finally {
+            if (timer) clearInterval(timer);
+            purchaseColorBtn.disabled = false;
+            purchaseColorBtn.textContent = "Attempt to Buy for Selected";
+        }
+    });
 });
 
 // Buttons in Colors tab
@@ -5408,7 +6236,7 @@ if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile 
                     if (name && id) {
                         const line = `${name} (#${id})`;
                         addedUsers.push(line);
-                        try { console.log(`[Import] Added user ${line}`); } catch {}
+                        try { console.log(`[Import] Added user ${line}`); } catch { }
                     } else {
                         // if no nice response body, still count as success
                         addedUsers.push(`Imported ${short(token)}`);
@@ -5446,7 +6274,7 @@ if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile 
 
             showMessage('Import Summary', summaryLines.join('<br>'));
             // Refresh Manage Users view
-            try { openManageUsers.click(); } catch (e) {}
+            try { openManageUsers.click(); } catch (e) { }
 
         } catch (readErr) {
             clearBusy();
@@ -5458,18 +6286,18 @@ if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile 
 
 //Used for time estimation, converting seconds value to more readable format
 function formatTime(seconds) {
-  const d = Math.floor(seconds / (3600 * 24));
-  const h = Math.floor((seconds % (3600 * 24)) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
+    const d = Math.floor(seconds / (3600 * 24));
+    const h = Math.floor((seconds % (3600 * 24)) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
 
-  let parts = [];
-  if (d > 0) parts.push(d + "d");
-  if (h > 0) parts.push(h + "h");
-  if (m > 0) parts.push(m + "m");
-  if (s > 0 || parts.length === 0) parts.push(s + "s");
+    let parts = [];
+    if (d > 0) parts.push(d + "d");
+    if (h > 0) parts.push(h + "h");
+    if (m > 0) parts.push(m + "m");
+    if (s > 0 || parts.length === 0) parts.push(s + "s");
 
-  return parts.join(" ");
+    return parts.join(" ");
 }
 
 // ====== QUEUE PREVIEW LOGIC ======
@@ -5477,7 +6305,7 @@ function startQueueAutoRefresh() {
     if (queueRefreshInterval) {
         clearInterval(queueRefreshInterval);
     }
-    
+
     if (autoRefreshQueue.checked) {
         const interval = Math.max(1000, (queueRefreshIntervalInput.value || 5) * 1000);
         queueRefreshInterval = setInterval(() => {
@@ -5508,7 +6336,7 @@ async function loadQueuePreview() {
     try {
         const response = await axios.get('/queue');
         const data = response.data;
-        
+
         if (data.success) {
             currentQueueData = data.data;
             updateQueueSummary(data.data.summary);
@@ -5540,62 +6368,44 @@ function updateQueueUserList(users) {
         `;
         return;
     }
-    
+
     const hideSensitive = hideSensitiveInfoQueue.checked;
-    
+
     const html = users.map(user => {
-        const statusClass = getStatusClass(user.status);
-        const statusText = getStatusText(user.status);
-        const cooldownText = user.cooldownTime ? formatCooldownTime(user.cooldownTime) : '';
-        
-        let chargesHtml = '';
-        if (user.charges) {
-            chargesHtml = `
-                <div class="queue-charges-current">${user.charges.current}</div>
-                <div class="queue-charges-max">/ ${user.charges.max}</div>
-            `;
-        } else {
-            chargesHtml = `
-                <div class="queue-charges-current">–</div>
-                <div class="queue-charges-max">/ –</div>
-            `;
+        let statusClass = getStatusClass(user.status);
+        let statusText = getStatusText(user.status);
+        if (!user.charges && user.status === 'active') {
+            statusText = 'SYNC'
         }
-        
+
+        const cooldownText = user.cooldownTime ? formatTime(user.cooldownTime) : '';
         const displayName = hideSensitive ? `User #${user.id.slice(-4)}` : user.name;
         const displayId = hideSensitive ? `#${user.id.slice(-4)}` : `#${user.id}`;
-        
+
         const animateClass = isFirstLoad ? 'animate-in' : '';
-        // let barWidth = 0;
-        // if (user.charges) {
-        //     const settings = currentQueueData?.settings || {};
-        //     const always = !!settings.alwaysDrawOnCharge;
-        //     const rawThresh = Number(settings.chargeThreshold);
-        //     const threshRatio = isFinite(rawThresh) ? (rawThresh > 1 ? rawThresh / 100 : rawThresh) : 0.5;
-        //     const thresholdCount = always ? 1 : Math.max(1, Math.floor(user.charges.max * (threshRatio || 0)));
-        //     barWidth = Math.min(100, Math.round((user.charges.current / thresholdCount) * 100));
-        // }
         const barWidth = user.charges ? user.charges.percentage : 0;
+        
         return `
             <div class="queue-user-item ${animateClass}">
-                <div class="queue-user-name">${displayName} <span class="queue-user-id">${displayId}</span> <span class="queue-charges-current">${user.charges ? user.charges.current : '--'}</span>/${user.charges ? user.charges.max : '--'}</div>
+                <div class="queue-user-name">${displayName} <span class="queue-user-id">${displayId}</span> <span class="queue-charges-current">${user.charges ? user.charges.current : '--'}</span>/${user.charges ? user.charges.max : '--'} <span class="queue-charges-percentage">(${barWidth + '%'})</span></div>
                 <div class="queue-progress-bar">
                     <div class="queue-progress-fill" style="width: ${barWidth}%"></div>
                 </div>
-                <div class="queue-charges-percentage">${barWidth + '%'}</div>
-                <div class="queue-status-badge ${statusClass}">${statusText}${cooldownText ? ' - ' + cooldownText : ''}</div>
+                <div class="queue-status-badge ${statusClass}">${statusText} ${cooldownText ? cooldownText : ''}</div>
+
             </div>
         `;
     }).join('');
-    
+
     queueUserList.innerHTML = html;
 }
 
 function getStatusClass(status) {
     switch (status) {
         case 'ready': return 'queue-status-ready';
-        case 'waiting': return 'queue-status-waiting';
-        case 'cooldown': return 'queue-status-cooldown';
-        case 'suspended': return 'queue-status-suspended';
+        case 'waiting': return '⌛';
+        case 'cooldown': return '🔋';
+        case 'suspended': return '‼️';
         case 'active': return 'queue-status-ready';
         case 'no-data': return 'queue-status-cooldown';
         default: return 'queue-status-waiting';

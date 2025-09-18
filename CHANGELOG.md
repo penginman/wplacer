@@ -1,3 +1,9 @@
+## Changelog v4.3.0
+- Added Flags section. Full functionality for purchasing/equipping needed flags.
+- Added auto-start template setting when program launches.
+- Added ability to configure automatic page reload every X seconds or disable it in the extension. Does not affect reloads requested by server during painting.
+
+
 ## Changelog v4.2.9
 - Added exclusion of restricted/banned users from the template list.
 - Moved log settings out of general settings into Live Logs.
