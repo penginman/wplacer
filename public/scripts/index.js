@@ -92,6 +92,9 @@ const clearLogs = $("clearLogs");
 const queuePreview = $("queuePreview");
 const refreshQueuePreview = $("refreshQueuePreview");
 const autoRefreshQueue = $("autoRefreshQueue");
+const autoRefreshGroup = $("autoRefreshGroup");
+const queueRefreshIntervalInput = $("queueRefreshInterval");
+const intervalLabel = $("intervalLabel");
 const hideSensitiveInfoQueue = $("hideSensitiveInfoQueue");
 const queueLastUpdate = $("queueLastUpdate");
 const queueTotalUsers = $("queueTotalUsers");
@@ -1841,6 +1844,7 @@ const changeTab = (el) => {
         try { loadQueueSettings(); } catch (_) {}
         try { loadQueuePreview(); } catch (_) {}
         try { if (autoRefreshQueue && autoRefreshQueue.checked) startQueueAutoRefresh(); } catch (_) {}
+        try { toggleRefreshIntervalInput(); } catch (_) {}
     }
 };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -5463,9 +5467,21 @@ function startQueueAutoRefresh() {
     }
     
     if (autoRefreshQueue.checked) {
+        const interval = Math.max(1000, (queueRefreshIntervalInput.value || 5) * 1000);
         queueRefreshInterval = setInterval(() => {
             loadQueuePreview();
-        }, 3000);
+        }, interval);
+    }
+    toggleRefreshIntervalInput();
+}
+
+function toggleRefreshIntervalInput() {
+    if (autoRefreshQueue.checked) {
+        queueRefreshIntervalInput.style.display = 'inline-block';
+        intervalLabel.style.display = 'inline';
+    } else {
+        queueRefreshIntervalInput.style.display = 'none';
+        intervalLabel.style.display = 'none';
     }
 }
 
@@ -5537,36 +5553,24 @@ function updateQueueUserList(users) {
         const displayId = hideSensitive ? `#${user.id.slice(-4)}` : `#${user.id}`;
         
         const animateClass = isFirstLoad ? 'animate-in' : '';
-        let barWidth = 0;
-        if (user.charges) {
-            const settings = currentQueueData?.settings || {};
-            const always = !!settings.alwaysDrawOnCharge;
-            const rawThresh = Number(settings.chargeThreshold);
-            const threshRatio = isFinite(rawThresh) ? (rawThresh > 1 ? rawThresh / 100 : rawThresh) : 0.5;
-            const thresholdCount = always ? 1 : Math.max(1, Math.floor(user.charges.max * (threshRatio || 0)));
-            barWidth = Math.min(100, Math.round((user.charges.current / thresholdCount) * 100));
-        }
+        // let barWidth = 0;
+        // if (user.charges) {
+        //     const settings = currentQueueData?.settings || {};
+        //     const always = !!settings.alwaysDrawOnCharge;
+        //     const rawThresh = Number(settings.chargeThreshold);
+        //     const threshRatio = isFinite(rawThresh) ? (rawThresh > 1 ? rawThresh / 100 : rawThresh) : 0.5;
+        //     const thresholdCount = always ? 1 : Math.max(1, Math.floor(user.charges.max * (threshRatio || 0)));
+        //     barWidth = Math.min(100, Math.round((user.charges.current / thresholdCount) * 100));
+        // }
+        const barWidth = user.charges ? user.charges.percentage : 0;
         return `
             <div class="queue-user-item ${animateClass}">
-                <div class="queue-user-info">
-                    <div class="queue-user-name">${displayName}</div>
-                    <div class="queue-user-id">${displayId}</div>
+                <div class="queue-user-name">${displayName} <span class="queue-user-id">${displayId}</span> <span class="queue-charges-current">${user.charges ? user.charges.current : '--'}</span>/${user.charges ? user.charges.max : '--'}</div>
+                <div class="queue-progress-bar">
+                    <div class="queue-progress-fill" style="width: ${barWidth}%"></div>
                 </div>
-                <div class="queue-progress-section">
-                    <div class="queue-progress-bar">
-                        <div class="queue-progress-fill" style="width: ${barWidth}%"></div>
-                    </div>
-                    <div class="queue-charges-percentage">${user.charges ? user.charges.percentage + '%' : 'No data'}</div>
-                </div>
-                <div class="queue-bottom-row">
-                    <div class="queue-charges-info">
-                        ${chargesHtml}
-                    </div>
-                    <div class="queue-status">
-                        <div class="queue-status-badge ${statusClass}">${statusText}</div>
-                        ${cooldownText ? `<div class=\"queue-cooldown-time\">${cooldownText}</div>` : ''}
-                    </div>
-                </div>
+                <div class="queue-charges-percentage">${barWidth + '%'}</div>
+                <div class="queue-status-badge ${statusClass}">${statusText}${cooldownText ? ' - ' + cooldownText : ''}</div>
             </div>
         `;
     }).join('');
@@ -5625,7 +5629,8 @@ function showQueueError(message) {
 function saveQueueSettings() {
     const settings = {
         autoRefresh: autoRefreshQueue.checked,
-        hideSensitive: hideSensitiveInfoQueue.checked
+        hideSensitive: hideSensitiveInfoQueue.checked,
+        refreshInterval: queueRefreshIntervalInput.value || 5
     };
     localStorage.setItem('queuePreviewSettings', JSON.stringify(settings));
 }
@@ -5637,6 +5642,7 @@ function loadQueueSettings() {
             const settings = JSON.parse(saved);
             autoRefreshQueue.checked = settings.autoRefresh !== false;
             hideSensitiveInfoQueue.checked = settings.hideSensitive === true;
+            queueRefreshIntervalInput.value = settings.refreshInterval || 5;
         }
     } catch (error) {
         console.error('Error loading queue settings:', error);
@@ -5650,10 +5656,18 @@ refreshQueuePreview.addEventListener('click', () => {
 
 autoRefreshQueue.addEventListener('change', () => {
     saveQueueSettings();
+    toggleRefreshIntervalInput();
     if (autoRefreshQueue.checked) {
         startQueueAutoRefresh();
     } else {
         stopQueueAutoRefresh();
+    }
+});
+
+queueRefreshIntervalInput.addEventListener('change', () => {
+    saveQueueSettings();
+    if (autoRefreshQueue.checked) {
+        startQueueAutoRefresh();
     }
 });
 
