@@ -621,15 +621,17 @@ const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, 
 const colors = { ...basic_colors, ...premium_colors };
 
 const colorById = (id) => Object.keys(colors).find(key => colors[key] === id);
-const closest = color => {
-    const [tr, tg, tb] = color.split(',').map(Number);
-    return basic_colors[Object.keys(basic_colors).reduce((closest, current) => {
-        const [cr, cg, cb] = current.split(',').map(Number);
-        const [clR, clG, clB] = closest.split(',').map(Number);
-        return Math.sqrt(Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2)) < Math.sqrt(Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2)) ? current : closest;
-    })];
+const closest = (rgb) => {
+    const [tr, tg, tb] = rgb.split(',').map(Number);
+    const palette = (usePaidColors && usePaidColors.checked) ? colors : basic_colors;
+    let bestKey = null, best = Infinity;
+    for (const key in palette) {
+        const [r, g, b] = key.split(',').map(Number);
+        const d = (tr - r) * (tr - r) + (tg - g) * (tg - g) + (tb - b) * (tb - b);
+        if (d < best) { best = d; bestKey = key; }
+    }
+    return palette[bestKey];
 };
-
 
 const drawTemplate = (template, canvas) => {
     canvas.width = template.width;
