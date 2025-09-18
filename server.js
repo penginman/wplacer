@@ -473,6 +473,10 @@ class WPlacer {
       } catch {
         throw new Error(`❌ Failed to parse JSON from /me (status ${status}).`);
       }
+      // Treat banned accounts as an error so UI can highlight in red
+      if (userInfo && userInfo.banned === true) {
+        throw new Error("banned");
+      }
       if (userInfo?.error) {
         throw new Error(`❌ (500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
       }
@@ -2614,9 +2618,17 @@ app.get("/user/status/:id", async (req, res) => {
   const wplacer = new WPlacer();
   try {
     const userInfo = await wplacer.login(users[id].cookies);
+    // If banned, return an explicit error with a distinct HTTP status code
+    if (userInfo && userInfo.banned === true) {
+      return res.status(423).json({ error: "❌ Account is suspended/banned." });
+    }
     res.status(200).json(userInfo);
   } catch (error) {
     logUserError(error, id, users[id].name, "validate cookie");
+    const msg = String(error && error.message || "error").toLowerCase();
+    if (msg.includes("banned")) {
+      return res.status(423).json({ error: "❌ Account is suspended/banned." });
+    }
     res.status(500).json({ error: error.message });
   } finally {
     activeBrowserUsers.delete(id);

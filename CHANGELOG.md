@@ -3,6 +3,7 @@
 - Moved log settings out of general settings into Live Logs.
 - Added estimated time left info on template & fix host value env that was unused (Thanks to [Aglglg](https://github.com/Aglglg)).
 - Added queue preview system feature. Thanks to [lulz](https://github.com/Udyz)!
+- Added recognition for a banned accounts in the status check.
 - Minor fixes and painting improvements (bursts).
 
 

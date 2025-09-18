@@ -2392,16 +2392,21 @@ checkUserStatus.addEventListener("click", async () => {
     // Build results table similar to Test proxies
     try {
         const total = accountResults.length;
-        let ok = 0, expired = 0, otherErr = 0;
+        let ok = 0, expired = 0, banned = 0, otherErr = 0;
         const isExpired = (r) => {
             const msg = String(r.reason || '').toLowerCase();
             return /authentication failed\s*\(401\)/i.test(r.reason || '') || /unauthorized/i.test(msg);
+        };
+        const isBanned = (r) => {
+            const msg = String(r.reason || '').toLowerCase();
+            return /banned|suspended/.test(msg);
         };
         const rows = accountResults.map((r, i) => {
             let status = 'OK';
             let tag = '<span style="color:var(--success-color);">OK</span>';
             if (!r.ok) {
                 if (isExpired(r)) { status = 'EXPIRED'; tag = '<span style="color:var(--error-color);">EXPIRED</span>'; expired++; }
+                else if (isBanned(r)) { status = 'BANNED'; tag = '<span style="color:var(--error-color);">BANNED</span>'; banned++; }
                 else { status = 'ERROR'; tag = '<span style="color:var(--warning-color);">ERROR</span>'; otherErr++; }
             } else { ok++; }
             const reasonShort = String(r.reason || '').slice(0, 180).replace(/</g, '&lt;');
@@ -2412,7 +2417,7 @@ checkUserStatus.addEventListener("click", async () => {
                         <td style="padding:6px 8px;">${r.ok ? '-' : reasonShort}</td>
                     </tr>`;
         }).join('');
-        const summary = `<div><b>Total:</b> ${total} • <b>OK:</b> ${ok} • <b>Expired:</b> ${expired} • <b>Other errors:</b> ${otherErr}</div>`;
+        const summary = `<div><b>Total:</b> ${total} • <b>OK:</b> ${ok} • <b>Expired:</b> ${expired} • <b>Banned:</b> ${banned} • <b>Other errors:</b> ${otherErr}</div>`;
         if (checkUsersResult) {
             checkUsersResult.innerHTML = `${summary}
                 <div style="max-height:220px; overflow:auto; border:1px solid var(--border); border-radius:6px; margin-top:6px;">
@@ -2432,10 +2437,10 @@ checkUserStatus.addEventListener("click", async () => {
         }
         if (checkUsersProgress) checkUsersProgress.style.display = 'none';
 
-        // Show cleanup button if there are expired accounts
-        if (expired > 0) {
+        // Show cleanup button if there are expired or banned accounts
+        if (expired > 0 || banned > 0) {
             try {
-                const expiredIds = accountResults.filter(r => !r.ok && isExpired(r)).map(r => r.id);
+                const expiredIds = accountResults.filter(r => !r.ok && (isExpired(r) || isBanned(r))).map(r => r.id);
                 if (cleanupExpiredWrap) cleanupExpiredWrap.style.display = 'block';
                 if (cleanupExpiredBtn) cleanupExpiredBtn.dataset.expiredIds = JSON.stringify(expiredIds);
             } catch (_) {}
@@ -2447,7 +2452,7 @@ checkUserStatus.addEventListener("click", async () => {
     } catch (e) { /* no-op */ }
 });
 
-// Cleanup expired accounts with confirmation (creates users.json backup)
+// Cleanup expired/banned accounts with confirmation (creates users.json backup)
 cleanupExpiredBtn?.addEventListener('click', async () => {
     try {
         const raw = cleanupExpiredBtn.dataset.expiredIds || '[]';
@@ -2456,7 +2461,7 @@ cleanupExpiredBtn?.addEventListener('click', async () => {
             showMessage('Info', 'No expired accounts to remove.');
             return;
         }
-        showConfirmation('Remove expired accounts', `Are you sure you want to remove ${toRemove.length} expired accounts? A backup will be created.`, async () => {
+        showConfirmation('Remove expired/banned accounts', `Are you sure you want to remove ${toRemove.length} expired/banned accounts? A backup will be created.`, async () => {
             try {
                 const resp = await axios.post('/users/cleanup-expired', { removeIds: toRemove });
                 if (resp?.data?.success) {
