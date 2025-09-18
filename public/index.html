@@ -600,7 +600,11 @@
 
                         <div class="queue-controls">
                             <div class="setting-toggle">
-                                <label for="autoRefreshQueue" class="label-margin0">Auto refresh (3s)</label>
+                                <div class="auto-refresh-group" id="autoRefreshGroup">
+                                    <label for="autoRefreshQueue" class="label-margin0">Auto refresh</label>
+                                    <input id="queueRefreshInterval" type="number" min="1" max="300" value="5" class="interval-input" style="display: none;" />
+                                    <span class="interval-label" id="intervalLabel" style="display: none;">(seconds)</span>
+                                </div>
                                 <label class="switch">
                                     <input id="autoRefreshQueue" name="autoRefreshQueue" type="checkbox" checked />
                                     <span class="slider"></span>
