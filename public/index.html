@@ -562,10 +562,103 @@
                         </div>
                     </header>
 
-                    <div class="settings-card" style="max-height:360px; overflow:auto; background-color: #15161a;">
+                    <div class="settings-card" style="max-height:500px; overflow:auto; background-color: #15161a;">
                         <pre id="logsOutput" class="logs-output"
                             style="white-space:pre-wrap; word-break:break-word; margin:0;"></pre>
                     </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-head">
+                            <h3 class="settings-card-title">Logs</h3>
+                            <p class="settings-card-sub">Toggle categories printed to terminal in real time.</p>
+                        </div>
+
+                        <div class="toggles">
+                            <div>
+                                <div class="setting-toggle">
+                                    <label for="log_maskPii" class="label-margin0">Mask names and IDs</label>
+                                    <label class="switch">
+                                        <input id="log_maskPii" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <small class="help">Replace (nick#id), #12345 and tile coordinates with masked values.
+                                    Applies to NEW logs only.</small>
+                            </div>
+                            <div>
+                                <div class="setting-toggle">
+                                    <label for="log_tokenManager" class="label-margin0">TOKEN_MANAGER</label>
+                                    <label class="switch">
+                                        <input id="log_tokenManager" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <small class="help">Notifications about token queue, receipt and
+                                    invalidation.</small>
+                            </div>
+                            <div>
+                                <div class="setting-toggle">
+                                    <label for="log_cache" class="label-margin0">Cache updates</label>
+                                    <label class="switch">
+                                        <input id="log_cache" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <small class="help">Internal cache refresh logs (charges, tiles, etc.).</small>
+                            </div>
+                            <div>
+                                <div class="setting-toggle">
+                                    <label for="log_queuePreview" class="label-margin0">Queue preview</label>
+                                    <label class="switch">
+                                        <input id="log_queuePreview" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <small class="help">High-level plan for next paint (queues/segments).</small>
+                            </div>
+                            <div>
+                                <div class="setting-toggle">
+                                    <label for="log_painting" class="label-margin0">Painting method</label>
+                                    <label class="switch">
+                                        <input id="log_painting" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <small class="help">Which drawing strategy is used this turn.</small>
+                            </div>
+                            <div>
+                                <div class="setting-toggle">
+                                    <label for="log_startTurn" class="label-margin0">Start turn (predictions)</label>
+                                    <label class="switch">
+                                        <input id="log_startTurn" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <small class="help">Messages like “Start turn with predicted ...”.</small>
+                            </div>
+                            <div>
+                                <div class="setting-toggle">
+                                    <label for="log_mismatches" class="label-margin0">Mismatched pixels</label>
+                                    <label class="switch">
+                                        <input id="log_mismatches" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <small class="help">Findings like “Found .. mismatched ..”.</small>
+                            </div>
+                            <div>
+                                <div class="setting-toggle">
+                                    <label for="log_estimatedTime" class="label-margin0">Estimated time</label>
+                                    <label class="switch">
+                                        <input id="log_estimatedTime" type="checkbox" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <small class="help">Show estimated time left on log.</small>
+                            </div>
+                        </div>
+                    </div>
+
                 </section>
 
                 <!-- ====== QUEUE PREVIEW ====== -->
@@ -991,88 +1084,7 @@
                             </div>
                         </div>
 
-                        <!-- Logs -->
-                        <div class="settings-card">
-                            <div class="settings-card-head">
-                                <h3 class="settings-card-title">Logs</h3>
-                                <p class="settings-card-sub">Toggle categories printed to terminal in real time.</p>
-                            </div>
 
-                            <div class="toggles">
-                                <div class="setting-toggle">
-                                    <label for="log_maskPii" class="label-margin0">Mask names and IDs</label>
-                                    <label class="switch">
-                                        <input id="log_maskPii" type="checkbox" />
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                                <small class="help">Replace (nick#id), #12345 and tile coordinates with masked values.
-                                    Applies to NEW logs only.</small>
-                                <div class="setting-toggle">
-                                    <label for="log_tokenManager" class="label-margin0">TOKEN_MANAGER</label>
-                                    <label class="switch">
-                                        <input id="log_tokenManager" type="checkbox" />
-                                        <span class="slider"></span>
-                                    </label>
-                                    <small class="help">Notifications about token queue, receipt and
-                                        invalidation.</small>
-                                </div>
-
-                                <div class="setting-toggle">
-                                    <label for="log_cache" class="label-margin0">Cache updates</label>
-                                    <label class="switch">
-                                        <input id="log_cache" type="checkbox" />
-                                        <span class="slider"></span>
-                                    </label>
-                                    <small class="help">Internal cache refresh logs (charges, tiles, etc.).</small>
-                                </div>
-
-                                <div class="setting-toggle">
-                                    <label for="log_queuePreview" class="label-margin0">Queue preview</label>
-                                    <label class="switch">
-                                        <input id="log_queuePreview" type="checkbox" />
-                                        <span class="slider"></span>
-                                    </label>
-                                    <small class="help">High-level plan for next paint (queues/segments).</small>
-                                </div>
-
-                                <div class="setting-toggle">
-                                    <label for="log_painting" class="label-margin0">Painting method</label>
-                                    <label class="switch">
-                                        <input id="log_painting" type="checkbox" />
-                                        <span class="slider"></span>
-                                    </label>
-                                    <small class="help">Which drawing strategy is used this turn.</small>
-                                </div>
-
-                                <div class="setting-toggle">
-                                    <label for="log_startTurn" class="label-margin0">Start turn (predictions)</label>
-                                    <label class="switch">
-                                        <input id="log_startTurn" type="checkbox" />
-                                        <span class="slider"></span>
-                                    </label>
-                                    <small class="help">Messages like “Start turn with predicted ...”.</small>
-                                </div>
-
-                                <div class="setting-toggle">
-                                    <label for="log_mismatches" class="label-margin0">Mismatched pixels</label>
-                                    <label class="switch">
-                                        <input id="log_mismatches" type="checkbox" />
-                                        <span class="slider"></span>
-                                    </label>
-                                    <small class="help">Findings like “Found .. mismatched ..”.</small>
-                                </div>
-
-                                <div class="setting-toggle">
-                                    <label for="log_estimatedTime" class="label-margin0">Estimated time</label>
-                                    <label class="switch">
-                                        <input id="log_estimatedTime" type="checkbox" />
-                                        <span class="slider"></span>
-                                    </label>
-                                    <small class="help">Show estimated time left on log.</small>
-                                </div>
-                            </div>
-                        </div>
 
 
 

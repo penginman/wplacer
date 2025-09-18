@@ -1,3 +1,18 @@
+async function applyLogSettingsFromServer() {
+    try {
+        const { data: currentSettings } = await axios.get('/settings');
+        const lc = currentSettings?.logCategories || {};
+        const bind = (id) => { const el = document.getElementById(id); if (el) el.checked = lc[id.replace('log_', '')] !== false; };
+        const mask = document.getElementById('log_maskPii'); if (mask) mask.checked = !!currentSettings?.logMaskPii;
+        bind('log_tokenManager');
+        bind('log_cache');
+        bind('log_queuePreview');
+        bind('log_painting');
+        bind('log_startTurn');
+        bind('log_mismatches');
+        bind('log_estimatedTime');
+    } catch (_) { }
+}
 const $ = (id) => document.getElementById(id);
 const main = $("main");
 const openManageUsers = $("openManageUsers");
@@ -1834,6 +1849,12 @@ const changeTab = (el) => {
     }
 
     if (currentTab === liveLogs) {
+        // refresh log toggles from backend when opening Live Logs
+        try {
+            if (typeof applyLogSettingsFromServer === 'function') {
+                applyLogSettingsFromServer();
+            }
+        } catch (_) {}
         // start SSE stream when entering logs tab
         startLogsStream();
     } else {
@@ -3239,20 +3260,6 @@ openSettings.addEventListener("click", async () => {
         proxyCount.textContent = String(currentSettings.proxyCount ?? 0);
         proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
         if (parallelWorkers) parallelWorkers.value = String(currentSettings.parallelWorkers ?? 4);
-
-        // Logs toggles
-        try {
-            const lc = currentSettings.logCategories || {};
-            const bind = (id, def) => { const el = document.getElementById(id); if (el) el.checked = lc[id.replace('log_', '')] !== false; };
-            const mask = document.getElementById('log_maskPii'); if (mask) mask.checked = !!currentSettings.logMaskPii;
-            bind('log_tokenManager', true);
-            bind('log_cache', true);
-            bind('log_queuePreview', true);
-            bind('log_painting', true);
-            bind('log_startTurn', true);
-            bind('log_mismatches', true);
-            bind('log_estimatedTime', true);
-        } catch (_) {}
 
 
         try {

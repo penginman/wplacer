@@ -323,7 +323,6 @@ body {
 .help {
     color: var(--muted);
     display: block;
-    margin-top: 6px;
     font-size: .85rem
 }
 
@@ -2023,11 +2022,14 @@ p.credits a img {
     color: var(--text-2);
     flex-wrap: wrap;
 }
+
 /* ====== QUEUE PREVIEW STYLES ====== */
 .queue-controls {
     margin-top: 12px;
     padding-top: 12px;
     border-top: 1px solid var(--hair);
+    display: grid;
+    gap: 5px;
 }
 
 .queue-user-list {
@@ -2103,18 +2105,36 @@ p.credits a img {
     animation: slideInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-.queue-user-item.animate-in:nth-child(1) { animation-delay: 0.1s; }
-.queue-user-item.animate-in:nth-child(2) { animation-delay: 0.2s; }
-.queue-user-item.animate-in:nth-child(3) { animation-delay: 0.3s; }
-.queue-user-item.animate-in:nth-child(4) { animation-delay: 0.4s; }
-.queue-user-item.animate-in:nth-child(5) { animation-delay: 0.5s; }
-.queue-user-item.animate-in:nth-child(n+6) { animation-delay: 0.6s; }
+.queue-user-item.animate-in:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.queue-user-item.animate-in:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.queue-user-item.animate-in:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.queue-user-item.animate-in:nth-child(4) {
+    animation-delay: 0.4s;
+}
+
+.queue-user-item.animate-in:nth-child(5) {
+    animation-delay: 0.5s;
+}
+
+.queue-user-item.animate-in:nth-child(n+6) {
+    animation-delay: 0.6s;
+}
 
 @keyframes slideInUp {
     from {
         opacity: 0;
         transform: translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -2145,7 +2165,11 @@ p.credits a img {
     transform: scale(1.05);
 }
 
-.queue-user-info { display: flex; flex-direction: column; gap: 2px; }
+.queue-user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
 
 .queue-user-name {
     font-weight: 500;
@@ -2162,12 +2186,36 @@ p.credits a img {
     font-weight: 400;
 }
 
-.queue-progress-section { display: flex; align-items: center; gap: 8px; }
+.queue-progress-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 
-.queue-bottom-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.queue-charges-info { display: flex; align-items: baseline; gap: 6px; }
-.queue-charges-max { font-size: 10px; color: var(--text-2); }
-.queue-status { flex-direction: row; align-items: center; gap: 8px; min-width: auto; }
+.queue-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.queue-charges-info {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.queue-charges-max {
+    font-size: 10px;
+    color: var(--text-2);
+}
+
+.queue-status {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    min-width: auto;
+}
 
 .queue-charges-current {
     font-size: 12px;
@@ -2269,7 +2317,9 @@ p.credits a img {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .queue-empty {
@@ -2317,27 +2367,36 @@ p.credits a img {
 }
 
 @keyframes progressShine {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
 }
 
 @keyframes pulse {
-    0%, 100% { 
+
+    0%,
+    100% {
         transform: scale(1);
         opacity: 1;
     }
-    50% { 
+
+    50% {
         transform: scale(1.05);
         opacity: 0.8;
     }
 }
 
 @keyframes countUp {
-    from { 
+    from {
         opacity: 0;
         transform: scale(0.8);
     }
-    to { 
+
+    to {
         opacity: 1;
         transform: scale(1);
     }
@@ -2395,7 +2454,9 @@ p.credits a img {
     color: var(--text-2);
 }
 
-@media (max-width: 768px) { /* Mobile */
+@media (max-width: 768px) {
+
+    /* Mobile */
     .queue-user-item {
         flex-direction: row;
         align-items: center;
@@ -2404,30 +2465,30 @@ p.credits a img {
         margin-bottom: 2px;
         font-size: 10px;
     }
-    
+
     .queue-user-name {
         min-width: 100px;
         font-size: 10px;
         flex-shrink: 0;
     }
-    
+
     .queue-progress-bar {
         flex: 1;
         height: 4px;
         margin: 0 3px;
     }
-    
+
     .queue-charges-percentage {
         font-size: 8px;
         min-width: 20px;
     }
-    
+
     .queue-status-badge {
         font-size: 7px;
         padding: 1px 3px;
         min-width: 40px;
     }
-    
+
     .queue-summary-stats {
         grid-template-columns: 1fr;
     }

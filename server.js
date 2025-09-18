@@ -731,39 +731,50 @@ class WPlacer {
     return { x: gx - spx, y: gy - spy };
   }
 
-  _pickBurstSeeds(pixels, k = 2, topFuzz = 5) {
+  _pickBurstSeeds(pixels, k = 2, _ignoredTopFuzz = 5) {
     if (!pixels?.length) return [];
     const pts = pixels.map((p) => this._globalXY(p));
 
-    const seeds = [];
-    const i0 = Math.floor(Math.random() * pts.length);
-    seeds.push(pts[i0]);
+    // Deterministic selection: pick lexicographically smallest point as first
+    const firstIdx = (() => {
+      let idx = 0;
+      for (let i = 1; i < pts.length; i++) {
+        if (pts[i].gx < pts[idx].gx || (pts[i].gx === pts[idx].gx && pts[i].gy < pts[idx].gy)) idx = i;
+      }
+      return idx;
+    })();
+
+    const seeds = [pts[firstIdx]];
     if (pts.length === 1) return seeds.map((s) => ({ gx: s.gx, gy: s.gy }));
 
+    // Second: farthest from first
     let far = 0, best = -1;
     for (let i = 0; i < pts.length; i++) {
-      const dx = pts[i].gx - pts[i0].gx,
-        dy = pts[i].gy - pts[i0].gy;
+      const dx = pts[i].gx - pts[firstIdx].gx;
+      const dy = pts[i].gy - pts[firstIdx].gy;
       const d2 = dx * dx + dy * dy;
-      if (d2 > best) {
-        best = d2;
-        far = i;
-      }
+      if (d2 > best) { best = d2; far = i; }
     }
-    seeds.push(pts[far]);
+    if (!seeds.some((s) => s.gx === pts[far].gx && s.gy === pts[far].gy)) seeds.push(pts[far]);
 
+    // Next: farthest from nearest existing seed (maximin), deterministic
     while (seeds.length < Math.min(k, pts.length)) {
-      const ranked = pts
-        .map((p, i) => ({
-          i,
-          d2: Math.min(...seeds.map((s) => (s.gx - p.gx) ** 2 + (s.gy - p.gy) ** 2))
-        }))
-        .sort((a, b) => b.d2 - a.d2);
-      const pickFrom = Math.min(topFuzz, ranked.length);
-      const chosen = ranked[Math.floor(Math.random() * pickFrom)].i;
-      const cand = pts[chosen];
-      if (!seeds.some((s) => s.gx === cand.gx && s.gy === cand.gy)) seeds.push(cand);
-      else break;
+      let bestIdx = -1;
+      let bestMinD2 = -1;
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        if (seeds.some((s) => s.gx === p.gx && s.gy === p.gy)) continue;
+        let minD2 = Infinity;
+        for (const s of seeds) {
+          const dx = s.gx - p.gx;
+          const dy = s.gy - p.gy;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < minD2) minD2 = d2;
+        }
+        if (minD2 > bestMinD2) { bestMinD2 = minD2; bestIdx = i; }
+      }
+      if (bestIdx < 0) break;
+      seeds.push(pts[bestIdx]);
     }
 
     return seeds.map((s) => ({ gx: s.gx, gy: s.gy }));
@@ -1176,9 +1187,13 @@ class WPlacer {
           }, {});
           const colorsAsc = Object.keys(byColor).sort((a, b) => byColor[a].length - byColor[b].length);
           const desired = Math.max(1, Math.min(this.settings?.seedCount ?? 2, 16));
+          if (!this._burstSeeds || this._burstSeeds.length !== desired) {
+            this._burstSeeds = this._pickBurstSeeds(mismatchedPixels, desired);
+            try { const cfg = (currentSettings && currentSettings.logCategories) || {}; if (cfg.painting !== false) { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 💥 Burst seeds (${desired}): ${JSON.stringify(this._burstSeeds)}`); } } catch (_) { }
+          }
           const out = [];
           for (const c of colorsAsc) {
-            out.push(...this._orderByBurst(byColor[c], desired));
+            out.push(...this._orderByBurst(byColor[c], this._burstSeeds));
           }
           mismatchedPixels = out;
           break;
@@ -1194,13 +1209,7 @@ class WPlacer {
             this._burstSeeds = this._pickBurstSeeds(mismatchedPixels, desired);
             try { const cfg = (currentSettings && currentSettings.logCategories) || {}; if (cfg.painting !== false) { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 💥 Burst seeds (${desired}): ${JSON.stringify(this._burstSeeds)}`); } } catch (_) { }
           }
-          if (this._activeBurstSeedIdx == null || this._activeBurstSeedIdx >= this._burstSeeds.length) {
-            this._activeBurstSeedIdx = Math.floor(Math.random() * this._burstSeeds.length);
-            const s = this._burstSeeds[this._activeBurstSeedIdx];
-            try { const cfg = (currentSettings && currentSettings.logCategories) || {}; if (cfg.painting !== false) { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎯 Using single seed this turn: ${JSON.stringify(s)} (#${this._activeBurstSeedIdx + 1}/${this._burstSeeds.length})`); } } catch (_) { }
-          }
-          const seedForThisTurn = [this._burstSeeds[this._activeBurstSeedIdx]];
-          mismatchedPixels = this._orderByBurst(mismatchedPixels, seedForThisTurn);
+          mismatchedPixels = this._orderByBurst(mismatchedPixels, this._burstSeeds);
           break;
         }
 
@@ -1233,8 +1242,12 @@ class WPlacer {
             return [{ gx, gy }];
           };
 
-          const orderedOutline = outline.length ? this._orderByBurst(outline, desired) : [];
-          const orderedInside = inside.length ? this._orderByBurst(inside, pickRandomSeed(inside)) : [];
+          if (!this._burstSeeds || this._burstSeeds.length !== desired) {
+            this._burstSeeds = this._pickBurstSeeds(mismatchedPixels, desired);
+            try { const cfg = (currentSettings && currentSettings.logCategories) || {}; if (cfg.painting !== false) { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 💥 Burst seeds (${desired}): ${JSON.stringify(this._burstSeeds)}`); } } catch (_) { }
+          }
+          const orderedOutline = outline.length ? this._orderByBurst(outline, this._burstSeeds) : [];
+          const orderedInside = inside.length ? this._orderByBurst(inside, this._burstSeeds) : [];
 
           mismatchedPixels = orderedOutline.concat(orderedInside);
           break;
@@ -1894,9 +1907,20 @@ class TemplateManager {
       } catch (error) {
         if (error.name === "SuspensionError") {
           const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
-          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🛑 Account suspended until ${suspendedUntilDate}.`);
-          users[wplacer.userInfo.id].suspendedUntil = error.suspendedUntil;
+          const uid = wplacer.userInfo.id;
+          const uname = wplacer.userInfo.name;
+          // mark user suspended
+          users[uid].suspendedUntil = error.suspendedUntil;
           saveUsers();
+          // remove from drawing participants for this template (normalize id types)
+          const uidStr = String(uid);
+          this.userIds = (this.userIds || []).filter((id) => String(id) !== uidStr);
+          this.userQueue = (this.userQueue || []).filter((id) => String(id) !== uidStr);
+          try { saveTemplates(); } catch (_) { }
+          // log informative message in English
+          log(uid, uname, `[${this.name}] 🛑 Account suspended until ${suspendedUntilDate}. Removed from the template list.`);
+          // also invalidate the currently held token so it won't be reused
+          try { TokenManager.invalidateToken(); } catch (_) { }
           return; // end this user's turn
         }
         if (error.message === "REFRESH_TOKEN") {
@@ -2014,6 +2038,20 @@ class TemplateManager {
             this._lastSummary = summary;
             this._lastSummaryAt = Date.now();
             this.pixelsRemaining = summary.total;
+            // Initialize and persist shared burst seeds once per template for burst-family modes
+            try {
+              const burstFamily = new Set(["burst", "colors-burst-rare", "outline-then-burst", "burst-mixed"]);
+              if (burstFamily.has(currentSettings.drawingMethod)) {
+                const desired = Math.max(1, Math.min(Number(currentSettings?.seedCount ?? 2), 16));
+                if (!this.burstSeeds || this.burstSeeds.length !== desired) {
+                  const mm = checkWplacer._getMismatchedPixels();
+                  if (Array.isArray(mm) && mm.length > 0) {
+                    this.burstSeeds = checkWplacer._pickBurstSeeds(mm, desired);
+                    saveTemplates();
+                  }
+                }
+              }
+            } catch (_) { }
             if (this.autoBuyNeededColors) {
               if (summary.total === 0) {
                 // nothing to do
@@ -2286,7 +2324,12 @@ class TemplateManager {
           });
 
           // Sei - Instead of refreshing every 30 seconds, why don't we only refresh when we need to???
-          let waitTime = msWaitUntilNextUser.timeToReady;
+          let waitTime = msWaitUntilNextUser?.timeToReady ?? 10_000;
+          // If "Always draw when at least one charge is available" is enabled,
+          // do not wait the full predicted time. Recheck within 60s so at least ~2 pixels can restore.
+          if (currentSettings.alwaysDrawOnCharge) {
+            waitTime = Math.min(waitTime, 60_000);
+          }
           //let waitTime = (waits.length ? Math.min(...waits) : 10_000) + 800;
           //const maxWait = Math.max(10_000, Math.floor((currentSettings.accountCooldown || 15000) * 1.5));
           //waitTime = Math.min(waitTime, maxWait);

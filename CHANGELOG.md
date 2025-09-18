@@ -1,3 +1,11 @@
+## Changelog v4.2.9
+- Added exclusion of restricted/banned users from the drawing queue.
+- Moved log settings out of general settings into Live Logs.
+- Added estimated time left info on template & fix host value env that was unused (Thanks to [Aglglg](https://github.com/Aglglg)).
+- Added queue preview system feature. Thanks to [lulz](https://github.com/Udyz)!
+- Minor fixes and painting improvements (bursts).
+
+
 ## Changelog v4.2.8 – Quick Fixes
 - Added bulk “Buy paint charges (All)” action: buys pixel charges for all accounts using available droplets while honoring the configured droplet reserve and purchase cooldown. Includes a progress display and a result summary.
 - Added a Live Logs section with an option to hide sensitive information.
