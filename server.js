@@ -42,6 +42,16 @@ const broadcastLog = (payload) => {
 const RECENT_LOGS_LIMIT = 5000;
 const recentLogs = [];
 
+// Helper function to add messages to Live Logs
+const addToLiveLogs = (message, category = 'general', level = 'info') => {
+  try {
+    const obj = { line: message, category, level, ts: new Date().toLocaleString() };
+    recentLogs.push(obj); 
+    if (recentLogs.length > RECENT_LOGS_LIMIT) recentLogs.shift();
+    broadcastLog(obj);
+  } catch (_) { }
+};
+
 // Track open sockets to allow forced shutdown
 const sockets = new Set();
 
@@ -4518,6 +4528,9 @@ const keepAlive = async () => {
   console.clear();
   const version = JSON.parse(readFileSync("package.json", "utf8")).version;
   console.log(`\n--- wplacer v${version} made by luluwaffless and jinx | forked/improved by lllexxa ---\n`);
+  
+  // Add startup message to Live Logs
+  addToLiveLogs(`--- wplacer v${version} made by luluwaffless and jinx | forked/improved by lllexxa ---`);
 
   const loadedTemplates = loadJSON("templates.json");
   for (const id in loadedTemplates) {
@@ -4557,13 +4570,54 @@ const keepAlive = async () => {
   loadProxies();
   console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
   
+  // Add loaded data message to Live Logs
+  addToLiveLogs(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
+  
   const port = Number(process.env.PORT) || 80;
   const host = process.env.HOST || "0.0.0.0";
   const hostname = host === "0.0.0.0" || host === "127.0.0.1" ? "localhost" : host;
 
+  // Security warning for 0.0.0.0
+  if (host === "0.0.0.0") {
+    const securityWarning1 = "⚠️  SECURITY WARNING: HOST=0.0.0.0 makes the server accessible from outside your computer!";
+    const securityWarning2 = "   For better security, change HOST to 127.0.0.1 in .env file or use run-localhost.bat";
+    
+    console.log(securityWarning1);
+    console.log(securityWarning2);
+    console.log("");
+    
+    // Add security warning to Live Logs
+    addToLiveLogs(securityWarning1, 'general', 'warning');
+    addToLiveLogs(securityWarning2, 'general', 'warning');
+  }
+
   const server = app.listen(port, host, () => {
-    console.log(`✅ Server listening on http://${hostname}:${port}`);
-    console.log(`   Open the web UI in your browser to start!`);
+    const serverMsg1 = `✅ Server listening on http://${hostname}:${port} (${host})`;
+    const serverMsg2 = `   Open the web UI in your browser to start!`;
+    
+    console.log(serverMsg1);
+    console.log(serverMsg2);
+    
+    // Add server startup messages to Live Logs
+    addToLiveLogs(serverMsg1);
+    addToLiveLogs(serverMsg2);
+    
+    // Auto-open browser
+    const url = `http://${hostname}:${port}`;
+    exec(`start ${url}`, (error) => {
+      if (error) {
+        const browserErrorMsg = `   Failed to auto-open browser. Please open manually: ${url}`;
+        console.log(browserErrorMsg);
+        // Add browser error message to Live Logs
+        addToLiveLogs(browserErrorMsg, 'general', 'warning');
+      } else {
+        const browserSuccessMsg = `   🌐 Browser auto-opened: ${url}`;
+        console.log(browserSuccessMsg);
+        // Add browser success message to Live Logs
+        addToLiveLogs(browserSuccessMsg);
+      }
+    });
+    
     setInterval(keepAlive, 20 * 60 * 1000);
     
     // Auto-start templates with autoStart enabled (after server is fully started)

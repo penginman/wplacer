@@ -220,7 +220,7 @@ const renderLogLine = (raw) => {
         const isErrorSymbol = /❌/.test(raw.line || '');
         const isPainted = /\uD83C\uDFA8|🎨\s*Painted/i.test(raw.line || '');
         const isPurchase = /\uD83D\uDED2|🛒|\bBought\b/i.test(raw.line || '');
-        const cls = `log-line log-${cat} ${level === 'error' || isErrorSymbol ? 'log-error' : ''} ${isPainted ? 'log-success' : ''} ${isPurchase ? 'log-success-purchase' : ''}`;
+        const cls = `log-line log-${cat} ${level === 'error' || isErrorSymbol ? 'log-error' : ''} ${level === 'warning' ? 'log-warning' : ''} ${isPainted ? 'log-success' : ''} ${isPurchase ? 'log-success-purchase' : ''}`;
 
         const div = document.createElement('div');
         div.className = cls;

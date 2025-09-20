@@ -52,6 +52,12 @@
     background: rgba(0, 180, 255, 0.06);
 }
 
+.log-warning {
+    color: #ffb366;
+    border-left-color: #ffb366;
+    background: rgba(255, 165, 0, 0.06);
+}
+
 .log-muted {
     opacity: .7;
 }

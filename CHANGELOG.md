@@ -1,3 +1,8 @@
+## Changelog v4.3.1
+- Added auto-open browser after program starts
+- Added security warning for HOST=0.0.0.0 with recommendations to use 127.0.0.1
+
+
 ## Changelog v4.3.0
 - Added Flags section. Full functionality for purchasing/equipping needed flags.
 - Added auto-start template setting when program launches.
