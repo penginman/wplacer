@@ -221,16 +221,16 @@ const renderLogLine = (raw) => {
         const isPainted = /\uD83C\uDFA8|🎨\s*Painted/i.test(raw.line || '');
         const isPurchase = /\uD83D\uDED2|🛒|\bBought\b/i.test(raw.line || '');
         const isSeparator = /^---\s+.*\s+---$/.test(raw.line || '');
-        const isValidationSection = /^---\s+(JSON Files Validation|Log Files Cleanup)/.test(raw.line || '') || 
-                                   /^✅\s+(File|All JSON files|All log files)/.test(raw.line || '') ||
-                                   /^---\s+(JSON Files Validation|Log Files Cleanup)\s+Complete\s+---$/.test(raw.line || '') ||
-                                   /^📊\s+Log file/.test(raw.line || '') ||
-                                   /^Log file.*lines/.test(raw.line || '') ||
-                                   /^Log file.*within limits/.test(raw.line || '') ||
-                                   /^All log files are within size limits/.test(raw.line || '') ||
-                                   /^Created backup/.test(raw.line || '') ||
-                                   /^Failed to create backup/.test(raw.line || '') ||
-                                   /^ℹ️\s+File.*not found/.test(raw.line || '');
+        const isValidationSection = /^---\s+(JSON Files Validation|Log Files Cleanup)/.test(raw.line || '') ||
+            /^✅\s+(File|All JSON files|All log files)/.test(raw.line || '') ||
+            /^---\s+(JSON Files Validation|Log Files Cleanup)\s+Complete\s+---$/.test(raw.line || '') ||
+            /^📊\s+Log file/.test(raw.line || '') ||
+            /^Log file.*lines/.test(raw.line || '') ||
+            /^Log file.*within limits/.test(raw.line || '') ||
+            /^All log files are within size limits/.test(raw.line || '') ||
+            /^Created backup/.test(raw.line || '') ||
+            /^Failed to create backup/.test(raw.line || '') ||
+            /^ℹ️\s+File.*not found/.test(raw.line || '');
         const cls = `log-line log-${cat} ${level === 'error' || isErrorSymbol ? 'log-error' : ''} ${level === 'warning' ? 'log-warning' : ''} ${isPainted ? 'log-success' : ''} ${isPurchase ? 'log-success-purchase' : ''} ${isSeparator || isValidationSection ? 'log-separator' : ''}`;
 
         const div = document.createElement('div');
@@ -4004,7 +4004,7 @@ openManageTemplates.addEventListener("click", () => {
                     }, 0);
 
                     fillEditorFromTemplate(T);
-                    
+
                     // Auto-scroll to autoStart setting if it's enabled
                     if (T.autoStart && autoStart) {
                         setTimeout(() => {
@@ -4499,7 +4499,7 @@ async function refreshActiveBar() {
                 }, 0);
 
                 fillEditorFromTemplate(T);
-                
+
                 // Auto-scroll to autoStart setting if it's enabled
                 if (T.autoStart && autoStart) {
                     setTimeout(() => {
@@ -6297,6 +6297,46 @@ if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile 
     });
 }
 
+// -- EXPORT JWT TOKENS -- //
+const exportJwtBtn = document.getElementById('exportJwtBtn');
+
+if (exportJwtBtn) {
+    exportJwtBtn.addEventListener('click', async () => {
+        exportJwtBtn.disabled = true;
+        exportJwtBtn.innerText = 'Exporting…';
+
+        try {
+            // Call backend route that generates file.txt
+            const resp = await fetch('/export-tokens');
+
+            if (!resp.ok) {
+                throw new Error(`Failed to export tokens. Status: ${resp.status}`);
+            }
+
+            // Receive blob content
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+
+            // Create <a> temporary element for download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'jwt_tokens.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+        } catch (err) {
+            console.error('Error exporting JWT tokens:', err);
+            alert('An error occurred while exporting JWT tokens.');
+        } finally {
+            exportJwtBtn.disabled = false;
+            exportJwtBtn.innerText = 'Export JWT Tokens (.txt)';
+        }
+    });
+}
+
+
 //Used for time estimation, converting seconds value to more readable format
 function formatTime(seconds) {
     const d = Math.floor(seconds / (3600 * 24));
@@ -6397,7 +6437,7 @@ function updateQueueUserList(users) {
 
         const animateClass = isFirstLoad ? 'animate-in' : '';
         const barWidth = user.charges ? user.charges.percentage : 0;
-        
+
         return `
             <div class="queue-user-item ${animateClass}">
                 <div class="queue-user-name">${displayName} <span class="queue-user-id">${displayId}</span> <span class="queue-charges-current">${user.charges ? user.charges.current : '--'}</span>/${user.charges ? user.charges.max : '--'} <span class="queue-charges-percentage">(${barWidth + '%'})</span></div>

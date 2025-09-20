@@ -2,6 +2,8 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } fr
 import { spawn, exec } from "node:child_process";
 import path from "node:path";
 import express from "express";
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import cors from "cors";
 import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
@@ -102,13 +104,13 @@ const JSON_SCHEMAS = {
 // --- JSON Validation Functions ---
 const validateJSON = (data, schema, filename) => {
   const errors = [];
-  
+
   if (schema.structure === 'object') {
     if (typeof data !== 'object' || data === null || Array.isArray(data)) {
       errors.push(`File ${filename} must contain an object`);
       return errors;
     }
-    
+
     // For users.json and templates.json, validate each entry
     if (schema.userSchema || schema.templateSchema) {
       const itemSchema = schema.userSchema || schema.templateSchema;
@@ -122,18 +124,18 @@ const validateJSON = (data, schema, filename) => {
     const objectErrors = validateObject(data, schema, filename);
     errors.push(...objectErrors);
   }
-  
+
   return errors;
 };
 
 const validateObject = (obj, schema, path) => {
   const errors = [];
-  
+
   if (typeof obj !== 'object' || obj === null) {
     errors.push(`${path}: expected object`);
     return errors;
   }
-  
+
   // Check required fields
   if (schema.required) {
     for (const field of schema.required) {
@@ -142,7 +144,7 @@ const validateObject = (obj, schema, path) => {
       }
     }
   }
-  
+
   // Check field types
   if (schema.types) {
     for (const [field, expectedType] of Object.entries(schema.types)) {
@@ -154,7 +156,7 @@ const validateObject = (obj, schema, path) => {
       }
     }
   }
-  
+
   // Check nested objects
   if (schema.nested) {
     for (const [field, nestedSchema] of Object.entries(schema.nested)) {
@@ -164,7 +166,7 @@ const validateObject = (obj, schema, path) => {
       }
     }
   }
-  
+
   return errors;
 };
 
@@ -173,7 +175,7 @@ const validateJSONFile = (filename, data) => {
   if (!schema) {
     return [`Unknown validation schema for file ${filename}`];
   }
-  
+
   return validateJSON(data, schema, filename);
 };
 
@@ -225,7 +227,7 @@ const recentLogs = [];
 const addToLiveLogs = (message, category = 'general', level = 'info') => {
   try {
     const obj = { line: message, category, level, ts: new Date().toLocaleString() };
-    recentLogs.push(obj); 
+    recentLogs.push(obj);
     if (recentLogs.length > RECENT_LOGS_LIMIT) recentLogs.shift();
     broadcastLog(obj);
   } catch (_) { }
@@ -759,7 +761,7 @@ class WPlacer {
               // ignore activation failures
             }
           }
-          try { log(this.userInfo?.id || "SYSTEM", this.userInfo?.name || "wplacer", `[${this.templateName}] ⚠️ Tile ${targetTx}, ${targetTy} may be inactive (404). Trying to activate and reload...`); } catch (_) {}
+          try { log(this.userInfo?.id || "SYSTEM", this.userInfo?.name || "wplacer", `[${this.templateName}] ⚠️ Tile ${targetTx}, ${targetTy} may be inactive (404). Trying to activate and reload...`); } catch (_) { }
           return null;
         }
         if (!resp.ok) return null;
@@ -817,7 +819,7 @@ class WPlacer {
           if (globalThis.__wplacer_last_fp) body.fp = globalThis.__wplacer_last_fp;
           const res = await this._executePaint(targetTx, targetTy, body);
           if (res && res.success && res.painted > 0) {
-            try { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ℹ️ Tile ${targetTx},${targetTy} might be inactive. Tried to activate by painting 1 pixel.`); } catch (_) {}
+            try { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ℹ️ Tile ${targetTx},${targetTy} might be inactive. Tried to activate by painting 1 pixel.`); } catch (_) { }
             return true;
           }
           return false;
@@ -926,12 +928,12 @@ class WPlacer {
 
   _pickBurstSeeds(pixels, k = 2, _ignoredTopFuzz = 5) {
     if (!pixels?.length) return [];
-    
+
     // For very large arrays, use sampling to avoid memory issues
     if (pixels.length > MEMORY_CONFIG.BURST_LARGE_THRESHOLD) {
       return this._pickBurstSeedsLarge(pixels, k);
     }
-    
+
     const pts = pixels.map((p) => this._globalXY(p));
 
     // Find two points that are farthest apart (similar to frontend)
@@ -943,7 +945,7 @@ class WPlacer {
         if (d2 > best) { best = d2; bi = i; bj = j; }
       }
     }
-    
+
     const seeds = [pts[bi]];
     if (pts.length > 1) seeds.push(pts[bj]);
 
@@ -954,10 +956,10 @@ class WPlacer {
         const md = Math.min(...seeds.map(s => (s.gx - pts[i].gx) ** 2 + (s.gy - pts[i].gy) ** 2));
         if (md > bestMin) { bestMin = md; pick = pts[i]; }
       }
-      if (!pick) break; 
+      if (!pick) break;
       seeds.push(pick);
     }
-    
+
     return seeds.slice(0, k).map((s) => ({ gx: s.gx, gy: s.gy }));
   }
 
@@ -968,11 +970,11 @@ class WPlacer {
     const SAMPLE_SIZE = Math.min(MEMORY_CONFIG.SAMPLE_SIZE, pixels.length);
     const step = Math.max(1, Math.floor(pixels.length / SAMPLE_SIZE));
     const sampledPixels = [];
-    
+
     for (let i = 0; i < pixels.length && sampledPixels.length < SAMPLE_SIZE; i += step) {
       sampledPixels.push(pixels[i]);
     }
-    
+
     // Use the regular algorithm on the sampled pixels
     return this._pickBurstSeeds(sampledPixels, k);
   }
@@ -1138,7 +1140,7 @@ class WPlacer {
   // Memory-efficient burst ordering for very large pixel arrays
   _orderByBurstLarge(mismatchedPixels, seeds = 2) {
     const [startX, startY] = this.coords;
-    
+
     // Add coordinates to pixels
     for (const p of mismatchedPixels) {
       p._gx = (p.tx - startX) * 1000 + p.px;
@@ -1146,11 +1148,11 @@ class WPlacer {
     }
 
     const useSeeds = Array.isArray(seeds) ? seeds.slice() : this._pickBurstSeeds(mismatchedPixels, seeds);
-    
+
     // For large arrays, use a simpler but more memory-efficient approach
     // Sort by distance from the first seed point (similar to frontend)
     const firstSeed = useSeeds[0] || { gx: 0, gy: 0 };
-    
+
     const sortedPixels = mismatchedPixels.slice().sort((a, b) => {
       const distA = Math.sqrt((a._gx - firstSeed.gx) ** 2 + (a._gy - firstSeed.gy) ** 2);
       const distB = Math.sqrt((b._gx - firstSeed.gx) ** 2 + (b._gy - firstSeed.gy) ** 2);
@@ -1167,7 +1169,7 @@ class WPlacer {
       delete p._gx;
       delete p._gy;
     }
-    
+
     return sortedPixels;
   }
 
@@ -1175,25 +1177,25 @@ class WPlacer {
   async _paintLargeImage(mismatchedPixels, method) {
     const BATCH_SIZE = MEMORY_CONFIG.CHUNK_SIZE;
     let totalPainted = 0;
-    
+
     log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Processing large image with ${mismatchedPixels.length} pixels in batches of ${BATCH_SIZE}`);
-    
+
     // Sort pixels based on method for large images
     let sortedPixels = this._sortPixelsForLargeImage(mismatchedPixels, method);
-    
+
     for (let i = 0; i < sortedPixels.length; i += BATCH_SIZE) {
       if (this._isCancelled()) return totalPainted;
-      
+
       const batch = sortedPixels.slice(i, i + BATCH_SIZE);
       const batchPainted = await this._paintBatch(batch);
       totalPainted += batchPainted;
-      
+
       // Allow garbage collection between batches
       if (i % MEMORY_CONFIG.GC_INTERVAL === 0 && global.gc) {
         global.gc();
       }
     }
-    
+
     return totalPainted;
   }
 
@@ -1202,10 +1204,10 @@ class WPlacer {
     switch (method) {
       case "linear":
         return pixels; // Already sorted by template order
-      
+
       case "linear-reversed":
         return pixels.slice().reverse();
-      
+
       case "linear-ltr": {
         const [startX, startY] = this.coords;
         return pixels.slice().sort((a, b) => {
@@ -1215,7 +1217,7 @@ class WPlacer {
           return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
         });
       }
-      
+
       case "linear-rtl": {
         const [startX, startY] = this.coords;
         return pixels.slice().sort((a, b) => {
@@ -1225,26 +1227,26 @@ class WPlacer {
           return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
         });
       }
-      
+
       case "radial-inward":
       case "radial-outward": {
         const [sx, sy, spx, spy] = this.coords;
         const cx = spx + (this.template.width - 1) / 2;
         const cy = spy + (this.template.height - 1) / 2;
-        
+
         return pixels.slice().sort((a, b) => {
           const aGx = (a.tx - sx) * 1000 + a.px;
           const aGy = (a.ty - sy) * 1000 + a.py;
           const bGx = (b.tx - sx) * 1000 + b.px;
           const bGy = (b.ty - sy) * 1000 + b.py;
-          
+
           const distA = (aGx - cx) ** 2 + (aGy - cy) ** 2;
           const distB = (bGx - cx) ** 2 + (bGy - cy) ** 2;
-          
+
           return method === "radial-inward" ? distB - distA : distA - distB;
         });
       }
-      
+
       case "random":
         // Shuffle array in place for memory efficiency
         for (let i = pixels.length - 1; i > 0; i--) {
@@ -1252,7 +1254,7 @@ class WPlacer {
           [pixels[i], pixels[j]] = [pixels[j], pixels[i]];
         }
         return pixels;
-      
+
       case "colorByColor": {
         const pixelsByColor = pixels.reduce((acc, p) => {
           if (!acc[p.color]) acc[p.color] = [];
@@ -1262,7 +1264,7 @@ class WPlacer {
         const colors = Object.keys(pixelsByColor);
         return colors.flatMap((color) => pixelsByColor[color]);
       }
-      
+
       default:
         // For burst methods, use simplified sorting
         return this._orderByBurstLarge(pixels, this.settings?.seedCount ?? 2);
@@ -1274,9 +1276,9 @@ class WPlacer {
     const allowedByCharges = Math.max(0, Math.floor(this.userInfo?.charges?.count || 0));
     const maxPerPass = Number.isFinite(this.settings?.maxPixelsPerPass) ? Math.max(0, Math.floor(this.settings.maxPixelsPerPass)) : 0;
     const limit = maxPerPass > 0 ? Math.min(allowedByCharges, maxPerPass) : allowedByCharges;
-    
+
     if (limit <= 0) return 0;
-    
+
     const pixelsToPaint = pixels.slice(0, limit);
     const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
       const key = `${p.tx},${p.ty}`;
@@ -1309,18 +1311,18 @@ class WPlacer {
   _getMismatchedPixels() {
     const [startX, startY, startPx, startPy] = this.coords;
     const mismatched = [];
-    
+
     // Process in chunks to avoid memory issues with very large images
     const CHUNK_SIZE = MEMORY_CONFIG.CHUNK_SIZE;
     const totalPixels = this.template.height * this.template.width;
-    
+
     for (let chunkStart = 0; chunkStart < totalPixels; chunkStart += CHUNK_SIZE) {
       const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, totalPixels);
-      
+
       for (let pixelIndex = chunkStart; pixelIndex < chunkEnd; pixelIndex++) {
         const y = Math.floor(pixelIndex / this.template.width);
         const x = pixelIndex % this.template.width;
-        
+
         const _templateColor = this.template.data[x][y];
 
         // old behavior: 0 means "transparent pixel" in the template.
@@ -1366,7 +1368,7 @@ class WPlacer {
           mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge: isEdge });
         }
       }
-      
+
       // Allow garbage collection between chunks for very large images
       if (chunkStart % (CHUNK_SIZE * 5) === 0 && global.gc) {
         global.gc();
@@ -1674,11 +1676,11 @@ class WPlacer {
       if (this._isCancelled()) return totalPainted;
 
       if (!needsRetry) {
-        this._activeBurstSeedIdx = null; 
+        this._activeBurstSeedIdx = null;
         break;
       }
     }
-    
+
     return totalPainted;
   }
 
@@ -1840,14 +1842,14 @@ class WPlacer {
 // --- Data persistence ---
 const loadJSON = (filename, validate = true) => {
   const filePath = path.join(dataDir, filename);
-  
+
   if (!existsSync(filePath)) {
     return {};
   }
-  
+
   try {
     const data = JSON.parse(readFileSync(filePath, "utf8"));
-    
+
     if (validate) {
       const errors = validateJSONFile(filename, data);
       if (errors.length > 0) {
@@ -1855,7 +1857,7 @@ const loadJSON = (filename, validate = true) => {
         errors.forEach(error => console.log(`  - ${error}`));
         addToLiveLogs(`Validation errors in file ${filename}:`, 'error', 'error');
         errors.forEach(error => addToLiveLogs(`  - ${error}`, 'error', 'error'));
-        
+
         // Create backup of corrupted file
         const backupPath = path.join(
           backupsRootDir,
@@ -1869,7 +1871,7 @@ const loadJSON = (filename, validate = true) => {
           console.log(`❌ Failed to create backup: ${backupError.message}`);
           addToLiveLogs(`Failed to create backup: ${backupError.message}`, 'error', 'error');
         }
-        
+
         // Return empty object for corrupted files
         return {};
       } else {
@@ -1877,12 +1879,12 @@ const loadJSON = (filename, validate = true) => {
         addToLiveLogs(`File ${filename} successfully validated`, 'general', 'info');
       }
     }
-    
+
     return data;
   } catch (parseError) {
     console.log(`❌ JSON parsing error in file ${filename}: ${parseError.message}`);
     addToLiveLogs(`JSON parsing error in file ${filename}: ${parseError.message}`, 'error', 'error');
-    
+
     // Create backup of corrupted file
     const backupPath = path.join(
       backupsRootDir,
@@ -1897,7 +1899,7 @@ const loadJSON = (filename, validate = true) => {
       console.log(`❌ Failed to create backup: ${backupError.message}`);
       addToLiveLogs(`Failed to create backup: ${backupError.message}`, 'error', 'error');
     }
-    
+
     return {};
   }
 };
@@ -2386,8 +2388,7 @@ class TemplateManager {
       // Pull latest pawtect token, if any
       try { wplacer.pawtect = globalThis.__wplacer_last_pawtect || null; } catch { }
       const painted = await wplacer.paint(currentSettings.drawingMethod);
-      if(typeof painted === 'number' && painted > 0)
-      {
+      if (typeof painted === 'number' && painted > 0) {
         log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] ⏰ Estimated time left: ~${this.formatTime((this.pixelsRemaining - painted) / this.userIds.length * 30)}`); //30 seconds for 1 pixel
       }
       // save back burst seeds if used
@@ -2396,33 +2397,33 @@ class TemplateManager {
       try { TokenManager.consumeToken(); } catch { }
       return painted;
     } catch (error) {
-        if (error.name === "SuspensionError") {
-          const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
-          const uid = wplacer.userInfo.id;
-          const uname = wplacer.userInfo.name;
-          // mark user suspended
-          users[uid].suspendedUntil = error.suspendedUntil;
-          saveUsers();
-          // remove from drawing participants for this template (normalize id types)
-          const uidStr = String(uid);
-          this.userIds = (this.userIds || []).filter((id) => String(id) !== uidStr);
-          this.userQueue = (this.userQueue || []).filter((id) => String(id) !== uidStr);
-          try { saveTemplates(); } catch (_) { }
-          // log informative message in English
-          log(uid, uname, `[${this.name}] 🛑 Account suspended until ${suspendedUntilDate}. Removed from the template list.`);
-          // also invalidate the currently held token so it won't be reused
-          try { TokenManager.invalidateToken(); } catch (_) { }
-          return; // end this user's turn
-        }
-        if (error.message === "REFRESH_TOKEN") {
-          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired/invalid. Trying next token...`);
-          TokenManager.invalidateToken();
-          await sleep(1000);
-          throw error; // Re-throw to let the caller handle token refresh
-        }
-        // Delegate all errors to unified logger to keep original reason
-        logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] paint turn`);
-        return 0;
+      if (error.name === "SuspensionError") {
+        const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
+        const uid = wplacer.userInfo.id;
+        const uname = wplacer.userInfo.name;
+        // mark user suspended
+        users[uid].suspendedUntil = error.suspendedUntil;
+        saveUsers();
+        // remove from drawing participants for this template (normalize id types)
+        const uidStr = String(uid);
+        this.userIds = (this.userIds || []).filter((id) => String(id) !== uidStr);
+        this.userQueue = (this.userQueue || []).filter((id) => String(id) !== uidStr);
+        try { saveTemplates(); } catch (_) { }
+        // log informative message in English
+        log(uid, uname, `[${this.name}] 🛑 Account suspended until ${suspendedUntilDate}. Removed from the template list.`);
+        // also invalidate the currently held token so it won't be reused
+        try { TokenManager.invalidateToken(); } catch (_) { }
+        return; // end this user's turn
+      }
+      if (error.message === "REFRESH_TOKEN") {
+        log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired/invalid. Trying next token...`);
+        TokenManager.invalidateToken();
+        await sleep(1000);
+        throw error; // Re-throw to let the caller handle token refresh
+      }
+      // Delegate all errors to unified logger to keep original reason
+      logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] paint turn`);
+      return 0;
     }
   }
 
@@ -2782,7 +2783,7 @@ class TemplateManager {
             if (error.message && (error.message.includes("Authentication failed (401)") || error.message.includes("Authentication expired"))) {
               const userName = users[foundUserForTurn]?.name || `#${foundUserForTurn}`;
               log(foundUserForTurn, userName, `[${this.name}] ❌ Authentication failed (401) - skipping user temporarily`);
-              
+
               // Temporarily exclude user from queue for 5 minutes to avoid repeated auth failures
               if (!users[foundUserForTurn].authFailureUntil) {
                 users[foundUserForTurn].authFailureUntil = Date.now() + (5 * 60 * 1000); // 5 minutes
@@ -2937,16 +2938,16 @@ app.get("/queue", async (req, res) => {
 
     for (const [id, user] of Object.entries(users)) {
       // if (user.disabled) continue;
-      
+
       totalCount++;
-      
+
       const prediction = ChargeCache.predict(id, now);
       const isSuspended = user.suspendedUntil && now < user.suspendedUntil;
       const isActive = activeBrowserUsers.has(id);
-      
+
       let status = 'waiting';
       let cooldownTime = null;
-      
+
       if (isSuspended) {
         status = 'suspended';
         cooldownTime = Math.ceil((user.suspendedUntil - now) / 1000);
@@ -2992,24 +2993,24 @@ app.get("/queue", async (req, res) => {
         'suspended': 5,
         'no-data': 6
       };
-      
+
       const aPriority = statusPriority[a.status] || 7;
       const bPriority = statusPriority[b.status] || 7;
-      
+
       // First sort by status priority
       if (aPriority !== bPriority) {
         return aPriority - bPriority;
       }
-      
+
       // Within same status, sort by charges (higher first)
       if (a.charges && b.charges) {
         return b.charges.current - a.charges.current;
       }
-      
+
       // If one has charges and other doesn't, prioritize the one with charges
       if (a.charges && !b.charges) return -1;
       if (!a.charges && b.charges) return 1;
-      
+
       // Finally sort by ID for consistency
       return a.id.localeCompare(b.id);
     });
@@ -3264,7 +3265,7 @@ app.post("/user/:id/open-profile", (req, res) => {
 
     // Robust Windows CMD invocation: call "fullpath.bat" [brave.exe]
     try {
-      try { log("SYSTEM", "Profiles", `Launching: ${profilePath}`); } catch(_) {}
+      try { log("SYSTEM", "Profiles", `Launching: ${profilePath}`); } catch (_) { }
       const batDir = path.dirname(profilePath);
       const debug = String(req.query?.debug || "").trim() === "1";
 
@@ -3280,7 +3281,7 @@ app.post("/user/:id/open-profile", (req, res) => {
       let braveExe = candidates.find(p => {
         try { return existsSync(p); } catch { return false; }
       }) || "";
-      if (braveExe) { try { log("SYSTEM", "Profiles", `Detected Brave: ${braveExe}`); } catch(_) {} }
+      if (braveExe) { try { log("SYSTEM", "Profiles", `Detected Brave: ${braveExe}`); } catch (_) { } }
 
       const args = [debug ? "/k" : "/c", "call", profilePath];
       if (braveExe) args.push(braveExe);
@@ -3522,7 +3523,7 @@ app.post("/users/buy-charges", async (req, res) => {
       console.log(`[BuyCharges] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++;
           if (i >= ids.length) break;
           await doOne(ids[i]);
@@ -3746,7 +3747,7 @@ app.post("/users/flags-check", async (req, res) => {
     if (useParallel) {
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++; if (i >= workerIds.length) break;
           await doOne(workerIds[i]);
         }
@@ -3864,7 +3865,7 @@ app.post("/users/purchase-flag", async (req, res) => {
       console.log(`[FlagPurchase] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++;
           if (i >= ids.length) break;
           await doOne(ids[i]);
@@ -3912,7 +3913,7 @@ app.post("/user/:id/flag/equip", async (req, res) => {
   try {
     await w.login(users[uid].cookies); await w.loadUserInfo();
     await w.equipFlag(fid);
-    await w.loadUserInfo().catch(() => {});
+    await w.loadUserInfo().catch(() => { });
     res.json({ success: true, equippedFlag: Number(w.userInfo?.equippedFlag || fid) });
   } catch (e) {
     logUserError(e, uid, users[uid]?.name || `#${uid}`, "equip flag");
@@ -3947,7 +3948,7 @@ app.post("/users/equip-flag", async (req, res) => {
         await w.login(users[uid].cookies); await w.loadUserInfo();
         equipFlagJob.lastUserId = uid; equipFlagJob.lastUserName = w.userInfo?.name;
         await w.equipFlag(fid);
-        await w.loadUserInfo().catch(() => {});
+        await w.loadUserInfo().catch(() => { });
         report.push({ userId: uid, name: w.userInfo?.name, ok: true, success: true, equippedFlag: Number(w.userInfo?.equippedFlag || fid) });
       } catch (e) {
         logUserError(e, uid, users[uid]?.name || `#${uid}`, "equip flag batch");
@@ -3966,7 +3967,7 @@ app.post("/users/equip-flag", async (req, res) => {
       console.log(`[FlagEquip] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++;
           if (i >= ids.length) break;
           await doOne(ids[i]);
@@ -4017,7 +4018,7 @@ app.post("/users/unequip-flag", async (req, res) => {
         await w.login(users[uid].cookies); await w.loadUserInfo();
         unequipFlagJob.lastUserId = uid; unequipFlagJob.lastUserName = w.userInfo?.name;
         await w.equipFlag(0);
-        await w.loadUserInfo().catch(() => {});
+        await w.loadUserInfo().catch(() => { });
         report.push({ userId: uid, name: w.userInfo?.name, ok: true, success: true, equippedFlag: Number(w.userInfo?.equippedFlag || 0) });
       } catch (e) {
         logUserError(e, uid, users[uid]?.name || `#${uid}`, "unequip flag batch");
@@ -4036,7 +4037,7 @@ app.post("/users/unequip-flag", async (req, res) => {
       console.log(`[FlagUnequip] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++;
           if (i >= ids.length) break;
           await doOne(ids[i]);
@@ -4301,10 +4302,10 @@ app.post("/template", async (req, res) => {
     const lim = Math.max(0, Math.floor(Number(heatmapLimit)));
     templates[templateId].heatmapLimit = lim > 0 ? lim : 10000;
   } catch (_) { templates[templateId].heatmapEnabled = false; templates[templateId].heatmapLimit = 10000; }
-  
+
   // Auto-start setting
   templates[templateId].autoStart = !!autoStart;
-  
+
   saveTemplates();
   res.status(200).json({ id: templateId });
 });
@@ -4358,7 +4359,7 @@ app.put("/template/edit/:id", async (req, res) => {
     const lim = Math.max(0, Math.floor(Number(heatmapLimit)));
     manager.heatmapLimit = lim > 0 ? lim : 10000;
   } catch (_) { }
-  
+
   // Auto-start setting
   if (typeof autoStart !== 'undefined') {
     manager.autoStart = !!autoStart;
@@ -4956,31 +4957,31 @@ const keepAlive = async () => {
 const validateAllJSONFiles = () => {
   const jsonFiles = ['settings.json', 'users.json', 'templates.json'];
   let totalErrors = 0;
-  
+
   console.log('\n--- JSON Files Validation ---');
   addToLiveLogs('', 'general', 'info'); // Empty line
   addToLiveLogs('--- JSON Files Validation ---', 'general', 'info');
-  
+
   for (const filename of jsonFiles) {
     const filePath = path.join(dataDir, filename);
-    
+
     if (!existsSync(filePath)) {
       console.log(`ℹ️  File ${filename} not found, will be created on first save`);
       addToLiveLogs(`File ${filename} not found, will be created on first save`, 'general', 'info');
       continue;
     }
-    
+
     try {
       const data = JSON.parse(readFileSync(filePath, "utf8"));
       const errors = validateJSONFile(filename, data);
-      
+
       if (errors.length > 0) {
         totalErrors += errors.length;
         console.log(`❌ Validation errors in file ${filename}:`);
         errors.forEach(error => console.log(`  - ${error}`));
         addToLiveLogs(`❌ Validation errors in file ${filename}:`, 'error', 'error');
         errors.forEach(error => addToLiveLogs(`  - ${error}`, 'error', 'error'));
-        
+
         // Create backup of corrupted file
         const backupPath = path.join(
           backupsRootDir,
@@ -5002,7 +5003,7 @@ const validateAllJSONFiles = () => {
       totalErrors++;
       console.log(`❌ JSON parsing error in file ${filename}: ${parseError.message}`);
       addToLiveLogs(`❌ JSON parsing error in file ${filename}: ${parseError.message}`, 'error', 'error');
-      
+
       // Create backup of corrupted file
       const backupPath = path.join(
         backupsRootDir,
@@ -5019,7 +5020,7 @@ const validateAllJSONFiles = () => {
       }
     }
   }
-  
+
   if (totalErrors > 0) {
     console.log(`⚠️  Found ${totalErrors} errors in JSON files. Check backups in backups/ folder`);
     addToLiveLogs(`⚠️  Found ${totalErrors} errors in JSON files. Check backups in backups/ folder`, 'general', 'warning');
@@ -5027,7 +5028,7 @@ const validateAllJSONFiles = () => {
     console.log('✅ All JSON files are valid');
     addToLiveLogs('✅ All JSON files are valid', 'general', 'info');
   }
-  
+
   console.log('--- JSON Files Validation Complete ---\n');
   addToLiveLogs('--- JSON Files Validation Complete ---', 'general', 'info');
   addToLiveLogs('', 'general', 'info'); // Empty line
@@ -5038,45 +5039,45 @@ const cleanupLogFiles = () => {
   const logFiles = ['logs.log', 'errors.log'];
   const maxLines = 100000;
   let totalCleaned = 0;
-  
+
   console.log('--- Log Files Cleanup ---');
   addToLiveLogs('--- Log Files Cleanup ---', 'general', 'info');
-  
+
   for (const logFile of logFiles) {
     const logPath = path.join(dataDir, logFile);
-    
+
     if (!existsSync(logPath)) {
       console.log(`ℹ️  Log file ${logFile} not found, skipping`);
       addToLiveLogs(`Log file ${logFile} not found, skipping`, 'general', 'info');
       continue;
     }
-    
+
     try {
       // Read the log file and count lines
       const logContent = readFileSync(logPath, 'utf8');
       const lines = logContent.split('\n');
       const lineCount = lines.length;
-      
+
       console.log(`📊 Log file ${logFile}: ${lineCount} lines`);
       addToLiveLogs(`Log file ${logFile}: ${lineCount} lines`, 'general', 'info');
-      
+
       if (lineCount > maxLines) {
         // Create backup of the log file
         const backupPath = path.join(
           backupsRootDir,
           `${logFile.replace('.log', '')}.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.log`
         );
-        
+
         try {
           writeFileSync(backupPath, logContent);
           console.log(`📁 Created backup: ${backupPath}`);
           addToLiveLogs(`Created backup: ${backupPath}`, 'general', 'info');
-          
+
           // Clear the log file
           writeFileSync(logPath, '');
           console.log(`🧹 Cleared log file ${logFile} (was ${lineCount} lines)`);
           addToLiveLogs(`Cleared log file ${logFile} (was ${lineCount} lines)`, 'general', 'info');
-          
+
           totalCleaned++;
         } catch (backupError) {
           console.log(`❌ Failed to create backup for ${logFile}: ${backupError.message}`);
@@ -5091,7 +5092,7 @@ const cleanupLogFiles = () => {
       addToLiveLogs(`Error reading log file ${logFile}: ${readError.message}`, 'error', 'error');
     }
   }
-  
+
   if (totalCleaned > 0) {
     console.log(`🧹 Cleaned ${totalCleaned} log files that exceeded ${maxLines} lines`);
     addToLiveLogs(`Cleaned ${totalCleaned} log files that exceeded ${maxLines} lines`, 'general', 'info');
@@ -5099,18 +5100,58 @@ const cleanupLogFiles = () => {
     console.log('✅ All log files are within size limits');
     addToLiveLogs('All log files are within size limits', 'general', 'info');
   }
-  
+
   console.log('--- Log Files Cleanup Complete ---\n');
   addToLiveLogs('--- Log Files Cleanup Complete ---', 'general', 'info');
   addToLiveLogs('', 'general', 'info'); // Empty line
 };
+
+// create __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// -- Export JWT Tokens --
+
+app.get('/export-tokens', (req, res) => {
+  try {
+    const usersPath = path.join(__dirname, 'data', 'users.json');
+
+    if (!fs.existsSync(usersPath)) {
+      return res.status(404).send('users.json not found.');
+    }
+
+    const rawData = fs.readFileSync(usersPath, 'utf8');
+    const users = JSON.parse(rawData);
+
+    // Extract tokens JWT Tokens from each user
+    const tokens = Object.values(users)
+      .map(user => user.cookies?.j)
+      .filter(Boolean)
+      .map(s => s.trim());
+
+    if (tokens.length === 0) {
+      return res.status(404).send('No tokens found.');
+    }
+
+    const textContent = tokens.join('\n');
+
+    // Headers to force download as file.txt
+    res.setHeader('Content-Disposition', 'attachment; filename="jwt_tokens.txt"');
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(textContent);
+
+  } catch (err) {
+    console.error('An error ocurred while trying to export tokens:', err);
+    res.status(500).send('An error occurred while exporting JWT tokens.');
+  }
+});
 
 // --- Startup ---
 (async () => {
   console.clear();
   const version = JSON.parse(readFileSync("package.json", "utf8")).version;
   console.log(`\n--- wplacer v${version} made by luluwaffless and jinx | forked/improved by lllexxa ---\n`);
-  
+
   // Add startup message to Live Logs
   addToLiveLogs('', 'general', 'info'); // Empty line
   addToLiveLogs(`--- wplacer v${version} made by luluwaffless and jinx | forked/improved by lllexxa ---`);
@@ -5147,10 +5188,10 @@ const cleanupLogFiles = () => {
         const lim = Math.max(0, Math.floor(Number(t.heatmapLimit)));
         tm.heatmapLimit = lim > 0 ? lim : 10000;
       } catch (_) { tm.heatmapEnabled = false; tm.heatmapLimit = 10000; }
-      
+
       // auto-start setting load
       tm.autoStart = !!t.autoStart;
-      
+
       templates[id] = tm;
     } else {
       console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
@@ -5159,11 +5200,11 @@ const cleanupLogFiles = () => {
 
   loadProxies();
   console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
-  
+
   // Add loaded data message to Live Logs
   addToLiveLogs(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
   addToLiveLogs('', 'general', 'info'); // Empty line
-  
+
   const port = Number(process.env.PORT) || 80;
   const host = process.env.HOST || "0.0.0.0";
   const hostname = host === "0.0.0.0" || host === "127.0.0.1" ? "localhost" : host;
@@ -5173,11 +5214,11 @@ const cleanupLogFiles = () => {
   if (host === "0.0.0.0") {
     const securityWarning1 = "⚠️  SECURITY WARNING: HOST=0.0.0.0 makes the server accessible from outside your computer!";
     const securityWarning2 = "   For better security, change HOST to 127.0.0.1 in .env file or use run-localhost.bat";
-    
+
     console.log(securityWarning1);
     console.log(securityWarning2);
     console.log("");
-    
+
     // Add security warning to Live Logs
     addToLiveLogs(securityWarning1, 'general', 'warning');
     addToLiveLogs(securityWarning2, 'general', 'warning');
@@ -5186,14 +5227,14 @@ const cleanupLogFiles = () => {
   const server = app.listen(port, host, () => {
     const serverMsg1 = `✅ Server listening on http://${hostname}:${port} (${host})`;
     const serverMsg2 = `   Open the web UI in your browser to start!`;
-    
+
     console.log(serverMsg1);
     console.log(serverMsg2);
-    
+
     // Add server startup messages to Live Logs
     addToLiveLogs(serverMsg1);
     addToLiveLogs(serverMsg2);
-    
+
     // Auto-open browser
     const url = `http://${hostname}:${port}`;
     exec(`start ${url}`, (error) => {
@@ -5209,9 +5250,9 @@ const cleanupLogFiles = () => {
         addToLiveLogs(browserSuccessMsg);
       }
     });
-    
+
     setInterval(keepAlive, 20 * 60 * 1000);
-    
+
     // Auto-start templates with autoStart enabled (after server is fully started)
     setTimeout(async () => {
       let autoStartedCount = 0;
@@ -5249,12 +5290,13 @@ const cleanupLogFiles = () => {
     });
     const shutdown = () => {
       console.log('Shutting down server...');
-      try { server.close(() => {
-          try { for (const s of Array.from(sockets)) { try { s.destroy(); } catch {} } } catch {}
+      try {
+        server.close(() => {
+          try { for (const s of Array.from(sockets)) { try { s.destroy(); } catch { } } } catch { }
           process.exit(0);
         });
         // Fallback: hard exit after 2s
-        setTimeout(() => { try { for (const s of Array.from(sockets)) { try { s.destroy(); } catch {} } } catch {}; process.exit(0); }, 2000);
+        setTimeout(() => { try { for (const s of Array.from(sockets)) { try { s.destroy(); } catch { } } } catch { }; process.exit(0); }, 2000);
       } catch (_) { process.exit(0); }
     };
     process.on('SIGINT', shutdown);
