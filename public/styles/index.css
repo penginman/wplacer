@@ -46,6 +46,12 @@
     background: rgba(0, 255, 0, 0.04);
 }
 
+.log-separator {
+    border-left-color: #666666;
+    background: rgba(128, 128, 128, 0.08);
+    font-weight: 500;
+}
+
 .log-success-purchase {
     color: #7adfff;
     border-left-color: #7adfff;
