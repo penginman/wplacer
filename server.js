@@ -7,6 +7,15 @@ import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
 import { Image, createCanvas, loadImage } from "canvas";
 
+// --- Memory Management Constants ---
+const MEMORY_CONFIG = {
+  CHUNK_SIZE: 10000,           // Process 10k pixels at a time
+  LARGE_IMAGE_THRESHOLD: 500000, // 500k pixels threshold for batch processing
+  BURST_LARGE_THRESHOLD: 100000, // 100k pixels threshold for burst optimization
+  SAMPLE_SIZE: 10000,          // Sample size for burst seed selection
+  GC_INTERVAL: 50000           // Garbage collection interval (pixels)
+};
+
 // --- Setup Data Directory ---
 const dataDir = "./data";
 if (!existsSync(dataDir)) {
@@ -747,6 +756,12 @@ class WPlacer {
 
   _pickBurstSeeds(pixels, k = 2, _ignoredTopFuzz = 5) {
     if (!pixels?.length) return [];
+    
+    // For very large arrays, use sampling to avoid memory issues
+    if (pixels.length > MEMORY_CONFIG.BURST_LARGE_THRESHOLD) {
+      return this._pickBurstSeedsLarge(pixels, k);
+    }
+    
     const pts = pixels.map((p) => this._globalXY(p));
 
     // Deterministic selection: pick lexicographically smallest point as first
@@ -794,12 +809,32 @@ class WPlacer {
     return seeds.map((s) => ({ gx: s.gx, gy: s.gy }));
   }
 
+  // Memory-efficient burst seed selection for large arrays
+  _pickBurstSeedsLarge(pixels, k = 2) {
+    // Sample a subset of pixels to avoid memory issues
+    const SAMPLE_SIZE = Math.min(MEMORY_CONFIG.SAMPLE_SIZE, pixels.length);
+    const step = Math.max(1, Math.floor(pixels.length / SAMPLE_SIZE));
+    const sampledPixels = [];
+    
+    for (let i = 0; i < pixels.length && sampledPixels.length < SAMPLE_SIZE; i += step) {
+      sampledPixels.push(pixels[i]);
+    }
+    
+    // Use the regular algorithm on the sampled pixels
+    return this._pickBurstSeeds(sampledPixels, k);
+  }
+
   /**
    * Multi-source BFS ordering like in the old version.
    * seeds can be number (count) or array of {gx,gy}.
    */
   _orderByBurst(mismatchedPixels, seeds = 2) {
     if (mismatchedPixels.length <= 2) return mismatchedPixels;
+
+    // For very large arrays, use a more memory-efficient approach
+    if (mismatchedPixels.length > MEMORY_CONFIG.BURST_LARGE_THRESHOLD) {
+      return this._orderByBurstLarge(mismatchedPixels, seeds);
+    }
 
     const [startX, startY] = this.coords;
     const byKey = new Map();
@@ -961,11 +996,191 @@ class WPlacer {
     return out;
   }
 
+  // Memory-efficient burst ordering for very large pixel arrays
+  _orderByBurstLarge(mismatchedPixels, seeds = 2) {
+    const [startX, startY] = this.coords;
+    
+    // Add coordinates to pixels
+    for (const p of mismatchedPixels) {
+      p._gx = (p.tx - startX) * 1000 + p.px;
+      p._gy = (p.ty - startY) * 1000 + p.py;
+    }
+
+    const useSeeds = Array.isArray(seeds) ? seeds.slice() : this._pickBurstSeeds(mismatchedPixels, seeds);
+    
+    // For large arrays, use a simpler but more memory-efficient approach
+    // Sort by distance from the first seed point
+    const firstSeed = useSeeds[0] || { gx: 0, gy: 0 };
+    
+    const sortedPixels = mismatchedPixels.slice().sort((a, b) => {
+      const distA = Math.sqrt((a._gx - firstSeed.gx) ** 2 + (a._gy - firstSeed.gy) ** 2);
+      const distB = Math.sqrt((b._gx - firstSeed.gx) ** 2 + (b._gy - firstSeed.gy) ** 2);
+      return distA - distB;
+    });
+
+    // cleanup temp props
+    for (const p of sortedPixels) {
+      delete p._gx;
+      delete p._gy;
+    }
+    
+    return sortedPixels;
+  }
+
+  // Paint large images in batches to avoid memory issues
+  async _paintLargeImage(mismatchedPixels, method) {
+    const BATCH_SIZE = MEMORY_CONFIG.CHUNK_SIZE;
+    let totalPainted = 0;
+    
+    log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Processing large image with ${mismatchedPixels.length} pixels in batches of ${BATCH_SIZE}`);
+    
+    // Sort pixels based on method for large images
+    let sortedPixels = this._sortPixelsForLargeImage(mismatchedPixels, method);
+    
+    for (let i = 0; i < sortedPixels.length; i += BATCH_SIZE) {
+      if (this._isCancelled()) return totalPainted;
+      
+      const batch = sortedPixels.slice(i, i + BATCH_SIZE);
+      const batchPainted = await this._paintBatch(batch);
+      totalPainted += batchPainted;
+      
+      // Allow garbage collection between batches
+      if (i % MEMORY_CONFIG.GC_INTERVAL === 0 && global.gc) {
+        global.gc();
+      }
+    }
+    
+    return totalPainted;
+  }
+
+  // Sort pixels for large images using memory-efficient methods
+  _sortPixelsForLargeImage(pixels, method) {
+    switch (method) {
+      case "linear":
+        return pixels; // Already sorted by template order
+      
+      case "linear-reversed":
+        return pixels.slice().reverse();
+      
+      case "linear-ltr": {
+        const [startX, startY] = this.coords;
+        return pixels.slice().sort((a, b) => {
+          const aGlobalX = (a.tx - startX) * 1000 + a.px;
+          const bGlobalX = (b.tx - startX) * 1000 + b.px;
+          if (aGlobalX !== bGlobalX) return aGlobalX - bGlobalX;
+          return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
+        });
+      }
+      
+      case "linear-rtl": {
+        const [startX, startY] = this.coords;
+        return pixels.slice().sort((a, b) => {
+          const aGlobalX = (a.tx - startX) * 1000 + a.px;
+          const bGlobalX = (b.tx - startX) * 1000 + b.px;
+          if (aGlobalX !== bGlobalX) return bGlobalX - aGlobalX;
+          return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
+        });
+      }
+      
+      case "radial-inward":
+      case "radial-outward": {
+        const [sx, sy, spx, spy] = this.coords;
+        const cx = spx + (this.template.width - 1) / 2;
+        const cy = spy + (this.template.height - 1) / 2;
+        
+        return pixels.slice().sort((a, b) => {
+          const aGx = (a.tx - sx) * 1000 + a.px;
+          const aGy = (a.ty - sy) * 1000 + a.py;
+          const bGx = (b.tx - sx) * 1000 + b.px;
+          const bGy = (b.ty - sy) * 1000 + b.py;
+          
+          const distA = (aGx - cx) ** 2 + (aGy - cy) ** 2;
+          const distB = (bGx - cx) ** 2 + (bGy - cy) ** 2;
+          
+          return method === "radial-inward" ? distB - distA : distA - distB;
+        });
+      }
+      
+      case "random":
+        // Shuffle array in place for memory efficiency
+        for (let i = pixels.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [pixels[i], pixels[j]] = [pixels[j], pixels[i]];
+        }
+        return pixels;
+      
+      case "colorByColor": {
+        const pixelsByColor = pixels.reduce((acc, p) => {
+          if (!acc[p.color]) acc[p.color] = [];
+          acc[p.color].push(p);
+          return acc;
+        }, {});
+        const colors = Object.keys(pixelsByColor);
+        return colors.flatMap((color) => pixelsByColor[color]);
+      }
+      
+      default:
+        // For burst methods, use simplified sorting
+        return this._orderByBurstLarge(pixels, this.settings?.seedCount ?? 2);
+    }
+  }
+
+  // Paint a batch of pixels
+  async _paintBatch(pixels) {
+    const allowedByCharges = Math.max(0, Math.floor(this.userInfo?.charges?.count || 0));
+    const maxPerPass = Number.isFinite(this.settings?.maxPixelsPerPass) ? Math.max(0, Math.floor(this.settings.maxPixelsPerPass)) : 0;
+    const limit = maxPerPass > 0 ? Math.min(allowedByCharges, maxPerPass) : allowedByCharges;
+    
+    if (limit <= 0) return 0;
+    
+    const pixelsToPaint = pixels.slice(0, limit);
+    const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
+      const key = `${p.tx},${p.ty}`;
+      if (!acc[key]) acc[key] = { colors: [], coords: [] };
+      acc[key].colors.push(p.color);
+      acc[key].coords.push(p.px, p.py);
+      return acc;
+    }, {});
+
+    let totalPainted = 0;
+    let needsRetry = false;
+
+    for (const tileKey in bodiesByTile) {
+      if (this._isCancelled()) { needsRetry = false; break; }
+      const [tx, ty] = tileKey.split(",").map(Number);
+      const body = { ...bodiesByTile[tileKey], t: this.token };
+      if (globalThis.__wplacer_last_fp) body.fp = globalThis.__wplacer_last_fp;
+      const result = await this._executePaint(tx, ty, body);
+      if (result.success) {
+        totalPainted += result.painted;
+      } else {
+        needsRetry = true;
+        break;
+      }
+    }
+
+    if (needsRetry) {
+      throw new Error("REFRESH_TOKEN");
+    }
+
+    return totalPainted;
+  }
+
   _getMismatchedPixels() {
     const [startX, startY, startPx, startPy] = this.coords;
     const mismatched = [];
-    for (let y = 0; y < this.template.height; y++) {
-      for (let x = 0; x < this.template.width; x++) {
+    
+    // Process in chunks to avoid memory issues with very large images
+    const CHUNK_SIZE = MEMORY_CONFIG.CHUNK_SIZE;
+    const totalPixels = this.template.height * this.template.width;
+    
+    for (let chunkStart = 0; chunkStart < totalPixels; chunkStart += CHUNK_SIZE) {
+      const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, totalPixels);
+      
+      for (let pixelIndex = chunkStart; pixelIndex < chunkEnd; pixelIndex++) {
+        const y = Math.floor(pixelIndex / this.template.width);
+        const x = pixelIndex % this.template.width;
+        
         const _templateColor = this.template.data[x][y];
 
         // old behavior: 0 means "transparent pixel" in the template.
@@ -1010,6 +1225,11 @@ class WPlacer {
         if (shouldPaint && this.hasColor(templateColor)) {
           mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge: isEdge });
         }
+      }
+      
+      // Allow garbage collection between chunks for very large images
+      if (chunkStart % (CHUNK_SIZE * 5) === 0 && global.gc) {
+        global.gc();
       }
     }
     return mismatched;
@@ -1096,6 +1316,11 @@ class WPlacer {
       if (mismatchedPixels.length === 0) return 0;
 
       log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
+
+      // For very large images, process in batches to avoid memory issues
+      if (mismatchedPixels.length > MEMORY_CONFIG.LARGE_IMAGE_THRESHOLD) {
+        return await this._paintLargeImage(mismatchedPixels, activeMethod);
+      }
 
       // "Outline Mode", an incredibly convenient tool for securing your space before drawing.
       if (this.outlineMode) {

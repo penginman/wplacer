@@ -1,3 +1,6 @@
+## Changelog v4.3.2
+- Split large artworks into chunks during drawing (should help optimize drawing of large templates and reduce `Maximum call stack size exceeded` errors)
+
 ## Changelog v4.3.1
 - Added auto-open browser after program starts
 - Added security warning for HOST=0.0.0.0 with recommendations to use 127.0.0.1
