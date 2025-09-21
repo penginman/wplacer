@@ -234,7 +234,6 @@ const renderLogLine = (raw) => {
             /^ℹ️\s+File.*not found/.test(raw.line || '');
         const cls = `log-line log-${cat} ${level === 'error' || isErrorSymbol ? 'log-error' : ''} ${level === 'warning' ? 'log-warning' : ''} ${isPainted ? 'log-success' : ''} ${isPurchase ? 'log-success-purchase' : ''} ${isSeparator || isValidationSection ? 'log-separator' : ''}`;
 
-
         const div = document.createElement('div');
         div.className = cls;
 
@@ -6337,7 +6336,6 @@ if (exportJwtBtn) {
         }
     });
 }
-
 
 //Used for time estimation, converting seconds value to more readable format
 function formatTime(seconds) {

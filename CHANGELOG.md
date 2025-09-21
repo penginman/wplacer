@@ -1,3 +1,7 @@
+## Changelog v4.3.5
+- Revert to last workable version. Update if you have troubles.
+- Added export jwt tokens feature. Thanks to [Almossr](https://github.com/ZypherFF)!
+
 ## Changelog v4.3.1
 - Added auto-open browser after program starts
 - Added security warning for HOST=0.0.0.0 with recommendations to use 127.0.0.1
