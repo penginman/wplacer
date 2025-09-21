@@ -220,6 +220,7 @@ const renderLogLine = (raw) => {
         const isErrorSymbol = /❌/.test(raw.line || '');
         const isPainted = /\uD83C\uDFA8|🎨\s*Painted/i.test(raw.line || '');
         const isPurchase = /\uD83D\uDED2|🛒|\bBought\b/i.test(raw.line || '');
+
         const isSeparator = /^---\s+.*\s+---$/.test(raw.line || '');
         const isValidationSection = /^---\s+(JSON Files Validation|Log Files Cleanup)/.test(raw.line || '') ||
             /^✅\s+(File|All JSON files|All log files)/.test(raw.line || '') ||
@@ -232,6 +233,7 @@ const renderLogLine = (raw) => {
             /^Failed to create backup/.test(raw.line || '') ||
             /^ℹ️\s+File.*not found/.test(raw.line || '');
         const cls = `log-line log-${cat} ${level === 'error' || isErrorSymbol ? 'log-error' : ''} ${level === 'warning' ? 'log-warning' : ''} ${isPainted ? 'log-success' : ''} ${isPurchase ? 'log-success-purchase' : ''} ${isSeparator || isValidationSection ? 'log-separator' : ''}`;
+
 
         const div = document.createElement('div');
         div.className = cls;
