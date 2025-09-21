@@ -2,10 +2,13 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } fr
 import { spawn, exec } from "node:child_process";
 import path from "node:path";
 import express from "express";
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import cors from "cors";
 import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
 import { Image, createCanvas, loadImage } from "canvas";
+
 
 // --- Setup Data Directory ---
 const dataDir = "./data";
@@ -46,7 +49,7 @@ const recentLogs = [];
 const addToLiveLogs = (message, category = 'general', level = 'info') => {
   try {
     const obj = { line: message, category, level, ts: new Date().toLocaleString() };
-    recentLogs.push(obj); 
+    recentLogs.push(obj);
     if (recentLogs.length > RECENT_LOGS_LIMIT) recentLogs.shift();
     broadcastLog(obj);
   } catch (_) { }
@@ -580,7 +583,7 @@ class WPlacer {
               // ignore activation failures
             }
           }
-          try { log(this.userInfo?.id || "SYSTEM", this.userInfo?.name || "wplacer", `[${this.templateName}] ⚠️ Tile ${targetTx}, ${targetTy} may be inactive (404). Trying to activate and reload...`); } catch (_) {}
+          try { log(this.userInfo?.id || "SYSTEM", this.userInfo?.name || "wplacer", `[${this.templateName}] ⚠️ Tile ${targetTx}, ${targetTy} may be inactive (404). Trying to activate and reload...`); } catch (_) { }
           return null;
         }
         if (!resp.ok) return null;
@@ -638,7 +641,7 @@ class WPlacer {
           if (globalThis.__wplacer_last_fp) body.fp = globalThis.__wplacer_last_fp;
           const res = await this._executePaint(targetTx, targetTy, body);
           if (res && res.success && res.painted > 0) {
-            try { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ℹ️ Tile ${targetTx},${targetTy} might be inactive. Tried to activate by painting 1 pixel.`); } catch (_) {}
+            try { log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ℹ️ Tile ${targetTx},${targetTy} might be inactive. Tried to activate by painting 1 pixel.`); } catch (_) { }
             return true;
           }
           return false;
@@ -747,6 +750,7 @@ class WPlacer {
 
   _pickBurstSeeds(pixels, k = 2, _ignoredTopFuzz = 5) {
     if (!pixels?.length) return [];
+
     const pts = pixels.map((p) => this._globalXY(p));
 
     // Deterministic selection: pick lexicographically smallest point as first
@@ -769,7 +773,7 @@ class WPlacer {
       const d2 = dx * dx + dy * dy;
       if (d2 > best) { best = d2; far = i; }
     }
-    if (!seeds.some((s) => s.gx === pts[far].gx && s.gy === pts[far].gy)) seeds.push(pts[far]);
+
 
     // Next: farthest from nearest existing seed (maximin), deterministic
     while (seeds.length < Math.min(k, pts.length)) {
@@ -787,11 +791,7 @@ class WPlacer {
         }
         if (minD2 > bestMinD2) { bestMinD2 = minD2; bestIdx = i; }
       }
-      if (bestIdx < 0) break;
-      seeds.push(pts[bestIdx]);
-    }
 
-    return seeds.map((s) => ({ gx: s.gx, gy: s.gy }));
   }
 
   /**
@@ -961,11 +961,13 @@ class WPlacer {
     return out;
   }
 
+
   _getMismatchedPixels() {
     const [startX, startY, startPx, startPy] = this.coords;
     const mismatched = [];
     for (let y = 0; y < this.template.height; y++) {
       for (let x = 0; x < this.template.width; x++) {
+
         const _templateColor = this.template.data[x][y];
 
         // old behavior: 0 means "transparent pixel" in the template.
@@ -1011,6 +1013,7 @@ class WPlacer {
           mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge: isEdge });
         }
       }
+
     }
     return mismatched;
   }
@@ -1305,6 +1308,7 @@ class WPlacer {
       if (this._isCancelled()) return totalPainted;
 
       if (!needsRetry) {
+
         this._activeBurstSeedIdx = null; // next turn: pick a new seed
         return totalPainted;
       } else {
@@ -1470,8 +1474,10 @@ class WPlacer {
 }
 
 // --- Data persistence ---
+
 const loadJSON = (filename) =>
   existsSync(path.join(dataDir, filename)) ? JSON.parse(readFileSync(path.join(dataDir, filename), "utf8")) : {};
+
 const saveJSON = (filename, data) => writeFileSync(path.join(dataDir, filename), JSON.stringify(data, null, 4));
 
 const users = loadJSON("users.json");
@@ -1951,51 +1957,49 @@ class TemplateManager {
   }
 
   async _performPaintTurn(wplacer) {
-    while (this.running) {
-      try {
-        wplacer.token = await TokenManager.getToken();
-        // Pull latest pawtect token, if any
-        try { wplacer.pawtect = globalThis.__wplacer_last_pawtect || null; } catch { }
-        const painted = await wplacer.paint(currentSettings.drawingMethod);
-        if(typeof painted === 'number' && painted > 0)
-        {
-          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] ⏰ Estimated time left: ~${this.formatTime((this.pixelsRemaining - painted) / this.userIds.length * 30)}`); //30 seconds for 1 pixel
-        }
-        // save back burst seeds if used
-        this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : null;
-        saveTemplates();
-        try { TokenManager.consumeToken(); } catch { }
-        return painted;
-      } catch (error) {
-        if (error.name === "SuspensionError") {
-          const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
-          const uid = wplacer.userInfo.id;
-          const uname = wplacer.userInfo.name;
-          // mark user suspended
-          users[uid].suspendedUntil = error.suspendedUntil;
-          saveUsers();
-          // remove from drawing participants for this template (normalize id types)
-          const uidStr = String(uid);
-          this.userIds = (this.userIds || []).filter((id) => String(id) !== uidStr);
-          this.userQueue = (this.userQueue || []).filter((id) => String(id) !== uidStr);
-          try { saveTemplates(); } catch (_) { }
-          // log informative message in English
-          log(uid, uname, `[${this.name}] 🛑 Account suspended until ${suspendedUntilDate}. Removed from the template list.`);
-          // also invalidate the currently held token so it won't be reused
-          try { TokenManager.invalidateToken(); } catch (_) { }
-          return; // end this user's turn
-        }
-        if (error.message === "REFRESH_TOKEN") {
-          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired/invalid. Trying next token...`);
-          TokenManager.invalidateToken();
-          await sleep(1000);
-          continue;
-        }
-        // Delegate all errors to unified logger to keep original reason
-        logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] paint turn`);
-        return 0;
-        throw error;
+
+    try {
+      wplacer.token = await TokenManager.getToken();
+      // Pull latest pawtect token, if any
+      try { wplacer.pawtect = globalThis.__wplacer_last_pawtect || null; } catch { }
+      const painted = await wplacer.paint(currentSettings.drawingMethod);
+      if (typeof painted === 'number' && painted > 0) {
+        log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] ⏰ Estimated time left: ~${this.formatTime((this.pixelsRemaining - painted) / this.userIds.length * 30)}`); //30 seconds for 1 pixel
       }
+      // save back burst seeds if used
+      this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : null;
+      saveTemplates();
+      try { TokenManager.consumeToken(); } catch { }
+      return painted;
+    } catch (error) {
+      if (error.name === "SuspensionError") {
+        const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
+        const uid = wplacer.userInfo.id;
+        const uname = wplacer.userInfo.name;
+        // mark user suspended
+        users[uid].suspendedUntil = error.suspendedUntil;
+        saveUsers();
+        // remove from drawing participants for this template (normalize id types)
+        const uidStr = String(uid);
+        this.userIds = (this.userIds || []).filter((id) => String(id) !== uidStr);
+        this.userQueue = (this.userQueue || []).filter((id) => String(id) !== uidStr);
+        try { saveTemplates(); } catch (_) { }
+        // log informative message in English
+        log(uid, uname, `[${this.name}] 🛑 Account suspended until ${suspendedUntilDate}. Removed from the template list.`);
+        // also invalidate the currently held token so it won't be reused
+        try { TokenManager.invalidateToken(); } catch (_) { }
+        return; // end this user's turn
+      }
+      if (error.message === "REFRESH_TOKEN") {
+        log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired/invalid. Trying next token...`);
+        TokenManager.invalidateToken();
+        await sleep(1000);
+        throw error; // Re-throw to let the caller handle token refresh
+      }
+      // Delegate all errors to unified logger to keep original reason
+      logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] paint turn`);
+      return 0;
+
     }
   }
 
@@ -2348,7 +2352,7 @@ class TemplateManager {
             if (error.message && (error.message.includes("Authentication failed (401)") || error.message.includes("Authentication expired"))) {
               const userName = users[foundUserForTurn]?.name || `#${foundUserForTurn}`;
               log(foundUserForTurn, userName, `[${this.name}] ❌ Authentication failed (401) - skipping user temporarily`);
-              
+
               // Temporarily exclude user from queue for 5 minutes to avoid repeated auth failures
               if (!users[foundUserForTurn].authFailureUntil) {
                 users[foundUserForTurn].authFailureUntil = Date.now() + (5 * 60 * 1000); // 5 minutes
@@ -2508,16 +2512,16 @@ app.get("/queue", async (req, res) => {
 
     for (const [id, user] of Object.entries(users)) {
       // if (user.disabled) continue;
-      
+
       totalCount++;
-      
+
       const prediction = ChargeCache.predict(id, now);
       const isSuspended = user.suspendedUntil && now < user.suspendedUntil;
       const isActive = activeBrowserUsers.has(id);
-      
+
       let status = 'waiting';
       let cooldownTime = null;
-      
+
       if (isSuspended) {
         status = 'suspended';
         cooldownTime = Math.ceil((user.suspendedUntil - now) / 1000);
@@ -2563,24 +2567,24 @@ app.get("/queue", async (req, res) => {
         'suspended': 5,
         'no-data': 6
       };
-      
+
       const aPriority = statusPriority[a.status] || 7;
       const bPriority = statusPriority[b.status] || 7;
-      
+
       // First sort by status priority
       if (aPriority !== bPriority) {
         return aPriority - bPriority;
       }
-      
+
       // Within same status, sort by charges (higher first)
       if (a.charges && b.charges) {
         return b.charges.current - a.charges.current;
       }
-      
+
       // If one has charges and other doesn't, prioritize the one with charges
       if (a.charges && !b.charges) return -1;
       if (!a.charges && b.charges) return 1;
-      
+
       // Finally sort by ID for consistency
       return a.id.localeCompare(b.id);
     });
@@ -2835,7 +2839,7 @@ app.post("/user/:id/open-profile", (req, res) => {
 
     // Robust Windows CMD invocation: call "fullpath.bat" [brave.exe]
     try {
-      try { log("SYSTEM", "Profiles", `Launching: ${profilePath}`); } catch(_) {}
+      try { log("SYSTEM", "Profiles", `Launching: ${profilePath}`); } catch (_) { }
       const batDir = path.dirname(profilePath);
       const debug = String(req.query?.debug || "").trim() === "1";
 
@@ -2851,7 +2855,7 @@ app.post("/user/:id/open-profile", (req, res) => {
       let braveExe = candidates.find(p => {
         try { return existsSync(p); } catch { return false; }
       }) || "";
-      if (braveExe) { try { log("SYSTEM", "Profiles", `Detected Brave: ${braveExe}`); } catch(_) {} }
+      if (braveExe) { try { log("SYSTEM", "Profiles", `Detected Brave: ${braveExe}`); } catch (_) { } }
 
       const args = [debug ? "/k" : "/c", "call", profilePath];
       if (braveExe) args.push(braveExe);
@@ -3093,7 +3097,7 @@ app.post("/users/buy-charges", async (req, res) => {
       console.log(`[BuyCharges] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++;
           if (i >= ids.length) break;
           await doOne(ids[i]);
@@ -3317,7 +3321,7 @@ app.post("/users/flags-check", async (req, res) => {
     if (useParallel) {
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++; if (i >= workerIds.length) break;
           await doOne(workerIds[i]);
         }
@@ -3435,7 +3439,7 @@ app.post("/users/purchase-flag", async (req, res) => {
       console.log(`[FlagPurchase] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++;
           if (i >= ids.length) break;
           await doOne(ids[i]);
@@ -3483,7 +3487,7 @@ app.post("/user/:id/flag/equip", async (req, res) => {
   try {
     await w.login(users[uid].cookies); await w.loadUserInfo();
     await w.equipFlag(fid);
-    await w.loadUserInfo().catch(() => {});
+    await w.loadUserInfo().catch(() => { });
     res.json({ success: true, equippedFlag: Number(w.userInfo?.equippedFlag || fid) });
   } catch (e) {
     logUserError(e, uid, users[uid]?.name || `#${uid}`, "equip flag");
@@ -3518,7 +3522,7 @@ app.post("/users/equip-flag", async (req, res) => {
         await w.login(users[uid].cookies); await w.loadUserInfo();
         equipFlagJob.lastUserId = uid; equipFlagJob.lastUserName = w.userInfo?.name;
         await w.equipFlag(fid);
-        await w.loadUserInfo().catch(() => {});
+        await w.loadUserInfo().catch(() => { });
         report.push({ userId: uid, name: w.userInfo?.name, ok: true, success: true, equippedFlag: Number(w.userInfo?.equippedFlag || fid) });
       } catch (e) {
         logUserError(e, uid, users[uid]?.name || `#${uid}`, "equip flag batch");
@@ -3537,7 +3541,7 @@ app.post("/users/equip-flag", async (req, res) => {
       console.log(`[FlagEquip] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++;
           if (i >= ids.length) break;
           await doOne(ids[i]);
@@ -3588,7 +3592,7 @@ app.post("/users/unequip-flag", async (req, res) => {
         await w.login(users[uid].cookies); await w.loadUserInfo();
         unequipFlagJob.lastUserId = uid; unequipFlagJob.lastUserName = w.userInfo?.name;
         await w.equipFlag(0);
-        await w.loadUserInfo().catch(() => {});
+        await w.loadUserInfo().catch(() => { });
         report.push({ userId: uid, name: w.userInfo?.name, ok: true, success: true, equippedFlag: Number(w.userInfo?.equippedFlag || 0) });
       } catch (e) {
         logUserError(e, uid, users[uid]?.name || `#${uid}`, "unequip flag batch");
@@ -3607,7 +3611,7 @@ app.post("/users/unequip-flag", async (req, res) => {
       console.log(`[FlagUnequip] Parallel mode: ${ids.length} users, concurrency=${concurrency}, proxies=${loadedProxies.length}`);
       let index = 0;
       const worker = async () => {
-        for (;;) {
+        for (; ;) {
           const i = index++;
           if (i >= ids.length) break;
           await doOne(ids[i]);
@@ -3872,10 +3876,10 @@ app.post("/template", async (req, res) => {
     const lim = Math.max(0, Math.floor(Number(heatmapLimit)));
     templates[templateId].heatmapLimit = lim > 0 ? lim : 10000;
   } catch (_) { templates[templateId].heatmapEnabled = false; templates[templateId].heatmapLimit = 10000; }
-  
+
   // Auto-start setting
   templates[templateId].autoStart = !!autoStart;
-  
+
   saveTemplates();
   res.status(200).json({ id: templateId });
 });
@@ -3929,7 +3933,7 @@ app.put("/template/edit/:id", async (req, res) => {
     const lim = Math.max(0, Math.floor(Number(heatmapLimit)));
     manager.heatmapLimit = lim > 0 ? lim : 10000;
   } catch (_) { }
-  
+
   // Auto-start setting
   if (typeof autoStart !== 'undefined') {
     manager.autoStart = !!autoStart;
@@ -4523,12 +4527,51 @@ const keepAlive = async () => {
   log("SYSTEM", "wplacer", "✅ Keep-alive check complete (sequential).");
 };
 
+
+
+// -- Export JWT Tokens --
+
+app.get('/export-tokens', (req, res) => {
+  try {
+    const usersPath = path.join(__dirname, 'data', 'users.json');
+
+    if (!fs.existsSync(usersPath)) {
+      return res.status(404).send('users.json not found.');
+    }
+
+    const rawData = fs.readFileSync(usersPath, 'utf8');
+    const users = JSON.parse(rawData);
+
+    // Extract tokens JWT Tokens from each user
+    const tokens = Object.values(users)
+      .map(user => user.cookies?.j)
+      .filter(Boolean)
+      .map(s => s.trim());
+
+    if (tokens.length === 0) {
+      return res.status(404).send('No tokens found.');
+    }
+
+    const textContent = tokens.join('\n');
+
+    // Headers to force download as file.txt
+    res.setHeader('Content-Disposition', 'attachment; filename="jwt_tokens.txt"');
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(textContent);
+
+  } catch (err) {
+    console.error('An error ocurred while trying to export tokens:', err);
+    res.status(500).send('An error occurred while exporting JWT tokens.');
+  }
+});
+
+
 // --- Startup ---
 (async () => {
   console.clear();
   const version = JSON.parse(readFileSync("package.json", "utf8")).version;
   console.log(`\n--- wplacer v${version} made by luluwaffless and jinx | forked/improved by lllexxa ---\n`);
-  
+
   // Add startup message to Live Logs
   addToLiveLogs(`--- wplacer v${version} made by luluwaffless and jinx | forked/improved by lllexxa ---`);
 
@@ -4557,10 +4600,10 @@ const keepAlive = async () => {
         const lim = Math.max(0, Math.floor(Number(t.heatmapLimit)));
         tm.heatmapLimit = lim > 0 ? lim : 10000;
       } catch (_) { tm.heatmapEnabled = false; tm.heatmapLimit = 10000; }
-      
+
       // auto-start setting load
       tm.autoStart = !!t.autoStart;
-      
+
       templates[id] = tm;
     } else {
       console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
@@ -4569,10 +4612,11 @@ const keepAlive = async () => {
 
   loadProxies();
   console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
-  
+
   // Add loaded data message to Live Logs
   addToLiveLogs(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
-  
+  addToLiveLogs('', 'general', 'info'); // Empty line
+
   const port = Number(process.env.PORT) || 80;
   const host = process.env.HOST || "0.0.0.0";
   const hostname = host === "0.0.0.0" || host === "127.0.0.1" ? "localhost" : host;
@@ -4581,11 +4625,11 @@ const keepAlive = async () => {
   if (host === "0.0.0.0") {
     const securityWarning1 = "⚠️  SECURITY WARNING: HOST=0.0.0.0 makes the server accessible from outside your computer!";
     const securityWarning2 = "   For better security, change HOST to 127.0.0.1 in .env file or use run-localhost.bat";
-    
+
     console.log(securityWarning1);
     console.log(securityWarning2);
     console.log("");
-    
+
     // Add security warning to Live Logs
     addToLiveLogs(securityWarning1, 'general', 'warning');
     addToLiveLogs(securityWarning2, 'general', 'warning');
@@ -4594,14 +4638,14 @@ const keepAlive = async () => {
   const server = app.listen(port, host, () => {
     const serverMsg1 = `✅ Server listening on http://${hostname}:${port} (${host})`;
     const serverMsg2 = `   Open the web UI in your browser to start!`;
-    
+
     console.log(serverMsg1);
     console.log(serverMsg2);
-    
+
     // Add server startup messages to Live Logs
     addToLiveLogs(serverMsg1);
     addToLiveLogs(serverMsg2);
-    
+
     // Auto-open browser
     const url = `http://${hostname}:${port}`;
     exec(`start ${url}`, (error) => {
@@ -4617,9 +4661,9 @@ const keepAlive = async () => {
         addToLiveLogs(browserSuccessMsg);
       }
     });
-    
+
     setInterval(keepAlive, 20 * 60 * 1000);
-    
+
     // Auto-start templates with autoStart enabled (after server is fully started)
     setTimeout(async () => {
       let autoStartedCount = 0;
@@ -4657,12 +4701,13 @@ const keepAlive = async () => {
     });
     const shutdown = () => {
       console.log('Shutting down server...');
-      try { server.close(() => {
-          try { for (const s of Array.from(sockets)) { try { s.destroy(); } catch {} } } catch {}
+      try {
+        server.close(() => {
+          try { for (const s of Array.from(sockets)) { try { s.destroy(); } catch { } } } catch { }
           process.exit(0);
         });
         // Fallback: hard exit after 2s
-        setTimeout(() => { try { for (const s of Array.from(sockets)) { try { s.destroy(); } catch {} } } catch {}; process.exit(0); }, 2000);
+        setTimeout(() => { try { for (const s of Array.from(sockets)) { try { s.destroy(); } catch { } } } catch { }; process.exit(0); }, 2000);
       } catch (_) { process.exit(0); }
     };
     process.on('SIGINT', shutdown);
