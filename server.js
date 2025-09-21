@@ -7,185 +7,6 @@ import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
 import { Image, createCanvas, loadImage } from "canvas";
 
-// --- JSON Validation Schemas ---
-const JSON_SCHEMAS = {
-  settings: {
-    required: [
-      'turnstileNotifications', 'accountCooldown', 'purchaseCooldown', 'keepAliveCooldown',
-      'dropletReserve', 'antiGriefStandby', 'drawingMethod', 'chargeThreshold',
-      'alwaysDrawOnCharge', 'maxPixelsPerPass', 'seedCount', 'proxyEnabled',
-      'proxyRotationMode', 'logProxyUsage', 'parallelWorkers', 'logCategories',
-      'logMaskPii', 'stickySessionsEnabled', 'stickySessionTtlMinutes'
-    ],
-    types: {
-      turnstileNotifications: 'boolean',
-      accountCooldown: 'number',
-      purchaseCooldown: 'number',
-      keepAliveCooldown: 'number',
-      dropletReserve: 'number',
-      antiGriefStandby: 'number',
-      drawingMethod: 'string',
-      chargeThreshold: 'number',
-      alwaysDrawOnCharge: 'boolean',
-      maxPixelsPerPass: 'number',
-      seedCount: 'number',
-      proxyEnabled: 'boolean',
-      proxyRotationMode: 'string',
-      logProxyUsage: 'boolean',
-      parallelWorkers: 'number',
-      logMaskPii: 'boolean',
-      stickySessionsEnabled: 'boolean',
-      stickySessionTtlMinutes: 'number'
-    },
-    nested: {
-      logCategories: {
-        required: ['tokenManager', 'cache', 'queuePreview', 'painting', 'startTurn', 'mismatches', 'estimatedTime'],
-        types: {
-          tokenManager: 'boolean',
-          cache: 'boolean',
-          queuePreview: 'boolean',
-          painting: 'boolean',
-          startTurn: 'boolean',
-          mismatches: 'boolean',
-          estimatedTime: 'boolean'
-        }
-      }
-    }
-  },
-  users: {
-    structure: 'object',
-    userSchema: {
-      required: ['name', 'cookies', 'expirationDate'],
-      types: {
-        name: 'string',
-        cookies: 'object',
-        expirationDate: 'number',
-        shortLabel: 'string',
-        discord: 'string',
-        showLastPixel: 'boolean',
-        authFailureUntil: 'number'
-      },
-      nested: {
-        cookies: {
-          required: ['j'],
-          types: {
-            j: 'string'
-          }
-        }
-      }
-    }
-  },
-  templates: {
-    structure: 'object',
-    templateSchema: {
-      required: ['name', 'template'],
-      types: {
-        name: 'string',
-        template: 'object',
-        userIds: 'array',
-        autoStart: 'boolean'
-      },
-      nested: {
-        template: {
-          required: ['width', 'height', 'data'],
-          types: {
-            width: 'number',
-            height: 'number',
-            data: 'array'
-          }
-        }
-      }
-    }
-  }
-};
-
-// --- JSON Validation Functions ---
-const validateJSON = (data, schema, filename) => {
-  const errors = [];
-  
-  if (schema.structure === 'object') {
-    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-      errors.push(`File ${filename} must contain an object`);
-      return errors;
-    }
-    
-    // For users.json and templates.json, validate each entry
-    if (schema.userSchema || schema.templateSchema) {
-      const itemSchema = schema.userSchema || schema.templateSchema;
-      for (const [key, value] of Object.entries(data)) {
-        const itemErrors = validateObject(value, itemSchema, `${filename}[${key}]`);
-        errors.push(...itemErrors);
-      }
-    }
-  } else {
-    // For settings.json, validate as regular object
-    const objectErrors = validateObject(data, schema, filename);
-    errors.push(...objectErrors);
-  }
-  
-  return errors;
-};
-
-const validateObject = (obj, schema, path) => {
-  const errors = [];
-  
-  if (typeof obj !== 'object' || obj === null) {
-    errors.push(`${path}: expected object`);
-    return errors;
-  }
-  
-  // Check required fields
-  if (schema.required) {
-    for (const field of schema.required) {
-      if (!(field in obj)) {
-        errors.push(`${path}: missing required field '${field}'`);
-      }
-    }
-  }
-  
-  // Check field types
-  if (schema.types) {
-    for (const [field, expectedType] of Object.entries(schema.types)) {
-      if (field in obj) {
-        const actualType = Array.isArray(obj[field]) ? 'array' : typeof obj[field];
-        if (actualType !== expectedType) {
-          errors.push(`${path}.${field}: expected ${expectedType}, got ${actualType}`);
-        }
-      }
-    }
-  }
-  
-  // Check nested objects
-  if (schema.nested) {
-    for (const [field, nestedSchema] of Object.entries(schema.nested)) {
-      if (field in obj) {
-        const nestedErrors = validateObject(obj[field], nestedSchema, `${path}.${field}`);
-        errors.push(...nestedErrors);
-      }
-    }
-  }
-  
-  return errors;
-};
-
-const validateJSONFile = (filename, data) => {
-  const schema = JSON_SCHEMAS[filename.replace('.json', '')];
-  if (!schema) {
-    return [`Unknown validation schema for file ${filename}`];
-  }
-  
-  return validateJSON(data, schema, filename);
-};
-
-// --- Memory Management Constants ---
-const MEMORY_CONFIG = {
-  CHUNK_SIZE: 10000,           // Process 10k pixels at a time
-  LARGE_IMAGE_THRESHOLD: 500000, // 500k pixels threshold for batch processing
-  BURST_LARGE_THRESHOLD: 100000, // 100k pixels threshold for burst optimization
-  SAMPLE_SIZE: 10000,          // Sample size for burst seed selection
-  GC_INTERVAL: 50000           // Garbage collection interval (pixels)
-};
-
 // --- Setup Data Directory ---
 const dataDir = "./data";
 if (!existsSync(dataDir)) {
@@ -926,55 +747,51 @@ class WPlacer {
 
   _pickBurstSeeds(pixels, k = 2, _ignoredTopFuzz = 5) {
     if (!pixels?.length) return [];
-    
-    // For very large arrays, use sampling to avoid memory issues
-    if (pixels.length > MEMORY_CONFIG.BURST_LARGE_THRESHOLD) {
-      return this._pickBurstSeedsLarge(pixels, k);
-    }
-    
     const pts = pixels.map((p) => this._globalXY(p));
 
-    // Find two points that are farthest apart (similar to frontend)
-    let bi = 0, bj = 0, best = -1;
+    // Deterministic selection: pick lexicographically smallest point as first
+    const firstIdx = (() => {
+      let idx = 0;
+      for (let i = 1; i < pts.length; i++) {
+        if (pts[i].gx < pts[idx].gx || (pts[i].gx === pts[idx].gx && pts[i].gy < pts[idx].gy)) idx = i;
+      }
+      return idx;
+    })();
+
+    const seeds = [pts[firstIdx]];
+    if (pts.length === 1) return seeds.map((s) => ({ gx: s.gx, gy: s.gy }));
+
+    // Second: farthest from first
+    let far = 0, best = -1;
     for (let i = 0; i < pts.length; i++) {
-      for (let j = i + 1; j < pts.length; j++) {
-        const dx = pts[i].gx - pts[j].gx, dy = pts[i].gy - pts[j].gy;
-        const d2 = dx * dx + dy * dy;
-        if (d2 > best) { best = d2; bi = i; bj = j; }
-      }
+      const dx = pts[i].gx - pts[firstIdx].gx;
+      const dy = pts[i].gy - pts[firstIdx].gy;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > best) { best = d2; far = i; }
     }
-    
-    const seeds = [pts[bi]];
-    if (pts.length > 1) seeds.push(pts[bj]);
+    if (!seeds.some((s) => s.gx === pts[far].gx && s.gy === pts[far].gy)) seeds.push(pts[far]);
 
-    // Add more seeds using maximin approach
+    // Next: farthest from nearest existing seed (maximin), deterministic
     while (seeds.length < Math.min(k, pts.length)) {
-      let pick = null, bestMin = -1;
+      let bestIdx = -1;
+      let bestMinD2 = -1;
       for (let i = 0; i < pts.length; i++) {
-        const md = Math.min(...seeds.map(s => (s.gx - pts[i].gx) ** 2 + (s.gy - pts[i].gy) ** 2));
-        if (md > bestMin) { bestMin = md; pick = pts[i]; }
+        const p = pts[i];
+        if (seeds.some((s) => s.gx === p.gx && s.gy === p.gy)) continue;
+        let minD2 = Infinity;
+        for (const s of seeds) {
+          const dx = s.gx - p.gx;
+          const dy = s.gy - p.gy;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < minD2) minD2 = d2;
+        }
+        if (minD2 > bestMinD2) { bestMinD2 = minD2; bestIdx = i; }
       }
-      if (!pick) break; 
-      seeds.push(pick);
+      if (bestIdx < 0) break;
+      seeds.push(pts[bestIdx]);
     }
-    
-    return seeds.slice(0, k).map((s) => ({ gx: s.gx, gy: s.gy }));
-  }
 
-
-  // Memory-efficient burst seed selection for large arrays
-  _pickBurstSeedsLarge(pixels, k = 2) {
-    // Sample a subset of pixels to avoid memory issues
-    const SAMPLE_SIZE = Math.min(MEMORY_CONFIG.SAMPLE_SIZE, pixels.length);
-    const step = Math.max(1, Math.floor(pixels.length / SAMPLE_SIZE));
-    const sampledPixels = [];
-    
-    for (let i = 0; i < pixels.length && sampledPixels.length < SAMPLE_SIZE; i += step) {
-      sampledPixels.push(pixels[i]);
-    }
-    
-    // Use the regular algorithm on the sampled pixels
-    return this._pickBurstSeeds(sampledPixels, k);
+    return seeds.map((s) => ({ gx: s.gx, gy: s.gy }));
   }
 
   /**
@@ -983,11 +800,6 @@ class WPlacer {
    */
   _orderByBurst(mismatchedPixels, seeds = 2) {
     if (mismatchedPixels.length <= 2) return mismatchedPixels;
-
-    // For very large arrays, use a more memory-efficient approach
-    if (mismatchedPixels.length > MEMORY_CONFIG.BURST_LARGE_THRESHOLD) {
-      return this._orderByBurstLarge(mismatchedPixels, seeds);
-    }
 
     const [startX, startY] = this.coords;
     const byKey = new Map();
@@ -1001,14 +813,25 @@ class WPlacer {
 
     const useSeeds = Array.isArray(seeds) ? seeds.slice() : this._pickBurstSeeds(mismatchedPixels, seeds);
 
-    // Find nearest pixels to seeds (similar to frontend implementation)
+    // mark used for nearest search
+    const used = new Set();
     const nearest = (gx, gy) => {
-      let best = null, bestD = Infinity;
+      let best = null,
+        bestD = Infinity,
+        key = null;
       for (const p of mismatchedPixels) {
-        const dx = p._gx - gx, dy = p._gy - gy;
+        const k = `${p._gx},${p._gy}`;
+        if (used.has(k)) continue;
+        const dx = p._gx - gx,
+          dy = p._gy - gy;
         const d2 = dx * dx + dy * dy;
-        if (d2 < bestD) { bestD = d2; best = p; }
+        if (d2 < bestD) {
+          bestD = d2;
+          best = p;
+          key = k;
+        }
       }
+      if (best) used.add(key);
       return best;
     };
 
@@ -1026,7 +849,7 @@ class WPlacer {
       if (!visited.has(k)) {
         visited.add(k);
         queues.push([sp]);
-        speeds.push(0.5 + Math.random() * 1.5); // More variation in speed
+        speeds.push(0.7 + Math.random() * 1.1);
         prefs.push(randDir());
       }
     }
@@ -1045,16 +868,19 @@ class WPlacer {
 
     const orderNeighbors = (dir) => {
       const base = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-      base.sort((a, b) =>
-        (b[0] * dir[0] + b[1] * dir[1] + (Math.random() - 0.5) * 0.4) -
-        (a[0] * dir[0] + a[1] * dir[1] + (Math.random() - 0.5) * 0.4)
+      base.sort(
+        (a, b) =>
+          b[0] * dir[0] +
+          b[1] * dir[1] +
+          (Math.random() - 0.5) * 0.2 -
+          (a[0] * dir[0] + a[1] * dir[1] + (Math.random() - 0.5) * 0.2)
       );
       return base;
     };
 
     const dash = (from, qi, dir) => {
-      const dashChance = 0.35; // More frequent dashes
-      const maxDash = 1 + Math.floor(Math.random() * 4); // Longer dashes
+      const dashChance = 0.45;
+      const maxDash = 1 + Math.floor(Math.random() * 3);
       if (Math.random() > dashChance) return;
       let cx = from._gx,
         cy = from._gy;
@@ -1098,7 +924,7 @@ class WPlacer {
       }
 
       if (firstDir) {
-        if (Math.random() < 0.75) prefs[qi] = firstDir; // More random direction changes
+        if (Math.random() < 0.85) prefs[qi] = firstDir;
         dash(firstPt, qi, prefs[qi]);
       }
     }
@@ -1113,7 +939,7 @@ class WPlacer {
           while (q.length) {
             const c = q.shift();
             out.push(c);
-            for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]].sort(() => Math.random() - 0.5)) {
+            for (const [dx, dy] of orderNeighbors(randDir())) {
               const nx = c._gx + dx,
                 ny = c._gy + dy;
               const kk = `${nx},${ny}`;
@@ -1135,192 +961,11 @@ class WPlacer {
     return out;
   }
 
-  // Memory-efficient burst ordering for very large pixel arrays
-  _orderByBurstLarge(mismatchedPixels, seeds = 2) {
-    const [startX, startY] = this.coords;
-    
-    // Add coordinates to pixels
-    for (const p of mismatchedPixels) {
-      p._gx = (p.tx - startX) * 1000 + p.px;
-      p._gy = (p.ty - startY) * 1000 + p.py;
-    }
-
-    const useSeeds = Array.isArray(seeds) ? seeds.slice() : this._pickBurstSeeds(mismatchedPixels, seeds);
-    
-    // For large arrays, use a simpler but more memory-efficient approach
-    // Sort by distance from the first seed point (similar to frontend)
-    const firstSeed = useSeeds[0] || { gx: 0, gy: 0 };
-    
-    const sortedPixels = mismatchedPixels.slice().sort((a, b) => {
-      const distA = Math.sqrt((a._gx - firstSeed.gx) ** 2 + (a._gy - firstSeed.gy) ** 2);
-      const distB = Math.sqrt((b._gx - firstSeed.gx) ** 2 + (b._gy - firstSeed.gy) ** 2);
-      const diff = distA - distB;
-      // Add some randomization to break perfect circles
-      if (Math.abs(diff) < 2) {
-        return (Math.random() - 0.5) * 4;
-      }
-      return diff;
-    });
-
-    // cleanup temp props
-    for (const p of sortedPixels) {
-      delete p._gx;
-      delete p._gy;
-    }
-    
-    return sortedPixels;
-  }
-
-  // Paint large images in batches to avoid memory issues
-  async _paintLargeImage(mismatchedPixels, method) {
-    const BATCH_SIZE = MEMORY_CONFIG.CHUNK_SIZE;
-    let totalPainted = 0;
-    
-    log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Processing large image with ${mismatchedPixels.length} pixels in batches of ${BATCH_SIZE}`);
-    
-    // Sort pixels based on method for large images
-    let sortedPixels = this._sortPixelsForLargeImage(mismatchedPixels, method);
-    
-    for (let i = 0; i < sortedPixels.length; i += BATCH_SIZE) {
-      if (this._isCancelled()) return totalPainted;
-      
-      const batch = sortedPixels.slice(i, i + BATCH_SIZE);
-      const batchPainted = await this._paintBatch(batch);
-      totalPainted += batchPainted;
-      
-      // Allow garbage collection between batches
-      if (i % MEMORY_CONFIG.GC_INTERVAL === 0 && global.gc) {
-        global.gc();
-      }
-    }
-    
-    return totalPainted;
-  }
-
-  // Sort pixels for large images using memory-efficient methods
-  _sortPixelsForLargeImage(pixels, method) {
-    switch (method) {
-      case "linear":
-        return pixels; // Already sorted by template order
-      
-      case "linear-reversed":
-        return pixels.slice().reverse();
-      
-      case "linear-ltr": {
-        const [startX, startY] = this.coords;
-        return pixels.slice().sort((a, b) => {
-          const aGlobalX = (a.tx - startX) * 1000 + a.px;
-          const bGlobalX = (b.tx - startX) * 1000 + b.px;
-          if (aGlobalX !== bGlobalX) return aGlobalX - bGlobalX;
-          return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
-        });
-      }
-      
-      case "linear-rtl": {
-        const [startX, startY] = this.coords;
-        return pixels.slice().sort((a, b) => {
-          const aGlobalX = (a.tx - startX) * 1000 + a.px;
-          const bGlobalX = (b.tx - startX) * 1000 + b.px;
-          if (aGlobalX !== bGlobalX) return bGlobalX - aGlobalX;
-          return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
-        });
-      }
-      
-      case "radial-inward":
-      case "radial-outward": {
-        const [sx, sy, spx, spy] = this.coords;
-        const cx = spx + (this.template.width - 1) / 2;
-        const cy = spy + (this.template.height - 1) / 2;
-        
-        return pixels.slice().sort((a, b) => {
-          const aGx = (a.tx - sx) * 1000 + a.px;
-          const aGy = (a.ty - sy) * 1000 + a.py;
-          const bGx = (b.tx - sx) * 1000 + b.px;
-          const bGy = (b.ty - sy) * 1000 + b.py;
-          
-          const distA = (aGx - cx) ** 2 + (aGy - cy) ** 2;
-          const distB = (bGx - cx) ** 2 + (bGy - cy) ** 2;
-          
-          return method === "radial-inward" ? distB - distA : distA - distB;
-        });
-      }
-      
-      case "random":
-        // Shuffle array in place for memory efficiency
-        for (let i = pixels.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [pixels[i], pixels[j]] = [pixels[j], pixels[i]];
-        }
-        return pixels;
-      
-      case "colorByColor": {
-        const pixelsByColor = pixels.reduce((acc, p) => {
-          if (!acc[p.color]) acc[p.color] = [];
-          acc[p.color].push(p);
-          return acc;
-        }, {});
-        const colors = Object.keys(pixelsByColor);
-        return colors.flatMap((color) => pixelsByColor[color]);
-      }
-      
-      default:
-        // For burst methods, use simplified sorting
-        return this._orderByBurstLarge(pixels, this.settings?.seedCount ?? 2);
-    }
-  }
-
-  // Paint a batch of pixels
-  async _paintBatch(pixels) {
-    const allowedByCharges = Math.max(0, Math.floor(this.userInfo?.charges?.count || 0));
-    const maxPerPass = Number.isFinite(this.settings?.maxPixelsPerPass) ? Math.max(0, Math.floor(this.settings.maxPixelsPerPass)) : 0;
-    const limit = maxPerPass > 0 ? Math.min(allowedByCharges, maxPerPass) : allowedByCharges;
-    
-    if (limit <= 0) return 0;
-    
-    const pixelsToPaint = pixels.slice(0, limit);
-    const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
-      const key = `${p.tx},${p.ty}`;
-      if (!acc[key]) acc[key] = { colors: [], coords: [] };
-      acc[key].colors.push(p.color);
-      acc[key].coords.push(p.px, p.py);
-      return acc;
-    }, {});
-
-    let totalPainted = 0;
-    let needsRetry = false;
-
-    for (const tileKey in bodiesByTile) {
-      if (this._isCancelled()) { needsRetry = false; break; }
-      const [tx, ty] = tileKey.split(",").map(Number);
-      const body = { ...bodiesByTile[tileKey], t: this.token };
-      if (globalThis.__wplacer_last_fp) body.fp = globalThis.__wplacer_last_fp;
-      const result = await this._executePaint(tx, ty, body);
-      if (result.success) {
-        totalPainted += result.painted;
-      } else {
-        needsRetry = true;
-        break;
-      }
-    }
-
-    return totalPainted;
-  }
-
   _getMismatchedPixels() {
     const [startX, startY, startPx, startPy] = this.coords;
     const mismatched = [];
-    
-    // Process in chunks to avoid memory issues with very large images
-    const CHUNK_SIZE = MEMORY_CONFIG.CHUNK_SIZE;
-    const totalPixels = this.template.height * this.template.width;
-    
-    for (let chunkStart = 0; chunkStart < totalPixels; chunkStart += CHUNK_SIZE) {
-      const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, totalPixels);
-      
-      for (let pixelIndex = chunkStart; pixelIndex < chunkEnd; pixelIndex++) {
-        const y = Math.floor(pixelIndex / this.template.width);
-        const x = pixelIndex % this.template.width;
-        
+    for (let y = 0; y < this.template.height; y++) {
+      for (let x = 0; x < this.template.width; x++) {
         const _templateColor = this.template.data[x][y];
 
         // old behavior: 0 means "transparent pixel" in the template.
@@ -1365,11 +1010,6 @@ class WPlacer {
         if (shouldPaint && this.hasColor(templateColor)) {
           mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge: isEdge });
         }
-      }
-      
-      // Allow garbage collection between chunks for very large images
-      if (chunkStart % (CHUNK_SIZE * 5) === 0 && global.gc) {
-        global.gc();
       }
     }
     return mismatched;
@@ -1437,6 +1077,7 @@ class WPlacer {
         await this.loadTiles();
         this._lastTilesAt = Date.now();
       }
+      if (!this.token) throw new Error("REFRESH_TOKEN"); // TokenManager must provide before calling
 
       let activeMethod = method;
       if (method === "burst-mixed") {
@@ -1455,11 +1096,6 @@ class WPlacer {
       if (mismatchedPixels.length === 0) return 0;
 
       log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
-
-      // For very large images, process in batches to avoid memory issues
-      if (mismatchedPixels.length > MEMORY_CONFIG.LARGE_IMAGE_THRESHOLD) {
-        return await this._paintLargeImage(mismatchedPixels, activeMethod);
-      }
 
       // "Outline Mode", an incredibly convenient tool for securing your space before drawing.
       if (this.outlineMode) {
@@ -1596,27 +1232,22 @@ class WPlacer {
           const outline = [];
           const inside = [];
 
-          // Create a map of pixel positions to their color indices (similar to frontend)
-          const cmap = new Map();
           for (const p of mismatchedPixels) {
-            const { x, y } = this._templateRelXY(p);
-            cmap.set(`${x},${y}`, p.color);
-          }
-
-          const isOutline = (p) => {
+            if (p.color === 0) { inside.push(p); continue; }
             const { x, y } = this._templateRelXY(p);
             const w = this.template.width, h = this.template.height;
-            const neigh = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-            for (const [dx, dy] of neigh) {
-              const nx = x + dx, ny = y + dy;
-              const key = `${nx},${ny}`;
-              if (!cmap.has(key) || cmap.get(key) !== p.color) return true;
-            }
-            return false;
-          };
+            const tcol = this.template.data[x][y];
 
-          for (const p of mismatchedPixels) {
-            (isOutline(p) ? outline : inside).push(p);
+            let isOutline = (x === 0 || y === 0 || x === w - 1 || y === h - 1);
+            if (!isOutline) {
+              const neigh = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+              for (const [dx, dy] of neigh) {
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) { isOutline = true; break; }
+                if (this.template.data[nx][ny] !== tcol) { isOutline = true; break; }
+              }
+            }
+            (isOutline ? outline : inside).push(p);
           }
 
           const pickRandomSeed = (arr) => {
@@ -1674,12 +1305,13 @@ class WPlacer {
       if (this._isCancelled()) return totalPainted;
 
       if (!needsRetry) {
-        this._activeBurstSeedIdx = null; 
-        break;
+        this._activeBurstSeedIdx = null; // next turn: pick a new seed
+        return totalPainted;
+      } else {
+        // break and let manager refresh token
+        throw new Error("REFRESH_TOKEN");
       }
     }
-    
-    return totalPainted;
   }
 
   async buyProduct(productId, amount, variant) {
@@ -1838,73 +1470,11 @@ class WPlacer {
 }
 
 // --- Data persistence ---
-const loadJSON = (filename, validate = true) => {
-  const filePath = path.join(dataDir, filename);
-  
-  if (!existsSync(filePath)) {
-    return {};
-  }
-  
-  try {
-    const data = JSON.parse(readFileSync(filePath, "utf8"));
-    
-    if (validate) {
-      const errors = validateJSONFile(filename, data);
-      if (errors.length > 0) {
-        console.log(`❌ Validation errors in file ${filename}:`);
-        errors.forEach(error => console.log(`  - ${error}`));
-        addToLiveLogs(`Validation errors in file ${filename}:`, 'error', 'error');
-        errors.forEach(error => addToLiveLogs(`  - ${error}`, 'error', 'error'));
-        
-        // Create backup of corrupted file
-        const backupPath = path.join(
-          backupsRootDir,
-          `${filename.replace('.json', '')}.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.json`
-        );
-        try {
-          writeFileSync(backupPath, JSON.stringify(data, null, 2));
-          console.log(`📁 Created backup of corrupted file: ${backupPath}`);
-          addToLiveLogs(`Created backup of corrupted file: ${backupPath}`, 'error', 'error');
-        } catch (backupError) {
-          console.log(`❌ Failed to create backup: ${backupError.message}`);
-          addToLiveLogs(`Failed to create backup: ${backupError.message}`, 'error', 'error');
-        }
-        
-        // Return empty object for corrupted files
-        return {};
-      } else {
-        console.log(`✅ File ${filename} successfully validated`);
-        addToLiveLogs(`File ${filename} successfully validated`, 'general', 'info');
-      }
-    }
-    
-    return data;
-  } catch (parseError) {
-    console.log(`❌ JSON parsing error in file ${filename}: ${parseError.message}`);
-    addToLiveLogs(`JSON parsing error in file ${filename}: ${parseError.message}`, 'error', 'error');
-    
-    // Create backup of corrupted file
-    const backupPath = path.join(
-      backupsRootDir,
-      `${filename.replace('.json', '')}.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.json`
-    );
-    try {
-      const rawContent = readFileSync(filePath, "utf8");
-      writeFileSync(backupPath, rawContent);
-      console.log(`📁 Created backup of corrupted file: ${backupPath}`);
-      addToLiveLogs(`Created backup of corrupted file: ${backupPath}`, 'error', 'error');
-    } catch (backupError) {
-      console.log(`❌ Failed to create backup: ${backupError.message}`);
-      addToLiveLogs(`Failed to create backup: ${backupError.message}`, 'error', 'error');
-    }
-    
-    return {};
-  }
-};
-
+const loadJSON = (filename) =>
+  existsSync(path.join(dataDir, filename)) ? JSON.parse(readFileSync(path.join(dataDir, filename), "utf8")) : {};
 const saveJSON = (filename, data) => writeFileSync(path.join(dataDir, filename), JSON.stringify(data, null, 4));
 
-const users = loadJSON("users.json", false);
+const users = loadJSON("users.json");
 const saveUsers = () => saveJSON("users.json", users);
 
 // Active TemplateManagers (in-memory)
@@ -1964,7 +1534,7 @@ let currentSettings = {
   logMaskPii: false
 };
 if (existsSync(path.join(dataDir, "settings.json"))) {
-  currentSettings = { ...currentSettings, ...loadJSON("settings.json", false) };
+  currentSettings = { ...currentSettings, ...loadJSON("settings.json") };
 }
 const saveSettings = () => saveJSON("settings.json", currentSettings);
 
@@ -2381,21 +1951,22 @@ class TemplateManager {
   }
 
   async _performPaintTurn(wplacer) {
-    try {
-      wplacer.token = await TokenManager.getToken();
-      // Pull latest pawtect token, if any
-      try { wplacer.pawtect = globalThis.__wplacer_last_pawtect || null; } catch { }
-      const painted = await wplacer.paint(currentSettings.drawingMethod);
-      if(typeof painted === 'number' && painted > 0)
-      {
-        log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] ⏰ Estimated time left: ~${this.formatTime((this.pixelsRemaining - painted) / this.userIds.length * 30)}`); //30 seconds for 1 pixel
-      }
-      // save back burst seeds if used
-      this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : null;
-      saveTemplates();
-      try { TokenManager.consumeToken(); } catch { }
-      return painted;
-    } catch (error) {
+    while (this.running) {
+      try {
+        wplacer.token = await TokenManager.getToken();
+        // Pull latest pawtect token, if any
+        try { wplacer.pawtect = globalThis.__wplacer_last_pawtect || null; } catch { }
+        const painted = await wplacer.paint(currentSettings.drawingMethod);
+        if(typeof painted === 'number' && painted > 0)
+        {
+          log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] ⏰ Estimated time left: ~${this.formatTime((this.pixelsRemaining - painted) / this.userIds.length * 30)}`); //30 seconds for 1 pixel
+        }
+        // save back burst seeds if used
+        this.burstSeeds = wplacer._burstSeeds ? wplacer._burstSeeds.map((s) => ({ gx: s.gx, gy: s.gy })) : null;
+        saveTemplates();
+        try { TokenManager.consumeToken(); } catch { }
+        return painted;
+      } catch (error) {
         if (error.name === "SuspensionError") {
           const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
           const uid = wplacer.userInfo.id;
@@ -2418,11 +1989,13 @@ class TemplateManager {
           log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired/invalid. Trying next token...`);
           TokenManager.invalidateToken();
           await sleep(1000);
-          throw error; // Re-throw to let the caller handle token refresh
+          continue;
         }
         // Delegate all errors to unified logger to keep original reason
         logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] paint turn`);
         return 0;
+        throw error;
+      }
     }
   }
 
@@ -2660,10 +2233,6 @@ class TemplateManager {
             if (rec.suspendedUntil && nowSel < rec.suspendedUntil) return false;
             if (rec.authFailureUntil && nowSel < rec.authFailureUntil) return false;
             if (activeBrowserUsers.has(uid)) return false;
-            // Skip the last runner if they just painted successfully (to encourage rotation)
-            if (this._lastRunnerId === uid && this._lastPaintedAt && (nowSel - this._lastPaintedAt) < 10000) {
-              return false;
-            }
             return true;
           })
           .map((uid) => ({ uid, pred: ChargeCache.predict(uid, nowSel) }))
@@ -2763,9 +2332,6 @@ class TemplateManager {
               if (this._lastSummary) {
                 this._lastSummary.total = Math.max(0, (this._lastSummary.total | 0) - paintedNow);
               }
-              // After successful painting, move to next user in queue
-              this._lastRunnerId = foundUserForTurn;
-              this._lastSwitchAt = Date.now();
             }
             else {
               try {
@@ -2793,6 +2359,11 @@ class TemplateManager {
             }
           } finally {
             activeBrowserUsers.delete(foundUserForTurn);
+          }
+
+          if (this._lastRunnerId !== foundUserForTurn) {
+            this._lastRunnerId = foundUserForTurn;
+            this._lastSwitchAt = Date.now();
           }
         } else {
 
@@ -4952,159 +4523,6 @@ const keepAlive = async () => {
   log("SYSTEM", "wplacer", "✅ Keep-alive check complete (sequential).");
 };
 
-// --- JSON Files Validation on Startup ---
-const validateAllJSONFiles = () => {
-  const jsonFiles = ['settings.json', 'users.json', 'templates.json'];
-  let totalErrors = 0;
-  
-  console.log('\n--- JSON Files Validation ---');
-  addToLiveLogs('', 'general', 'info'); // Empty line
-  addToLiveLogs('--- JSON Files Validation ---', 'general', 'info');
-  
-  for (const filename of jsonFiles) {
-    const filePath = path.join(dataDir, filename);
-    
-    if (!existsSync(filePath)) {
-      console.log(`ℹ️  File ${filename} not found, will be created on first save`);
-      addToLiveLogs(`File ${filename} not found, will be created on first save`, 'general', 'info');
-      continue;
-    }
-    
-    try {
-      const data = JSON.parse(readFileSync(filePath, "utf8"));
-      const errors = validateJSONFile(filename, data);
-      
-      if (errors.length > 0) {
-        totalErrors += errors.length;
-        console.log(`❌ Validation errors in file ${filename}:`);
-        errors.forEach(error => console.log(`  - ${error}`));
-        addToLiveLogs(`❌ Validation errors in file ${filename}:`, 'error', 'error');
-        errors.forEach(error => addToLiveLogs(`  - ${error}`, 'error', 'error'));
-        
-        // Create backup of corrupted file
-        const backupPath = path.join(
-          backupsRootDir,
-          `${filename.replace('.json', '')}.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.json`
-        );
-        try {
-          writeFileSync(backupPath, JSON.stringify(data, null, 2));
-          console.log(`📁 Created backup: ${backupPath}`);
-          addToLiveLogs(`Created backup: ${backupPath}`, 'error', 'error');
-        } catch (backupError) {
-          console.log(`❌ Failed to create backup: ${backupError.message}`);
-          addToLiveLogs(`Failed to create backup: ${backupError.message}`, 'error', 'error');
-        }
-      } else {
-        console.log(`✅ File ${filename} is valid`);
-        addToLiveLogs(`✅ File ${filename} is valid`, 'general', 'info');
-      }
-    } catch (parseError) {
-      totalErrors++;
-      console.log(`❌ JSON parsing error in file ${filename}: ${parseError.message}`);
-      addToLiveLogs(`❌ JSON parsing error in file ${filename}: ${parseError.message}`, 'error', 'error');
-      
-      // Create backup of corrupted file
-      const backupPath = path.join(
-        backupsRootDir,
-        `${filename.replace('.json', '')}.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.json`
-      );
-      try {
-        const rawContent = readFileSync(filePath, "utf8");
-        writeFileSync(backupPath, rawContent);
-        console.log(`📁 Created backup: ${backupPath}`);
-        addToLiveLogs(`Created backup: ${backupPath}`, 'error', 'error');
-      } catch (backupError) {
-        console.log(`❌ Failed to create backup: ${backupError.message}`);
-        addToLiveLogs(`Failed to create backup: ${backupError.message}`, 'error', 'error');
-      }
-    }
-  }
-  
-  if (totalErrors > 0) {
-    console.log(`⚠️  Found ${totalErrors} errors in JSON files. Check backups in backups/ folder`);
-    addToLiveLogs(`⚠️  Found ${totalErrors} errors in JSON files. Check backups in backups/ folder`, 'general', 'warning');
-  } else {
-    console.log('✅ All JSON files are valid');
-    addToLiveLogs('✅ All JSON files are valid', 'general', 'info');
-  }
-  
-  console.log('--- JSON Files Validation Complete ---\n');
-  addToLiveLogs('--- JSON Files Validation Complete ---', 'general', 'info');
-  addToLiveLogs('', 'general', 'info'); // Empty line
-};
-
-// --- Log Files Cleanup ---
-const cleanupLogFiles = () => {
-  const logFiles = ['logs.log', 'errors.log'];
-  const maxLines = 100000;
-  let totalCleaned = 0;
-  
-  console.log('--- Log Files Cleanup ---');
-  addToLiveLogs('--- Log Files Cleanup ---', 'general', 'info');
-  
-  for (const logFile of logFiles) {
-    const logPath = path.join(dataDir, logFile);
-    
-    if (!existsSync(logPath)) {
-      console.log(`ℹ️  Log file ${logFile} not found, skipping`);
-      addToLiveLogs(`Log file ${logFile} not found, skipping`, 'general', 'info');
-      continue;
-    }
-    
-    try {
-      // Read the log file and count lines
-      const logContent = readFileSync(logPath, 'utf8');
-      const lines = logContent.split('\n');
-      const lineCount = lines.length;
-      
-      console.log(`📊 Log file ${logFile}: ${lineCount} lines`);
-      addToLiveLogs(`Log file ${logFile}: ${lineCount} lines`, 'general', 'info');
-      
-      if (lineCount > maxLines) {
-        // Create backup of the log file
-        const backupPath = path.join(
-          backupsRootDir,
-          `${logFile.replace('.log', '')}.backup-${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.log`
-        );
-        
-        try {
-          writeFileSync(backupPath, logContent);
-          console.log(`📁 Created backup: ${backupPath}`);
-          addToLiveLogs(`Created backup: ${backupPath}`, 'general', 'info');
-          
-          // Clear the log file
-          writeFileSync(logPath, '');
-          console.log(`🧹 Cleared log file ${logFile} (was ${lineCount} lines)`);
-          addToLiveLogs(`Cleared log file ${logFile} (was ${lineCount} lines)`, 'general', 'info');
-          
-          totalCleaned++;
-        } catch (backupError) {
-          console.log(`❌ Failed to create backup for ${logFile}: ${backupError.message}`);
-          addToLiveLogs(`Failed to create backup for ${logFile}: ${backupError.message}`, 'error', 'error');
-        }
-      } else {
-        console.log(`✅ Log file ${logFile} is within limits (${lineCount}/${maxLines} lines)`);
-        addToLiveLogs(`Log file ${logFile} is within limits (${lineCount}/${maxLines} lines)`, 'general', 'info');
-      }
-    } catch (readError) {
-      console.log(`❌ Error reading log file ${logFile}: ${readError.message}`);
-      addToLiveLogs(`Error reading log file ${logFile}: ${readError.message}`, 'error', 'error');
-    }
-  }
-  
-  if (totalCleaned > 0) {
-    console.log(`🧹 Cleaned ${totalCleaned} log files that exceeded ${maxLines} lines`);
-    addToLiveLogs(`Cleaned ${totalCleaned} log files that exceeded ${maxLines} lines`, 'general', 'info');
-  } else {
-    console.log('✅ All log files are within size limits');
-    addToLiveLogs('All log files are within size limits', 'general', 'info');
-  }
-  
-  console.log('--- Log Files Cleanup Complete ---\n');
-  addToLiveLogs('--- Log Files Cleanup Complete ---', 'general', 'info');
-  addToLiveLogs('', 'general', 'info'); // Empty line
-};
-
 // --- Startup ---
 (async () => {
   console.clear();
@@ -5112,17 +4530,9 @@ const cleanupLogFiles = () => {
   console.log(`\n--- wplacer v${version} made by luluwaffless and jinx | forked/improved by lllexxa ---\n`);
   
   // Add startup message to Live Logs
-  addToLiveLogs('', 'general', 'info'); // Empty line
   addToLiveLogs(`--- wplacer v${version} made by luluwaffless and jinx | forked/improved by lllexxa ---`);
-  addToLiveLogs('', 'general', 'info'); // Empty line
 
-  // Perform JSON files validation first
-  validateAllJSONFiles();
-
-  // Perform log files cleanup
-  cleanupLogFiles();
-
-  const loadedTemplates = loadJSON("templates.json", false);
+  const loadedTemplates = loadJSON("templates.json");
   for (const id in loadedTemplates) {
     const t = loadedTemplates[id];
     if (t.userIds?.every((uid) => users[uid])) {
@@ -5162,14 +4572,12 @@ const cleanupLogFiles = () => {
   
   // Add loaded data message to Live Logs
   addToLiveLogs(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
-  addToLiveLogs('', 'general', 'info'); // Empty line
   
   const port = Number(process.env.PORT) || 80;
   const host = process.env.HOST || "0.0.0.0";
   const hostname = host === "0.0.0.0" || host === "127.0.0.1" ? "localhost" : host;
 
   // Security warning for 0.0.0.0
-
   if (host === "0.0.0.0") {
     const securityWarning1 = "⚠️  SECURITY WARNING: HOST=0.0.0.0 makes the server accessible from outside your computer!";
     const securityWarning2 = "   For better security, change HOST to 127.0.0.1 in .env file or use run-localhost.bat";

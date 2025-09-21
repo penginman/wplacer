@@ -1,14 +1,3 @@
-## Changelog v4.3.3
-- Added JSON files validation on startup for settings.json, users.json and templates.json
-- Added automatic log files cleanup when they exceed 100,000 lines (with backup creation)
-- Added detailed console and Live Logs output for validation and cleanup processes
-- Added visual grouping in Live Logs for validation and cleanup sections with gray styling
-- Improved startup process order: validation → cleanup → data loading → server start
-- ⚠️ Known issue: Drawing modes are currently broken and not working properly
-
-## Changelog v4.3.2
-- Split large artworks into chunks during drawing (should help optimize drawing of large templates and reduce `Maximum call stack size exceeded` errors)
-
 ## Changelog v4.3.1
 - Added auto-open browser after program starts
 - Added security warning for HOST=0.0.0.0 with recommendations to use 127.0.0.1
