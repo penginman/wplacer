@@ -4,6 +4,12 @@
 <a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
 [![Views](https://hits.sh/github.com/lllexxa/wplacer.svg?label=Views&color=blue&style=flat)](https://hits.sh/github.com/lllexxa/wplacer/)
 
+> [!WARNING]  
+> 🚨 **UNSAFE — HIGH BAN RISK** 🚨  
+> Using this bot is no longer safe.  
+> There is a **high chance that all your accounts will get banned** if you use it.  
+> **Strongly recommended NOT to use.**
+
 A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
 ## Features ✅
