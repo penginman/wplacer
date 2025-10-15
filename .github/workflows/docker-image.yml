@@ -21,4 +21,4 @@ jobs:
           # optionally push to the Docker Hub (docker.io)
           # docker_io_token: ${{ secrets.DOCKER_IO_ACCESS_TOKEN }}  # see https://hub.docker.com/settings/security
           # customize the username to be used when pushing to the Docker Hub
-          # docker_io_user: foobar  # see https://github.com/macbre/push-to-ghcr/issues/14
+          # docker_io_user: foobar  #  see https://github.com/macbre/push-to-ghcr/issues/14
