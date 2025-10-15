@@ -50,4 +50,4 @@ COPY . .
 EXPOSE ${PORT}
 
 # Run the application.
-CMD pnpm run start:docker
+CMD pnpm run start
