@@ -1418,26 +1418,37 @@
                                         </small>
                                     </div>
                                     <div class="field" style="margin-top: 8px">
-                                        <label for="newProxy">Add New Proxy</label>
-                                        <div class="input-group">
-                                            <input
-                                                type="text"
+                                        <label for="newProxy">Add New Proxies</label>
+                                        <div class="input-group" style="flex-direction: column">
+                                            <textarea
                                                 id="newProxy"
-                                                placeholder="protocol://user:pass@host:port"
-                                                style="flex: 1"
-                                            />
-                                            <button
-                                                type="button"
-                                                id="addProxyBtn"
-                                                class="secondary-button"
-                                                style="margin-left: 8px"
-                                            >
-                                                Add
-                                            </button>
+                                                placeholder="protocol://user:pass@host:port&#10;Enter one proxy per line&#10;Example:&#10;http://username:password@192.168.1.1:8080&#10;socks5://user:pass@proxy.example.com:1080"
+                                                rows="4"
+                                                style="width: 100%; margin-bottom: 8px"
+                                            ></textarea>
+                                            <div style="display: flex; gap: 8px">
+                                                <button
+                                                    type="button"
+                                                    id="addProxyBtn"
+                                                    class="primary-button"
+                                                    style="flex: 1"
+                                                >
+                                                    Add Proxies
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    id="clearProxyBtn"
+                                                    class="secondary-button"
+                                                    style="width: auto"
+                                                >
+                                                    Clear
+                                                </button>
+                                            </div>
                                         </div>
                                         <small class="help">
                                             Format: protocol://user:pass@host:port<br />
-                                            Example: http://username:password@192.168.1.1:8080
+                                            Enter one proxy per line. Multiple proxies can be added at once.<br />
+                                            Supported protocols: http, https, socks4, socks5
                                         </small>
                                     </div>
                                     <div class="setting-toggle">
@@ -1555,46 +1566,88 @@
 
         <script src="scripts/index.js" type="text/javascript"></script>
         <script type="text/javascript">
-            // 添加代理功能
             document.getElementById('addProxyBtn')?.addEventListener('click', async () => {
                 const newProxyInput = document.getElementById('newProxy');
-                const proxyString = newProxyInput.value.trim();
+                const proxyText = newProxyInput.value.trim();
 
-                if (!proxyString) {
-                    showMessage('Please enter a proxy string', 'error');
+                if (!proxyText) {
+                    showMessage('Please enter at least one proxy', 'error');
                     return;
                 }
 
-                // 验证代理格式
-                const proxyPattern = /^((https|http|socks5|socks4)?):\/\/([^:@]+)(?::([^@]+))?@([^:@]+)(?::(\d+))$/;
-                if (!proxyPattern.test(proxyString)) {
-                    showMessage('Invalid proxy format. Use: protocol://user:pass@host:port', 'error');
+                // 分割多行代理
+                const proxyLines = proxyText.split('\n').filter((line) => line.trim() !== '');
+
+                // 验证每行代理格式
+                const proxyPattern = /^(https?|socks4|socks5):\/\/([^:@]+)(?::([^@]+))?@([^:@]+)(?::(\d+))$/;
+                const invalidProxies = proxyLines.filter((line) => !proxyPattern.test(line.trim()));
+
+                if (invalidProxies.length > 0) {
+                    showMessage(
+                        `${invalidProxies.length} invalid proxy format(s) found. Please check and try again.`,
+                        'error'
+                    );
                     return;
                 }
 
                 try {
-                    const response = await fetch('/add-proxy', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ proxy: proxyString }),
-                    });
+                    // 显示进度提示
+                    showMessage(`Adding ${proxyLines.length} proxy(ies)...`, 'info');
 
-                    const result = await response.json();
+                    // 逐个添加代理
+                    let successCount = 0;
+                    let errorMessages = [];
 
-                    if (response.ok && result.success) {
-                        showMessage('Proxy added successfully', 'success');
-                        newProxyInput.value = '';
-                        // 刷新代理列表显示
-                        updateProxyCount();
+                    for (const proxyLine of proxyLines) {
+                        try {
+                            const response = await fetch('/add-proxy', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ proxy: proxyLine.trim() }),
+                            });
+
+                            const result = await response.json();
+
+                            if (response.ok && result.success) {
+                                successCount++;
+                            } else {
+                                errorMessages.push(`${proxyLine.trim()}: ${result.error || 'Failed'}`);
+                            }
+                        } catch (error) {
+                            console.error('Error adding proxy:', proxyLine, error);
+                            errorMessages.push(`${proxyLine.trim()}: ${error.message}`);
+                        }
+                    }
+
+                    // 清空输入框
+                    newProxyInput.value = '';
+
+                    // 刷新代理列表显示
+                    updateProxyCount();
+
+                    // 显示结果
+                    if (successCount === proxyLines.length) {
+                        showMessage(`All ${successCount} proxy(ies) added successfully`, 'success');
                     } else {
-                        showMessage(result.error || 'Failed to add proxy', 'error');
+                        const summary = `Added ${successCount} of ${proxyLines.length} proxy(ies).`;
+                        const details =
+                            errorMessages.length > 0
+                                ? `\nErrors:\n${errorMessages.slice(0, 3).join('\n')}${errorMessages.length > 3 ? '\n...' : ''}`
+                                : '';
+                        showMessage(summary + details, 'warning');
                     }
                 } catch (error) {
-                    console.error('Error adding proxy:', error);
-                    showMessage('Failed to add proxy: ' + error.message, 'error');
+                    console.error('Error adding proxies:', error);
+                    showMessage('Failed to add proxies: ' + error.message, 'error');
                 }
+            });
+
+            // 清空代理输入框
+            document.getElementById('clearProxyBtn')?.addEventListener('click', () => {
+                const newProxyInput = document.getElementById('newProxy');
+                newProxyInput.value = '';
             });
 
             // 更新代理数量显示
@@ -1602,7 +1655,10 @@
                 try {
                     const response = await fetch('/settings');
                     const settings = await response.json();
-                    document.getElementById('proxyCount').textContent = settings.proxyCount || 0;
+                    const proxyCountElement = document.getElementById('proxyCount');
+                    if (proxyCountElement) {
+                        proxyCountElement.textContent = settings.proxyCount || 0;
+                    }
                 } catch (error) {
                     console.error('Error updating proxy count:', error);
                 }

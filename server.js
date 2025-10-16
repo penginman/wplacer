@@ -5195,6 +5195,133 @@ app.get('/test-proxies', authenticateToken, async (req, res) => {
     }
 });
 
+app.get('/backups-content', authenticateToken, async (req, res) => {
+    try {
+        const mainBackupsDir = path.join(dataDir, 'backups');
+
+        if (!fs.existsSync(mainBackupsDir)) {
+            return res.status(404).json({
+                error: 'Backups folder not found',
+                message: 'No backups directory exists',
+            });
+        }
+
+        // 读取所有子文件夹
+        const subdirs = fs.readdirSync(mainBackupsDir);
+        const result = {
+            timestamp: new Date().toISOString(),
+            backups: [],
+        };
+
+        // 遍历所有子文件夹
+        for (const subdir of subdirs) {
+            const subdirPath = path.join(mainBackupsDir, subdir);
+            const subdirStat = fs.statSync(subdirPath);
+
+            if (subdirStat.isDirectory()) {
+                // 读取子文件夹中的所有文件
+                const files = fs.readdirSync(subdirPath);
+
+                for (const file of files) {
+                    const filePath = path.join(subdirPath, file);
+                    const fileStat = fs.statSync(filePath);
+
+                    if (fileStat.isFile()) {
+                        try {
+                            // 读取文件内容
+                            const content = fs.readFileSync(filePath, 'utf8');
+
+                            // 解析文件名获取时间戳信息
+                            const fileInfo = parseBackupFileName(file, subdir);
+
+                            result.backups.push({
+                                category: subdir,
+                                fileName: file,
+                                filePath: filePath.replace(dataDir, ''), // 相对路径
+                                size: fileStat.size,
+                                created: fileStat.birthtime.toISOString(),
+                                modified: fileStat.mtime.toISOString(),
+                                content: content,
+                                parsedInfo: fileInfo,
+                            });
+                        } catch (error) {
+                            console.error(`Error reading file ${filePath}:`, error);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 按时间戳排序（最新的在前）
+        result.backups.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+
+        res.json({
+            success: true,
+            total: result.backups.length,
+            data: result,
+        });
+    } catch (error) {
+        console.error('Error reading backups content:', error);
+        res.status(500).json({
+            error: 'Failed to read backups content',
+            details: error.message,
+        });
+    }
+});
+
+// 辅助函数：解析备份文件名
+function parseBackupFileName(fileName, category) {
+    const result = {
+        type: 'unknown',
+        timestamp: null,
+        parsedDate: null,
+        description: '',
+    };
+
+    try {
+        // 用户备份文件：users.backup-YYYY-MM-DD_HH-MM-SS.json
+        if (fileName.startsWith('users.backup-') && fileName.endsWith('.json')) {
+            result.type = 'users';
+            const timestampStr = fileName.replace('users.backup-', '').replace('.json', '');
+            result.timestamp = timestampStr;
+
+            // 解析时间戳
+            const [datePart, timePart] = timestampStr.split('_');
+            const [year, month, day] = datePart.split('-').map(Number);
+            const [hour, minute, second] = timePart.split('-').map(Number);
+
+            result.parsedDate = new Date(year, month - 1, day, hour, minute, second);
+            result.description = `Users backup - ${result.parsedDate.toLocaleString()}`;
+        }
+
+        // 代理备份文件：proxies.backup-YYYY-MM-DD_HH-MM-SS.txt
+        else if (fileName.startsWith('proxies.backup-') && fileName.endsWith('.txt')) {
+            result.type = 'proxies';
+            const timestampStr = fileName.replace('proxies.backup-', '').replace('.txt', '');
+            result.timestamp = timestampStr;
+
+            // 解析时间戳
+            const [datePart, timePart] = timestampStr.split('_');
+            const [year, month, day] = datePart.split('-').map(Number);
+            const [hour, minute, second] = timePart.split('-').map(Number);
+
+            result.parsedDate = new Date(year, month - 1, day, hour, minute, second);
+            result.description = `Proxies backup - ${result.parsedDate.toLocaleString()}`;
+        }
+
+        // 其他文件类型
+        else {
+            result.type = category;
+            result.description = `${category} backup file`;
+            result.timestamp = fileName;
+        }
+    } catch (error) {
+        console.error('Error parsing backup filename:', fileName, error);
+    }
+
+    return result;
+}
+
 app.get('/test-proxy', authenticateToken, async (req, res) => {
     try {
         if (!currentSettings.proxyEnabled || loadedProxies.length === 0) {
