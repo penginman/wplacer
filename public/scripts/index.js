@@ -2,8 +2,12 @@ async function applyLogSettingsFromServer() {
     try {
         const { data: currentSettings } = await axios.get('/settings');
         const lc = currentSettings?.logCategories || {};
-        const bind = (id) => { const el = document.getElementById(id); if (el) el.checked = lc[id.replace('log_', '')] !== false; };
-        const mask = document.getElementById('log_maskPii'); if (mask) mask.checked = !!currentSettings?.logMaskPii;
+        const bind = (id) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = lc[id.replace('log_', '')] !== false;
+        };
+        const mask = document.getElementById('log_maskPii');
+        if (mask) mask.checked = !!currentSettings?.logMaskPii;
         bind('log_tokenManager');
         bind('log_cache');
         bind('log_queuePreview');
@@ -11,111 +15,120 @@ async function applyLogSettingsFromServer() {
         bind('log_startTurn');
         bind('log_mismatches');
         bind('log_estimatedTime');
-    } catch (_) { }
+    } catch (_) {}
 }
 const $ = (id) => document.getElementById(id);
-const main = $("main");
-const openManageUsers = $("openManageUsers");
-const openAddTemplate = $("openAddTemplate");
-const openManageTemplates = $("openManageTemplates");
-const openSettings = $("openSettings");
-const openChangelog = $("openChangelog");
-const userForm = $("userForm");
-const scookie = $("scookie");
-const jcookie = $("jcookie");
-const submitUser = $("submitUser");
-const manageUsers = $("manageUsers");
-const userList = $("userList");
-const checkUserStatus = $("checkUserStatus");
-const checkUsersProgress = $("checkUsersProgress");
-const checkUsersResult = $("checkUsersResult");
-const cleanupExpiredBtn = $("cleanupExpiredBtn");
-const cleanupExpiredWrap = $("cleanupExpiredWrap");
-const addTemplate = $("addTemplate");
-const convert = $("convert");
-const details = $("details");
-const size = $("size");
-const ink = $("ink");
-const templateCanvas = $("templateCanvas");
+const main = $('main');
+const openManageUsers = $('openManageUsers');
+const openAddTemplate = $('openAddTemplate');
+const openManageTemplates = $('openManageTemplates');
+const openSettings = $('openSettings');
+const openChangelog = $('openChangelog');
+const userForm = $('userForm');
+const scookie = $('scookie');
+const jcookie = $('jcookie');
+const submitUser = $('submitUser');
+const manageUsers = $('manageUsers');
+const userList = $('userList');
+const checkUserStatus = $('checkUserStatus');
+const checkUsersProgress = $('checkUsersProgress');
+const checkUsersResult = $('checkUsersResult');
+const cleanupExpiredBtn = $('cleanupExpiredBtn');
+const cleanupExpiredWrap = $('cleanupExpiredWrap');
+const addTemplate = $('addTemplate');
+const convert = $('convert');
+const details = $('details');
+const size = $('size');
+const ink = $('ink');
+const templateCanvas = $('templateCanvas');
 
+const previewCanvas = $('previewCanvas');
+const previewCanvasButton = $('previewCanvasButton');
+const previewBorder = $('previewBorder');
+const usePaidColors = $('usePaidColors');
 
-const previewCanvas = $("previewCanvas");
-const previewCanvasButton = $("previewCanvasButton");
-const previewBorder = $("previewBorder");
-const usePaidColors = $("usePaidColors");
-
-const templateForm = $("templateForm");
-const templateFormTitle = $("templateFormTitle");
-const convertInput = $("convertInput");
-const templateName = $("templateName");
-const tx = $("tx");
-const ty = $("ty");
-const px = $("px");
-const py = $("py");
-const userSelectList = $("userSelectList");
-const selectAllUsers = $("selectAllUsers");
-const unselectAllUsers = $("unselectAllUsers");
-const canBuyMaxCharges = $("canBuyMaxCharges");
-const canBuyCharges = $("canBuyCharges");
-const autoBuyNeededColors = $("autoBuyNeededColors");
-const antiGriefMode = $("antiGriefMode");
-const skipPaintedPixels = $("skipPaintedPixels");
-const outlineMode = $("outlineMode");
-const paintTransparent = $("paintTransparent");
-const heatmapEnabled = $("heatmapEnabled");
-const heatmapLimit = $("heatmapLimit");
-const heatmapLimitWrap = $("heatmapLimitWrap");
-const autoStart = $("autoStart");
-const submitTemplate = $("submitTemplate");
-const manageTemplates = $("manageTemplates");
-const templateList = $("templateList");
+const templateForm = $('templateForm');
+const templateFormTitle = $('templateFormTitle');
+const convertInput = $('convertInput');
+const templateName = $('templateName');
+const tx = $('tx');
+const ty = $('ty');
+const px = $('px');
+const py = $('py');
+const userSelectList = $('userSelectList');
+const selectAllUsers = $('selectAllUsers');
+const unselectAllUsers = $('unselectAllUsers');
+const canBuyMaxCharges = $('canBuyMaxCharges');
+const canBuyCharges = $('canBuyCharges');
+const autoBuyNeededColors = $('autoBuyNeededColors');
+const antiGriefMode = $('antiGriefMode');
+const skipPaintedPixels = $('skipPaintedPixels');
+const outlineMode = $('outlineMode');
+const paintTransparent = $('paintTransparent');
+const heatmapEnabled = $('heatmapEnabled');
+const heatmapLimit = $('heatmapLimit');
+const heatmapLimitWrap = $('heatmapLimitWrap');
+const autoStart = $('autoStart');
+const submitTemplate = $('submitTemplate');
+const manageTemplates = $('manageTemplates');
+const templateList = $('templateList');
 const PINNED_TEMPLATES_KEY = 'wplacer_pinned_templates_v1';
-const getPinned = () => { try { return JSON.parse(localStorage.getItem(PINNED_TEMPLATES_KEY) || '[]') || []; } catch { return []; } };
-const savePinned = (arr) => { try { localStorage.setItem(PINNED_TEMPLATES_KEY, JSON.stringify(Array.from(new Set(arr)))) } catch { } };
-const startAll = $("startAll");
-const stopAll = $("stopAll");
-const totalDropletsEl = $("totalDroplets");
-const regenPphEl = $("regenPph");
-const settings = $("settings");
-const turnstileNotifications = $("turnstileNotifications");
-const accountCooldown = $("accountCooldown");
-const purchaseCooldown = $("purchaseCooldown");
-const accountCheckCooldown = $("accountCheckCooldown");
-const dropletReserve = $("dropletReserve");
-const antiGriefStandby = $("antiGriefStandby");
-const chargeThreshold = $("chargeThreshold");
-const chargeThresholdContainer = $("chargeThresholdContainer");
-const totalCharges = $("totalCharges");
-const totalMaxCharges = $("totalMaxCharges");
-const messageBoxOverlay = $("messageBoxOverlay");
-const alwaysDrawOnCharge = $("alwaysDrawOnCharge");
-const maxPixelsPerPass = $("maxPixelsPerPass");
-const messageBoxTitle = $("messageBoxTitle");
-const messageBoxContent = $("messageBoxContent");
-const messageBoxConfirm = $("messageBoxConfirm");
-const messageBoxCancel = $("messageBoxCancel");
-const manageUsersTitle = $("manageUsersTitle");
-const previewSpeed = $("previewSpeed");
-const previewSpeedLabel = $("previewSpeedLabel");
-const showLatestInfo = $("showLatestInfo");
-const buyMaxUpgradesAll = $("buyMaxUpgradesAll");
-const buyChargesAll = $("buyChargesAll");
-const liveLogs = $("liveLogs");
-const logsOutput = $("logsOutput");
-const toggleMaskLogs = $("toggleMaskLogs");
-const clearLogs = $("clearLogs");
+const getPinned = () => {
+    try {
+        return JSON.parse(localStorage.getItem(PINNED_TEMPLATES_KEY) || '[]') || [];
+    } catch {
+        return [];
+    }
+};
+const savePinned = (arr) => {
+    try {
+        localStorage.setItem(PINNED_TEMPLATES_KEY, JSON.stringify(Array.from(new Set(arr))));
+    } catch {}
+};
+const startAll = $('startAll');
+const stopAll = $('stopAll');
+const totalDropletsEl = $('totalDroplets');
+const regenPphEl = $('regenPph');
+const settings = $('settings');
+const turnstileNotifications = $('turnstileNotifications');
+const accountCooldown = $('accountCooldown');
+const purchaseCooldown = $('purchaseCooldown');
+const accountCheckCooldown = $('accountCheckCooldown');
+const dropletReserve = $('dropletReserve');
+const antiGriefStandby = $('antiGriefStandby');
+const chargeThreshold = $('chargeThreshold');
+const chargeThresholdContainer = $('chargeThresholdContainer');
+const totalCharges = $('totalCharges');
+const totalMaxCharges = $('totalMaxCharges');
+const messageBoxOverlay = $('messageBoxOverlay');
+const alwaysDrawOnCharge = $('alwaysDrawOnCharge');
+const maxPixelsPerPass = $('maxPixelsPerPass');
+const messageBoxTitle = $('messageBoxTitle');
+const messageBoxContent = $('messageBoxContent');
+const messageBoxConfirm = $('messageBoxConfirm');
+const messageBoxCancel = $('messageBoxCancel');
+const manageUsersTitle = $('manageUsersTitle');
+const previewSpeed = $('previewSpeed');
+const previewSpeedLabel = $('previewSpeedLabel');
+const showLatestInfo = $('showLatestInfo');
+const buyMaxUpgradesAll = $('buyMaxUpgradesAll');
+const buyChargesAll = $('buyChargesAll');
+const liveLogs = $('liveLogs');
+const logsOutput = $('logsOutput');
+const toggleMaskLogs = $('toggleMaskLogs');
+const clearLogs = $('clearLogs');
 
-const queuePreview = $("queuePreview");
-const refreshQueuePreview = $("refreshQueuePreview");
-const autoRefreshQueue = $("autoRefreshQueue");
-const autoRefreshGroup = $("autoRefreshGroup");
-const queueRefreshIntervalInput = $("queueRefreshInterval");
-const intervalLabel = $("intervalLabel");
-const hideSensitiveInfoQueue = $("hideSensitiveInfoQueue");
-const queueLastUpdate = $("queueLastUpdate");
-const queueTotalUsers = $("queueTotalUsers");
-const queueReadyUsers = $("queueReadyUsers");
-const queueUserList = $("queueUserList");
+const queuePreview = $('queuePreview');
+const refreshQueuePreview = $('refreshQueuePreview');
+const autoRefreshQueue = $('autoRefreshQueue');
+const autoRefreshGroup = $('autoRefreshGroup');
+const queueRefreshIntervalInput = $('queueRefreshInterval');
+const intervalLabel = $('intervalLabel');
+const hideSensitiveInfoQueue = $('hideSensitiveInfoQueue');
+const queueLastUpdate = $('queueLastUpdate');
+const queueTotalUsers = $('queueTotalUsers');
+const queueReadyUsers = $('queueReadyUsers');
+const queueUserList = $('queueUserList');
 
 let queueRefreshInterval = null;
 let currentQueueData = null;
@@ -126,26 +139,25 @@ let __sse; // EventSource
 // Keep raw lines to allow re-render on mask toggle
 const __logsRaw = [];
 
-
 // flagsManager
-const flagsManager = $("flagsManager");
-const flagsAllList = $("flagsAllList");
-const flagDetailsCard = $("flagDetailsCard");
-const selectedFlagTitle = $("selectedFlagTitle");
-const selectedFlagId = $("selectedFlagId");
-const selectedFlagEmoji = $("selectedFlagEmoji");
-const usersHaveFlag = $("usersHaveFlag");
-const usersNoFlag = $("usersNoFlag");
-const selectAllNoFlag = $("selectAllNoFlag");
-const UnselectAllNoFlag = $("UnselectAllNoFlag");
-const selectAllHaveFlag = $("selectAllHaveFlag");
-const unselectAllHaveFlag = $("unselectAllHaveFlag");
-const purchaseFlagBtn = $("purchaseFlagBtn");
-const equipFlagBtn = $("equipFlagBtn");
-const purchaseFlagReport = $("purchaseFlagReport");
-const flagsLastCheckLabel = $("flagsLastCheckLabel");
-const equipFlagBatchBtn = $("equipFlagBatchBtn");
-const unequipFlagBatchBtn = $("unequipFlagBatchBtn");
+const flagsManager = $('flagsManager');
+const flagsAllList = $('flagsAllList');
+const flagDetailsCard = $('flagDetailsCard');
+const selectedFlagTitle = $('selectedFlagTitle');
+const selectedFlagId = $('selectedFlagId');
+const selectedFlagEmoji = $('selectedFlagEmoji');
+const usersHaveFlag = $('usersHaveFlag');
+const usersNoFlag = $('usersNoFlag');
+const selectAllNoFlag = $('selectAllNoFlag');
+const UnselectAllNoFlag = $('UnselectAllNoFlag');
+const selectAllHaveFlag = $('selectAllHaveFlag');
+const unselectAllHaveFlag = $('unselectAllHaveFlag');
+const purchaseFlagBtn = $('purchaseFlagBtn');
+const equipFlagBtn = $('equipFlagBtn');
+const purchaseFlagReport = $('purchaseFlagReport');
+const flagsLastCheckLabel = $('flagsLastCheckLabel');
+const equipFlagBatchBtn = $('equipFlagBatchBtn');
+const unequipFlagBatchBtn = $('unequipFlagBatchBtn');
 
 let FLAGS_INIT = false;
 let CURRENT_SELECTED_FLAG = null;
@@ -153,14 +165,18 @@ let CURRENT_SELECTED_FLAG = null;
 // ---- Flags helpers (shared) ----
 function countryCodeToEmoji(code) {
     try {
-        const cc = String(code || '').trim().toUpperCase();
+        const cc = String(code || '')
+            .trim()
+            .toUpperCase();
         if (cc.length !== 2) return '';
-        const base = 0x1F1E6;
+        const base = 0x1f1e6;
         const a = cc.charCodeAt(0) - 0x41;
         const b = cc.charCodeAt(1) - 0x41;
         if (a < 0 || a > 25 || b < 0 || b > 25) return '';
         return String.fromCodePoint(base + a) + String.fromCodePoint(base + b);
-    } catch { return ''; }
+    } catch {
+        return '';
+    }
 }
 
 function flagMetaToEmoji(meta) {
@@ -180,29 +196,41 @@ function parseTwemojiIn(container, sizePx) {
                 className: 'twemoji',
             });
             if (sizePx) {
-                container.querySelectorAll('img.twemoji').forEach(img => {
+                container.querySelectorAll('img.twemoji').forEach((img) => {
                     img.style.width = `${sizePx}px`;
                     img.style.height = `${sizePx}px`;
                 });
             }
         }
-    } catch (_) { }
+    } catch (_) {}
 }
 
 const FLAGS_CACHE_KEY = 'wplacer_flags_cache_v1';
-let FLAGS_CACHE = null; try { FLAGS_CACHE = JSON.parse(localStorage.getItem(FLAGS_CACHE_KEY) || 'null'); } catch (_) { FLAGS_CACHE = null; }
-const saveFlagsCache = () => { try { localStorage.setItem(FLAGS_CACHE_KEY, JSON.stringify(FLAGS_CACHE)); } catch (_) { } };
+let FLAGS_CACHE = null;
+try {
+    FLAGS_CACHE = JSON.parse(localStorage.getItem(FLAGS_CACHE_KEY) || 'null');
+} catch (_) {
+    FLAGS_CACHE = null;
+}
+const saveFlagsCache = () => {
+    try {
+        localStorage.setItem(FLAGS_CACHE_KEY, JSON.stringify(FLAGS_CACHE));
+    } catch (_) {}
+};
 
 // USERS_FLAG_STATE[userId] = { name, flagsBitmap(b64), equippedFlag, droplets }
 const USERS_FLAG_STATE = {};
 
 function bitmapToFlagIds(b64) {
-    const bytes = (typeof Buffer !== 'undefined' && Buffer.from)
-        ? Uint8Array.from(Buffer.from(b64, 'base64'))
-        : Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const L = bytes.length; const ids = [];
+    const bytes =
+        typeof Buffer !== 'undefined' && Buffer.from
+            ? Uint8Array.from(Buffer.from(b64, 'base64'))
+            : Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const L = bytes.length;
+    const ids = [];
     for (let i = 0; i < L; i++) {
-        const v = bytes[i]; if (v === 0) continue;
+        const v = bytes[i];
+        if (v === 0) continue;
         for (let bit = 0; bit < 8; bit++) if (v & (1 << bit)) ids.push((L - 1 - i) * 8 + bit);
     }
     return ids.sort((a, b) => a - b);
@@ -222,7 +250,8 @@ const renderLogLine = (raw) => {
         const isPurchase = /\uD83D\uDED2|🛒|\bBought\b/i.test(raw.line || '');
 
         const isSeparator = /^---\s+.*\s+---$/.test(raw.line || '');
-        const isValidationSection = /^---\s+(JSON Files Validation|Log Files Cleanup)/.test(raw.line || '') ||
+        const isValidationSection =
+            /^---\s+(JSON Files Validation|Log Files Cleanup)/.test(raw.line || '') ||
             /^✅\s+(File|All JSON files|All log files)/.test(raw.line || '') ||
             /^---\s+(JSON Files Validation|Log Files Cleanup)\s+Complete\s+---$/.test(raw.line || '') ||
             /^📊\s+Log file/.test(raw.line || '') ||
@@ -255,7 +284,7 @@ const renderLogLine = (raw) => {
 
         logsOutput.appendChild(div);
         logsOutput.parentElement.scrollTop = logsOutput.parentElement.scrollHeight;
-    } catch (_) { }
+    } catch (_) {}
 };
 
 const rerenderAllLogs = () => {
@@ -269,30 +298,49 @@ const maskLogText = (s) => {
         let t = String(s || '');
         // (nick#123456) -> (NickName#1111111)
         t = t.replace(/\([^)#]+#\d+\)/g, (m) => {
-            try { return m.replace(/\([^#)]+/, '(NickName').replace(/#\d+\)/, '#1111111)'); } catch { return '(NickName#1111111)'; }
+            try {
+                return m.replace(/\([^#)]+/, '(NickName').replace(/#\d+\)/, '#1111111)');
+            } catch {
+                return '(NickName#1111111)';
+            }
         });
         // #11240474 -> #1111111 (for 3+ digits)
         t = t.replace(/#\d{3,}/g, '#1111111');
         // tile 1227, 674 -> tile 1, 1
         t = t.replace(/tile\s+\d+\s*,\s*\d+/gi, 'tile 1, 1');
         return t;
-    } catch (_) { return String(s || ''); }
+    } catch (_) {
+        return String(s || '');
+    }
 };
 
 function startLogsStream() {
-    try { if (__sse) { __sse.close(); __sse = null; } } catch (_) { }
+    try {
+        if (__sse) {
+            __sse.close();
+            __sse = null;
+        }
+    } catch (_) {}
     try {
         __sse = new EventSource('/logs/stream');
         __sse.onmessage = (ev) => {
             try {
                 const data = JSON.parse(ev.data || '{}');
-                const rawObj = { line: String(data.line || ''), category: String(data.category || 'general'), level: String(data.level || 'info') };
+                const rawObj = {
+                    line: String(data.line || ''),
+                    category: String(data.category || 'general'),
+                    level: String(data.level || 'info'),
+                };
                 __logsRaw.push(rawObj);
                 renderLogLine(rawObj);
-            } catch (_) { }
+            } catch (_) {}
         };
-        __sse.onerror = () => { /* keep alive */ };
-    } catch (e) { console.warn('SSE init failed', e); }
+        __sse.onerror = () => {
+            /* keep alive */
+        };
+    } catch (e) {
+        console.warn('SSE init failed', e);
+    }
 }
 
 toggleMaskLogs?.addEventListener('click', () => {
@@ -314,26 +362,33 @@ const LAST_TOTALS_KEY = 'wplacer_latest_totals_v1';
 let LAST_USER_STATUS = {};
 try {
     LAST_USER_STATUS = JSON.parse(localStorage.getItem(LAST_STATUS_KEY) || '{}') || {};
-} catch (_) { LAST_USER_STATUS = {}; }
+} catch (_) {
+    LAST_USER_STATUS = {};
+}
 
 const saveLastStatus = () => {
-    try { localStorage.setItem(LAST_STATUS_KEY, JSON.stringify(LAST_USER_STATUS)); } catch (_) { }
+    try {
+        localStorage.setItem(LAST_STATUS_KEY, JSON.stringify(LAST_USER_STATUS));
+    } catch (_) {}
 };
 
 const saveLatestTotals = (totals) => {
-    try { localStorage.setItem(LAST_TOTALS_KEY, JSON.stringify(totals || {})); } catch (_) { }
+    try {
+        localStorage.setItem(LAST_TOTALS_KEY, JSON.stringify(totals || {}));
+    } catch (_) {}
 };
 
 const loadLatestTotals = () => {
-    try { return JSON.parse(localStorage.getItem(LAST_TOTALS_KEY) || 'null'); } catch (_) { return null; }
+    try {
+        return JSON.parse(localStorage.getItem(LAST_TOTALS_KEY) || 'null');
+    } catch (_) {
+        return null;
+    }
 };
 
-
-const seedCountHidden = $("seedCount");
-
+const seedCountHidden = $('seedCount');
 
 let templateUpdateInterval = null;
-
 
 let confirmCallback = null;
 
@@ -383,14 +438,13 @@ const closeMessageBox = () => {
     confirmCallback = null;
 };
 
-
-const proxyEnabled = $("proxyEnabled");
-const proxyFormContainer = $("proxyFormContainer");
-const proxyRotationMode = $("proxyRotationMode");
-const proxyCount = $("proxyCount");
-const reloadProxiesBtn = $("reloadProxiesBtn");
-const parallelWorkers = $("parallelWorkers");
-const logProxyUsage = $("logProxyUsage");
+const proxyEnabled = $('proxyEnabled');
+const proxyFormContainer = $('proxyFormContainer');
+const proxyRotationMode = $('proxyRotationMode');
+const proxyCount = $('proxyCount');
+const reloadProxiesBtn = $('reloadProxiesBtn');
+const parallelWorkers = $('parallelWorkers');
+const logProxyUsage = $('logProxyUsage');
 
 messageBoxConfirmBig.addEventListener('click', () => {
     if (confirmCallback) {
@@ -414,10 +468,11 @@ messageBoxCancel.addEventListener('click', () => {
     closeMessageBox();
 });
 
-
 const DISCLAIMER_KEY = 'wplacer_disclaimer_ack_v1';
 function showDisclaimerIfNeeded() {
-    try { if (localStorage.getItem(DISCLAIMER_KEY) === '1') return; } catch (_) { }
+    try {
+        if (localStorage.getItem(DISCLAIMER_KEY) === '1') return;
+    } catch (_) {}
     const content = `
       <div style="text-align:left; max-height:80vh; overflow:auto; line-height:1.45">
         <p><b>Important notice</b></p>
@@ -438,29 +493,55 @@ function showDisclaimerIfNeeded() {
     messageBoxConfirm.textContent = 'I understand and agree';
     messageBoxOverlay.classList.remove('hidden');
     confirmCallback = () => {
-        try { localStorage.setItem(DISCLAIMER_KEY, '1'); } catch (_) { }
+        try {
+            localStorage.setItem(DISCLAIMER_KEY, '1');
+        } catch (_) {}
     };
 }
 
 document.addEventListener('DOMContentLoaded', showDisclaimerIfNeeded);
 
-
-function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function escapeHtml(s) {
+    return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+}
 function renderMarkdown(md) {
     const lines = String(md || '').split(/\r?\n/);
     let html = '';
     let listDepth = 0;
-    const openList = () => { html += '<ul>'; listDepth += 1; };
-    const closeList = () => { html += '</ul>'; listDepth -= 1; };
-    const flushAllLists = () => { while (listDepth > 0) closeList(); };
+    const openList = () => {
+        html += '<ul>';
+        listDepth += 1;
+    };
+    const closeList = () => {
+        html += '</ul>';
+        listDepth -= 1;
+    };
+    const flushAllLists = () => {
+        while (listDepth > 0) closeList();
+    };
 
     for (const raw of lines) {
         const line = raw.replace(/\s+$/, '');
-        if (!line.trim()) { flushAllLists(); continue; }
+        if (!line.trim()) {
+            flushAllLists();
+            continue;
+        }
 
-        if (line.startsWith('### ')) { flushAllLists(); html += `<h3>${escapeHtml(line.slice(4))}</h3>`; continue; }
-        if (line.startsWith('## ')) { flushAllLists(); html += `<h2>${escapeHtml(line.slice(3))}</h2>`; continue; }
-        if (line.startsWith('# ')) { flushAllLists(); html += `<h1>${escapeHtml(line.slice(2))}</h1>`; continue; }
+        if (line.startsWith('### ')) {
+            flushAllLists();
+            html += `<h3>${escapeHtml(line.slice(4))}</h3>`;
+            continue;
+        }
+        if (line.startsWith('## ')) {
+            flushAllLists();
+            html += `<h2>${escapeHtml(line.slice(3))}</h2>`;
+            continue;
+        }
+        if (line.startsWith('# ')) {
+            flushAllLists();
+            html += `<h1>${escapeHtml(line.slice(2))}</h1>`;
+            continue;
+        }
 
         const m = line.match(/^(\s*)-\s+(.*)$/);
         if (m) {
@@ -494,7 +575,7 @@ async function checkVersionAndWarn() {
         try {
             const ignored = String(localStorage.getItem('wplacer_ignore_version') || '');
             if (outdated && latest && ignored === latest) return;
-        } catch (_) { }
+        } catch (_) {}
 
         if (outdated) {
             let changelog = '';
@@ -506,7 +587,7 @@ async function checkVersionAndWarn() {
                     const mdHtml = renderMarkdown(content);
                     changelog = `<div style="max-height:60vh; overflow:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background: rgba(255,255,255,.04); text-align: left;">${mdHtml}</div>`;
                 }
-            } catch (_) { }
+            } catch (_) {}
 
             const html = `A new version is available.<br><br>
                 <b>Current:</b> ${data.local}<br>
@@ -520,22 +601,25 @@ async function checkVersionAndWarn() {
                 if (typeof messageBoxCancelBig !== 'undefined' && typeof messageBoxConfirmBig !== 'undefined') {
                     messageBoxCancelBig.classList.remove('hidden');
                     messageBoxConfirmBig.textContent = 'OK';
-                    messageBoxCancelBig.textContent = latest ? `Don't remind for ${latest}` : `Don't remind for this version`;
+                    messageBoxCancelBig.textContent = latest
+                        ? `Don't remind for ${latest}`
+                        : `Don't remind for this version`;
 
                     messageBoxConfirmBig.onclick = () => {
                         closeMessageBoxBig();
                     };
                     messageBoxCancelBig.onclick = () => {
-                        try { localStorage.setItem('wplacer_ignore_version', latest || ''); } catch (_) { }
+                        try {
+                            localStorage.setItem('wplacer_ignore_version', latest || '');
+                        } catch (_) {}
                         closeMessageBoxBig();
                     };
                 }
-            } catch (_) { }
+            } catch (_) {}
         }
-    } catch (_) { }
+    } catch (_) {}
 }
 document.addEventListener('DOMContentLoaded', checkVersionAndWarn);
-
 
 const CHANGELOG_ACK_KEY = 'wplacer_ack_version';
 async function showChangelogOnFirstLoad() {
@@ -546,7 +630,11 @@ async function showChangelogOnFirstLoad() {
         if (!local || outdated) return;
 
         let ack = '';
-        try { ack = String(localStorage.getItem(CHANGELOG_ACK_KEY) || ''); } catch (_) { ack = ''; }
+        try {
+            ack = String(localStorage.getItem(CHANGELOG_ACK_KEY) || '');
+        } catch (_) {
+            ack = '';
+        }
         if (ack === local) return;
 
         let changelog = '';
@@ -557,20 +645,22 @@ async function showChangelogOnFirstLoad() {
                 const mdHtml = renderMarkdown(content);
                 changelog = `<div style="max-height:60vh; overflow:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background: rgba(255,255,255,.04); text-align: left;">${mdHtml}</div>`;
             }
-        } catch (_) { }
+        } catch (_) {}
 
         const html = `<b>Updated to</b> ${local}<br><br>${changelog || 'No changelog available.'}`;
         showMessageBig('Changelog', html);
 
         try {
             messageBoxConfirmBig.onclick = () => {
-                try { localStorage.setItem(CHANGELOG_ACK_KEY, local); } catch (_) { }
+                try {
+                    localStorage.setItem(CHANGELOG_ACK_KEY, local);
+                } catch (_) {}
                 closeMessageBoxBig();
             };
             messageBoxCancelBig.classList.add('hidden');
             messageBoxConfirmBig.textContent = 'OK';
-        } catch (_) { }
-    } catch (_) { }
+        } catch (_) {}
+    } catch (_) {}
 }
 document.addEventListener('DOMContentLoaded', showChangelogOnFirstLoad);
 
@@ -585,62 +675,130 @@ previewSpeed?.addEventListener('input', (e) => {
 
 const handleError = (error) => {
     console.error(error);
-    let message = "An unknown error occurred. Check the console for details.";
+    let message = 'An unknown error occurred. Check the console for details.';
 
     if (error.code === 'ERR_NETWORK') {
-        message = "Could not connect to the server. Please ensure the bot is running and accessible.";
+        message = 'Could not connect to the server. Please ensure the bot is running and accessible.';
     } else if (error.response && error.response.data && error.response.data.error) {
         const errMsg = error.response.data.error;
-        if (errMsg.includes("(1015)")) {
-            message = "You are being rate-limited by the server. Please wait a moment before trying again.";
-        } else if (errMsg.includes("(500)")) {
-            message = "Authentication failed. The user's cookie may be expired or invalid. Please try adding the user again with a new cookie.";
-        } else if (errMsg.includes("(502)")) {
-            message = "The server reported a Bad Gateway (502). It might be restarting. Try again shortly.";
+        if (errMsg.includes('(1015)')) {
+            message = 'You are being rate-limited by the server. Please wait a moment before trying again.';
+        } else if (errMsg.includes('(500)')) {
+            message =
+                "Authentication failed. The user's cookie may be expired or invalid. Please try adding the user again with a new cookie.";
+        } else if (errMsg.includes('(502)')) {
+            message = 'The server reported a Bad Gateway (502). It might be restarting. Try again shortly.';
         } else {
             message = errMsg; // Show the full error if it's not a known one
         }
     }
-    showMessage("Error", message);
+    showMessage('Error', message);
 };
-
 
 const loadUsers = async (f) => {
     try {
-        const users = await axios.get("/users");
+        const users = await axios.get('/users');
         if (f) f(users.data);
     } catch (error) {
         handleError(error);
-    };
+    }
 };
 userForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
         const response = await axios.post('/user', { cookies: { s: scookie.value, j: jcookie.value } });
         if (response.status === 200) {
-            showMessage("Success", `Logged in as ${response.data.name} (#${response.data.id})!`);
+            showMessage('Success', `Logged in as ${response.data.name} (#${response.data.id})!`);
             userForm.reset();
             openManageUsers.click();
         }
     } catch (error) {
         handleError(error);
-    };
+    }
 });
 
-
-const basic_colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
-const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
+const basic_colors = {
+    '0,0,0': 1,
+    '60,60,60': 2,
+    '120,120,120': 3,
+    '210,210,210': 4,
+    '255,255,255': 5,
+    '96,0,24': 6,
+    '237,28,36': 7,
+    '255,127,39': 8,
+    '246,170,9': 9,
+    '249,221,59': 10,
+    '255,250,188': 11,
+    '14,185,104': 12,
+    '19,230,123': 13,
+    '135,255,94': 14,
+    '12,129,110': 15,
+    '16,174,166': 16,
+    '19,225,190': 17,
+    '40,80,158': 18,
+    '64,147,228': 19,
+    '96,247,242': 20,
+    '107,80,246': 21,
+    '153,177,251': 22,
+    '120,12,153': 23,
+    '170,56,185': 24,
+    '224,159,249': 25,
+    '203,0,122': 26,
+    '236,31,128': 27,
+    '243,141,169': 28,
+    '104,70,52': 29,
+    '149,104,42': 30,
+    '248,178,119': 31,
+};
+const premium_colors = {
+    '170,170,170': 32,
+    '165,14,30': 33,
+    '250,128,114': 34,
+    '228,92,26': 35,
+    '214,181,148': 36,
+    '156,132,49': 37,
+    '197,173,49': 38,
+    '232,212,95': 39,
+    '74,107,58': 40,
+    '90,148,74': 41,
+    '132,197,115': 42,
+    '15,121,159': 43,
+    '187,250,242': 44,
+    '125,199,255': 45,
+    '77,49,184': 46,
+    '74,66,132': 47,
+    '122,113,196': 48,
+    '181,174,241': 49,
+    '219,164,99': 50,
+    '209,128,81': 51,
+    '255,197,165': 52,
+    '155,82,73': 53,
+    '209,128,120': 54,
+    '250,182,164': 55,
+    '123,99,82': 56,
+    '156,132,107': 57,
+    '51,57,65': 58,
+    '109,117,141': 59,
+    '179,185,209': 60,
+    '109,100,63': 61,
+    '148,140,107': 62,
+    '205,197,158': 63,
+};
 const colors = { ...basic_colors, ...premium_colors };
 
-const colorById = (id) => Object.keys(colors).find(key => colors[key] === id);
+const colorById = (id) => Object.keys(colors).find((key) => colors[key] === id);
 const closest = (rgb) => {
     const [tr, tg, tb] = rgb.split(',').map(Number);
-    const palette = (usePaidColors && usePaidColors.checked) ? colors : basic_colors;
-    let bestKey = null, best = Infinity;
+    const palette = usePaidColors && usePaidColors.checked ? colors : basic_colors;
+    let bestKey = null,
+        best = Infinity;
     for (const key in palette) {
         const [r, g, b] = key.split(',').map(Number);
         const d = (tr - r) * (tr - r) + (tg - g) * (tg - g) + (tb - b) * (tb - b);
-        if (d < best) { best = d; bestKey = key; }
+        if (d < best) {
+            best = d;
+            bestKey = key;
+        }
     }
     return palette[bestKey];
 };
@@ -648,7 +806,7 @@ const closest = (rgb) => {
 const drawTemplate = (template, canvas) => {
     canvas.width = template.width;
     canvas.height = template.height;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, template.width, template.height);
     const imageData = new ImageData(template.width, template.height);
     for (let x = 0; x < template.width; x++) {
@@ -675,15 +833,14 @@ const drawTemplate = (template, canvas) => {
 
 const loadTemplates = async (f) => {
     try {
-        const templates = await axios.get("/templates");
+        const templates = await axios.get('/templates');
         if (f) f(templates.data);
     } catch (error) {
         handleError(error);
-    };
+    }
 };
 
 let previewRenderId = 0;
-
 
 const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     const RID = ++previewRenderId;
@@ -701,7 +858,6 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     const startTileY = Math.floor(startY / TILE_SIZE);
     const endTileX = Math.floor((endX - 1) / TILE_SIZE);
     const endTileY = Math.floor((endY - 1) / TILE_SIZE);
-
 
     const buffer = document.createElement('canvas');
     buffer.width = displayWidth;
@@ -722,10 +878,10 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
                     await img.decode();
                     if (RID !== previewRenderId) return;
 
-                    const sx = (txi === startTileX) ? startX - txi * TILE_SIZE : 0;
-                    const sy = (tyi === startTileY) ? startY - tyi * TILE_SIZE : 0;
-                    const ex = (txi === endTileX) ? endX - txi * TILE_SIZE : TILE_SIZE;
-                    const ey = (tyi === endTileY) ? endY - tyi * TILE_SIZE : TILE_SIZE;
+                    const sx = txi === startTileX ? startX - txi * TILE_SIZE : 0;
+                    const sy = tyi === startTileY ? startY - tyi * TILE_SIZE : 0;
+                    const ex = txi === endTileX ? endX - txi * TILE_SIZE : TILE_SIZE;
+                    const ey = tyi === endTileY ? endY - tyi * TILE_SIZE : TILE_SIZE;
                     const sw = ex - sx;
                     const sh = ey - sy;
                     const dx = txi * TILE_SIZE + sx - startX;
@@ -742,7 +898,6 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     if (RID !== previewRenderId) return;
     if (RID !== previewRenderId) return;
 
-
     previewCanvas.width = displayWidth;
     previewCanvas.height = displayHeight;
     const ctx = previewCanvas.getContext('2d');
@@ -750,12 +905,10 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     ctx.clearRect(0, 0, displayWidth, displayHeight);
     ctx.drawImage(buffer, 0, 0);
 
-
     ctx.globalAlpha = 0.5;
     ctx.drawImage(templateCanvas, radius, radius);
     ctx.globalAlpha = 1;
 };
-
 
 let MT_PREVIEW_RENDER_ID = 0;
 
@@ -798,7 +951,7 @@ function ensureMtPreviewOverlay() {
     close.style.cssText = `
         background: var(--bg-2); border: 1px solid var(--border); color:#ddd; padding:6px 10px; border-radius:6px; cursor:pointer;
     `;
-    close.addEventListener('click', () => overlay.style.display = 'none');
+    close.addEventListener('click', () => (overlay.style.display = 'none'));
 
     head.append(title, close);
 
@@ -843,8 +996,6 @@ function ensureMtPreviewOverlay() {
         background: var(--bg-2); border:1px solid var(--border); color:#ddd; padding:4px 8px; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:12px;
     `;
 
-
-
     const btnRefresh = document.createElement('button');
     btnRefresh.id = 'mtRefreshCanvas';
     btnRefresh.type = 'button';
@@ -853,14 +1004,15 @@ function ensureMtPreviewOverlay() {
         background: var(--bg-2); border:1px solid var(--border); color:#ddd; padding:4px 8px; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:12px;
     `;
 
-
-
     const overlayScaleWrap = document.createElement('div');
     overlayScaleWrap.style.cssText = 'display:flex; align-items:center; gap:6px; color:#ddd; font-size:12px;';
     const overlayScaleLabel = document.createElement('label');
     overlayScaleLabel.setAttribute('for', 'mtOverlayPixelScale');
     overlayScaleLabel.style.cssText = 'margin:0px;';
-    const overlayScalePercent = Math.max(50, Math.min(100, parseInt(localStorage.getItem('wplacer_overlay_pixel_scale') || '100', 10) || 100));
+    const overlayScalePercent = Math.max(
+        50,
+        Math.min(100, parseInt(localStorage.getItem('wplacer_overlay_pixel_scale') || '100', 10) || 100)
+    );
     const overlayScaleLabelText = document.createElement('span');
     overlayScaleLabelText.id = 'mtOverlayPixelScaleLabel';
     overlayScaleLabelText.textContent = `${overlayScalePercent}%`;
@@ -911,13 +1063,16 @@ function ensureMtPreviewOverlay() {
     `;
 
     // Build compact grouped controls
-    const groupStyle = 'display:flex; align-items:center; gap:4px; padding:4px 6px; background: var(--bg-1); border:1px solid var(--border); border-radius:6px;';
+    const groupStyle =
+        'display:flex; align-items:center; gap:4px; padding:4px 6px; background: var(--bg-1); border:1px solid var(--border); border-radius:6px;';
     const groupStyleTop = 'display:flex; align-items:center; gap:2px; border-radius:6px;';
     const overlayGroup = document.createElement('div');
     overlayGroup.className = 'mt-ctrl-group overlay';
     overlayGroup.style.cssText = groupStyle;
     // tighten overlay pixel label
-    try { overlayScaleWrap.querySelector('label')?.appendChild(document.createTextNode('')); } catch (_) { }
+    try {
+        overlayScaleWrap.querySelector('label')?.appendChild(document.createTextNode(''));
+    } catch (_) {}
     overlayGroup.append(btnOverlay, overlayScaleWrap);
 
     const heatGroup = document.createElement('div');
@@ -949,7 +1104,6 @@ function ensureMtPreviewOverlay() {
     stats.id = 'mtPreviewStats';
     stats.style.cssText = 'color:#ddd; font-size:12px;';
 
-
     const palWrap = document.createElement('div');
     palWrap.id = 'mtPreviewPaletteWrap';
     palWrap.style.cssText = 'margin-top:6px;';
@@ -971,7 +1125,9 @@ function ensureMtPreviewOverlay() {
     overlay.append(box);
     document.body.append(overlay);
 
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.style.display = 'none'; });
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.style.display = 'none';
+    });
     window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && overlay.style.display !== 'none') overlay.style.display = 'none';
     });
@@ -1002,8 +1158,14 @@ async function showManageTemplatePreview(t) {
     const width = t.template?.width || 0;
     const height = t.template?.height || 0;
 
-    if (!Number.isFinite(txVal) || !Number.isFinite(tyVal) || !Number.isFinite(pxVal) || !Number.isFinite(pyVal) || width === 0) {
-        showMessage("Error", "Template has no image or invalid coordinates.");
+    if (
+        !Number.isFinite(txVal) ||
+        !Number.isFinite(tyVal) ||
+        !Number.isFinite(pxVal) ||
+        !Number.isFinite(pyVal) ||
+        width === 0
+    ) {
+        showMessage('Error', 'Template has no image or invalid coordinates.');
         return;
     }
 
@@ -1030,10 +1192,7 @@ async function showManageTemplatePreview(t) {
         // clear before refill
         bctx.clearRect(0, 0, displayWidth, displayHeight);
         for (let txi = startTileX; txi <= endTileX; txi++) {
-            for (let tyi = startTileY; tyi <= endTileY; tyi++) {
-
-
-            }
+            for (let tyi = startTileY; tyi <= endTileY; tyi++) {}
         }
         const tileTasks = [];
         const concurrency = 8;
@@ -1048,10 +1207,10 @@ async function showManageTemplatePreview(t) {
                     await img.decode();
                     if (RID !== MT_PREVIEW_RENDER_ID) return;
 
-                    const sx = (txi === startTileX) ? (startX - txi * TILE_SIZE) : 0;
-                    const sy = (tyi === startTileY) ? (startY - tyi * TILE_SIZE) : 0;
-                    const ex = (txi === endTileX) ? (endX - txi * TILE_SIZE) : TILE_SIZE;
-                    const ey = (tyi === endTileY) ? (endY - tyi * TILE_SIZE) : TILE_SIZE;
+                    const sx = txi === startTileX ? startX - txi * TILE_SIZE : 0;
+                    const sy = tyi === startTileY ? startY - tyi * TILE_SIZE : 0;
+                    const ex = txi === endTileX ? endX - txi * TILE_SIZE : TILE_SIZE;
+                    const ey = tyi === endTileY ? endY - tyi * TILE_SIZE : TILE_SIZE;
                     const sw = ex - sx;
                     const sh = ey - sy;
                     const dx = txi * TILE_SIZE + sx - startX;
@@ -1063,7 +1222,13 @@ async function showManageTemplatePreview(t) {
         }
         await processInParallel(tileTasks, concurrency);
     }
-    try { await loadTilesIntoBuffer(); if (RID !== MT_PREVIEW_RENDER_ID) return; } catch (error) { handleError(error); return; }
+    try {
+        await loadTilesIntoBuffer();
+        if (RID !== MT_PREVIEW_RENDER_ID) return;
+    } catch (error) {
+        handleError(error);
+        return;
+    }
 
     const SCALE = 4;
     let src = bctx.getImageData(0, 0, displayWidth, displayHeight).data;
@@ -1071,11 +1236,12 @@ async function showManageTemplatePreview(t) {
     const rgbOfId = (id) => {
         const s = colorById(id);
         if (!s) return null;
-        const [r, g, b] = s.split(',').map(n => parseInt(n, 10));
+        const [r, g, b] = s.split(',').map((n) => parseInt(n, 10));
         return [r, g, b];
     };
 
-    let totalTpl = 0, matched = 0;
+    let totalTpl = 0,
+        matched = 0;
     for (let y = 0; y < displayHeight; y++) {
         for (let x = 0; x < displayWidth; x++) {
             const id = t.template?.data?.[x]?.[y] ?? 0;
@@ -1083,14 +1249,16 @@ async function showManageTemplatePreview(t) {
                 totalTpl++;
                 const tplRGB = rgbOfId(id);
                 const i = (y * displayWidth + x) * 4;
-                const br = src[i], bg = src[i + 1], bb = src[i + 2], ba = src[i + 3];
+                const br = src[i],
+                    bg = src[i + 1],
+                    bb = src[i + 2],
+                    ba = src[i + 3];
                 if (tplRGB && ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]) matched++;
             }
         }
     }
     const pct = totalTpl ? (matched / totalTpl) * 100 : 0;
     statsEl.textContent = `Matches: ${matched} / ${totalTpl} (${(Math.round(pct * 100) / 100).toFixed(2)}%)`;
-
 
     try {
         const left = new Map();
@@ -1099,26 +1267,30 @@ async function showManageTemplatePreview(t) {
                 const id = t.template?.data?.[x]?.[y] ?? 0;
                 if (id <= 0) continue;
                 const i = (y * displayWidth + x) * 4;
-                const br = src[i], bg = src[i + 1], bb = src[i + 2], ba = src[i + 3];
+                const br = src[i],
+                    bg = src[i + 1],
+                    bb = src[i + 2],
+                    ba = src[i + 3];
                 const tplRGB = rgbOfId(id);
                 if (!tplRGB) continue;
-                const ok = (ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]);
+                const ok = ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2];
                 if (!ok) left.set(id, (left.get(id) || 0) + 1);
             }
         }
         const grid = document.getElementById('mtPreviewPaletteGrid');
         if (grid) {
             grid.innerHTML = '';
-            const entries = Array.from(left.entries()).sort((a, b) => (b[1] - a[1]) || (a[0] - b[0]));
+            const entries = Array.from(left.entries()).sort((a, b) => b[1] - a[1] || a[0] - b[0]);
             let totalLeft = 0;
             for (const [, cnt] of entries) totalLeft += cnt;
             if (palTitleEl) palTitleEl.textContent = `Remaining colors (${totalLeft})`;
             for (const [cid, cnt] of entries) {
-                const rgbKey = Object.keys(colors).find(k => colors[k] === cid);
-                const [r, g, b] = (rgbKey || '0,0,0').split(',').map(n => parseInt(n, 10) || 0);
+                const rgbKey = Object.keys(colors).find((k) => colors[k] === cid);
+                const [r, g, b] = (rgbKey || '0,0,0').split(',').map((n) => parseInt(n, 10) || 0);
                 const textColor = getContrastColor(r, g, b);
                 const cell = document.createElement('div');
-                cell.style.cssText = 'display:flex; flex-direction:column; align-items:center; gap:2px; padding:4px; border:1px solid var(--border); border-radius:6px; background: var(--bg-2)';
+                cell.style.cssText =
+                    'display:flex; flex-direction:column; align-items:center; gap:2px; padding:4px; border:1px solid var(--border); border-radius:6px; background: var(--bg-2)';
                 const sw = document.createElement('div');
                 sw.style.cssText = `width:28px; height:20px; border-radius:4px; background: rgb(${r},${g},${b}); color:${textColor}; display:flex; align-items:center; justify-content:center; font-size:11px;`;
                 sw.textContent = `#${cid}`;
@@ -1136,7 +1308,7 @@ async function showManageTemplatePreview(t) {
                 grid.appendChild(none);
             }
         }
-    } catch (_) { }
+    } catch (_) {}
 
     preview.width = displayWidth * SCALE;
     preview.height = displayHeight * SCALE;
@@ -1163,7 +1335,10 @@ async function showManageTemplatePreview(t) {
 
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-    const initialOverlayScale = Math.max(0.5, Math.min(1, ((parseInt((overlayScaleInput && overlayScaleInput.value) || '100', 10) || 100) / 100)));
+    const initialOverlayScale = Math.max(
+        0.5,
+        Math.min(1, (parseInt((overlayScaleInput && overlayScaleInput.value) || '100', 10) || 100) / 100)
+    );
     const STATE = {
         w: displayWidth,
         h: displayHeight,
@@ -1187,7 +1362,7 @@ async function showManageTemplatePreview(t) {
         showHeatmap: false,
         heatCount: 0,
         heatMax: 0,
-        heatData: []
+        heatData: [],
     };
 
     function drawOverlayMiniFit() {
@@ -1197,7 +1372,10 @@ async function showManageTemplatePreview(t) {
             for (let x = 0; x < STATE.w; x++) {
                 const id = STATE.template?.data?.[x]?.[y] ?? 0;
                 const i = (y * STATE.w + x) * 4;
-                const br = STATE.src[i], bg = STATE.src[i + 1], bb = STATE.src[i + 2], ba = STATE.src[i + 3];
+                const br = STATE.src[i],
+                    bg = STATE.src[i + 1],
+                    bb = STATE.src[i + 2],
+                    ba = STATE.src[i + 3];
                 if (id > 0) {
                     const tplRGB = rgbOfId(id);
                     if (!tplRGB) continue;
@@ -1207,7 +1385,6 @@ async function showManageTemplatePreview(t) {
                     pctx.fillStyle = `rgb(${tplRGB[0]},${tplRGB[1]},${tplRGB[2]})`;
                     pctx.fillRect(dx, dy, MINI, MINI);
                 } else if (STATE.paintTransparent) {
-
                     if (ba !== 0) {
                         const dx = x * STATE.SCALE + OFF;
                         const dy = y * STATE.SCALE + OFF;
@@ -1228,7 +1405,10 @@ async function showManageTemplatePreview(t) {
             for (let x = sx; x < sx + vw; x++) {
                 const id = STATE.template?.data?.[x]?.[y] ?? 0;
                 const i = (y * STATE.w + x) * 4;
-                const br = STATE.src[i], bg = STATE.src[i + 1], bb = STATE.src[i + 2], ba = STATE.src[i + 3];
+                const br = STATE.src[i],
+                    bg = STATE.src[i + 1],
+                    bb = STATE.src[i + 2],
+                    ba = STATE.src[i + 3];
                 if (id > 0) {
                     const tplRGB = rgbOfId(id);
                     if (!tplRGB) continue;
@@ -1255,7 +1435,10 @@ async function showManageTemplatePreview(t) {
             for (let x = 0; x < STATE.w; x++) {
                 const id = STATE.template?.data?.[x]?.[y] ?? 0;
                 const i = (y * STATE.w + x) * 4;
-                const br = STATE.src[i], bg = STATE.src[i + 1], bb = STATE.src[i + 2], ba = STATE.src[i + 3];
+                const br = STATE.src[i],
+                    bg = STATE.src[i + 1],
+                    bb = STATE.src[i + 2],
+                    ba = STATE.src[i + 3];
                 if (id > 0) {
                     const tplRGB = rgbOfId(id);
                     if (!tplRGB) continue;
@@ -1274,14 +1457,17 @@ async function showManageTemplatePreview(t) {
             for (let x = sx; x < sx + vw; x++) {
                 const id = STATE.template?.data?.[x]?.[y] ?? 0;
                 const i = (y * STATE.w + x) * 4;
-                const br = STATE.src[i], bg = STATE.src[i + 1], bb = STATE.src[i + 2], ba = STATE.src[i + 3];
+                const br = STATE.src[i],
+                    bg = STATE.src[i + 1],
+                    bb = STATE.src[i + 2],
+                    ba = STATE.src[i + 3];
                 let mismatch = false;
                 if (id > 0) {
                     const tplRGB = rgbOfId(id);
                     if (!tplRGB) continue;
                     mismatch = !(ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]);
                 } else if (STATE.paintTransparent) {
-                    mismatch = (ba !== 0);
+                    mismatch = ba !== 0;
                 } else {
                     mismatch = false;
                 }
@@ -1292,8 +1478,6 @@ async function showManageTemplatePreview(t) {
             }
         }
     }
-
-
 
     function drawFit() {
         pctx.clearRect(0, 0, preview.width, preview.height);
@@ -1307,7 +1491,10 @@ async function showManageTemplatePreview(t) {
     function drawZoom() {
         let vw = Math.max(1, Math.round(STATE.w / STATE.zoom));
         let vh = Math.max(1, Math.round(STATE.h / STATE.zoom));
-        if (STATE.zoom >= STATE.maxZoom) { vw = 1; vh = 1; }
+        if (STATE.zoom >= STATE.maxZoom) {
+            vw = 1;
+            vh = 1;
+        }
         const cellW = preview.width / vw;
         const cellH = preview.height / vh;
 
@@ -1414,31 +1601,52 @@ async function showManageTemplatePreview(t) {
 
     function updateButtons() {
         // Update aria-pressed and pressed class
-        const setState = (el, on) => { if (!el) return; el.setAttribute('aria-pressed', on ? 'true' : 'false'); if (on) el.classList.add('pressed'); else el.classList.remove('pressed'); };
+        const setState = (el, on) => {
+            if (!el) return;
+            el.setAttribute('aria-pressed', on ? 'true' : 'false');
+            if (on) el.classList.add('pressed');
+            else el.classList.remove('pressed');
+        };
         setState(btnOverlay, STATE.showOverlay);
         setState(btnMismatch, STATE.highlightMismatch);
         const btnHeatmap = document.getElementById('mtToggleHeatmap');
         setState(btnHeatmap, STATE.showHeatmap);
     }
 
-    btnOverlay.onclick = () => { STATE.showOverlay = !STATE.showOverlay; updateButtons(); render(); };
-    btnMismatch.onclick = () => { STATE.highlightMismatch = !STATE.highlightMismatch; updateButtons(); render(); };
-    if (btnHeatmap) btnHeatmap.onclick = () => { if (STATE.heatMax === 0) return; STATE.showHeatmap = !STATE.showHeatmap; updateButtons(); render(); };
-
-    if (overlayScaleInput) overlayScaleInput.addEventListener('input', () => {
-        let v = parseInt(overlayScaleInput.value, 10);
-        if (!Number.isFinite(v)) v = 100;
-        v = Math.max(50, Math.min(100, v));
-        overlayScaleInput.value = String(v);
-        if (overlayScaleLabelText) overlayScaleLabelText.textContent = `${v}%`;
-        localStorage.setItem('wplacer_overlay_pixel_scale', String(v));
-        STATE.overlayPixelScale = v / 100;
+    btnOverlay.onclick = () => {
+        STATE.showOverlay = !STATE.showOverlay;
+        updateButtons();
         render();
-    });
+    };
+    btnMismatch.onclick = () => {
+        STATE.highlightMismatch = !STATE.highlightMismatch;
+        updateButtons();
+        render();
+    };
+    if (btnHeatmap)
+        btnHeatmap.onclick = () => {
+            if (STATE.heatMax === 0) return;
+            STATE.showHeatmap = !STATE.showHeatmap;
+            updateButtons();
+            render();
+        };
+
+    if (overlayScaleInput)
+        overlayScaleInput.addEventListener('input', () => {
+            let v = parseInt(overlayScaleInput.value, 10);
+            if (!Number.isFinite(v)) v = 100;
+            v = Math.max(50, Math.min(100, v));
+            overlayScaleInput.value = String(v);
+            if (overlayScaleLabelText) overlayScaleLabelText.textContent = `${v}%`;
+            localStorage.setItem('wplacer_overlay_pixel_scale', String(v));
+            STATE.overlayPixelScale = v / 100;
+            render();
+        });
 
     async function recalcStatsAndPalette() {
         // matches
-        let totalTpl = 0, matched = 0;
+        let totalTpl = 0,
+            matched = 0;
         for (let y = 0; y < displayHeight; y++) {
             for (let x = 0; x < displayWidth; x++) {
                 const id = t.template?.data?.[x]?.[y] ?? 0;
@@ -1446,7 +1654,10 @@ async function showManageTemplatePreview(t) {
                     totalTpl++;
                     const tplRGB = rgbOfId(id);
                     const i = (y * displayWidth + x) * 4;
-                    const br = src[i], bg = src[i + 1], bb = src[i + 2], ba = src[i + 3];
+                    const br = src[i],
+                        bg = src[i + 1],
+                        bb = src[i + 2],
+                        ba = src[i + 3];
                     if (tplRGB && ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]) matched++;
                 }
             }
@@ -1462,26 +1673,30 @@ async function showManageTemplatePreview(t) {
                     const id = t.template?.data?.[x]?.[y] ?? 0;
                     if (id <= 0) continue;
                     const i = (y * displayWidth + x) * 4;
-                    const br = src[i], bg = src[i + 1], bb = src[i + 2], ba = src[i + 3];
+                    const br = src[i],
+                        bg = src[i + 1],
+                        bb = src[i + 2],
+                        ba = src[i + 3];
                     const tplRGB = rgbOfId(id);
                     if (!tplRGB) continue;
-                    const ok = (ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2]);
+                    const ok = ba === 255 && br === tplRGB[0] && bg === tplRGB[1] && bb === tplRGB[2];
                     if (!ok) left.set(id, (left.get(id) || 0) + 1);
                 }
             }
             const grid = document.getElementById('mtPreviewPaletteGrid');
             if (grid) {
                 grid.innerHTML = '';
-                const entries = Array.from(left.entries()).sort((a, b) => (b[1] - a[1]) || (a[0] - b[0]));
+                const entries = Array.from(left.entries()).sort((a, b) => b[1] - a[1] || a[0] - b[0]);
                 let totalLeft = 0;
                 for (const [cid, cnt] of entries) totalLeft += cnt;
                 if (palTitleEl) palTitleEl.textContent = `Remaining colors (${totalLeft})`;
                 for (const [cid, cnt] of entries) {
-                    const rgbKey = Object.keys(colors).find(k => colors[k] === cid);
-                    const [r, g, b] = (rgbKey || '0,0,0').split(',').map(n => parseInt(n, 10) || 0);
+                    const rgbKey = Object.keys(colors).find((k) => colors[k] === cid);
+                    const [r, g, b] = (rgbKey || '0,0,0').split(',').map((n) => parseInt(n, 10) || 0);
                     const textColor = getContrastColor(r, g, b);
                     const cell = document.createElement('div');
-                    cell.style.cssText = 'display:flex; flex-direction:column; align-items:center; gap:2px; padding:4px; border:1px solid var(--border); border-radius:6px; background: var(--bg-2)';
+                    cell.style.cssText =
+                        'display:flex; flex-direction:column; align-items:center; gap:2px; padding:4px; border:1px solid var(--border); border-radius:6px; background: var(--bg-2)';
                     const sw = document.createElement('div');
                     sw.style.cssText = `width:28px; height:20px; border-radius:4px; background: rgb(${r},${g},${b}); color:${textColor}; display:flex; align-items:center; justify-content:center; font-size:11px;`;
                     sw.textContent = `#${cid}`;
@@ -1499,7 +1714,7 @@ async function showManageTemplatePreview(t) {
                     grid.appendChild(none);
                 }
             }
-        } catch (_) { }
+        } catch (_) {}
     }
 
     // --- Heatmap logic ---
@@ -1511,9 +1726,19 @@ async function showManageTemplatePreview(t) {
             const text = await resp.text();
             const lines = text.split(/\r?\n/).filter(Boolean);
             // Latest entries are at the end of file because we append
-            const arr = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+            const arr = lines
+                .map((l) => {
+                    try {
+                        return JSON.parse(l);
+                    } catch {
+                        return null;
+                    }
+                })
+                .filter(Boolean);
             return arr;
-        } catch { return []; }
+        } catch {
+            return [];
+        }
     }
 
     function drawHeatmapFit() {
@@ -1528,7 +1753,8 @@ async function showManageTemplatePreview(t) {
         const used = STATE.heatData.slice(start);
         for (let i = 0; i < used.length; i++) {
             const rec = used[i];
-            const x = (rec['Px X'] | 0), y = (rec['Px Y'] | 0);
+            const x = rec['Px X'] | 0,
+                y = rec['Px Y'] | 0;
             const ageIdx = used.length - 1 - i; // 0 = newest, grow older
             const alpha = 1.0 - (ageIdx / Math.max(1, used.length - 1)) * 0.9; // 1.0 .. 0.1
             pctx.fillStyle = `rgba(255,0,0,${alpha.toFixed(3)})`;
@@ -1546,7 +1772,8 @@ async function showManageTemplatePreview(t) {
         const used = STATE.heatData.slice(start);
         for (let i = 0; i < used.length; i++) {
             const rec = used[i];
-            const x = (rec['Px X'] | 0), y = (rec['Px Y'] | 0);
+            const x = rec['Px X'] | 0,
+                y = rec['Px Y'] | 0;
             if (x < sx || y < sy || x >= sx + vw || y >= sy + vh) continue;
             const ageIdx = used.length - 1 - i;
             const alpha = 1.0 - (ageIdx / Math.max(1, used.length - 1)) * 0.9; // 1.0 .. 0.1
@@ -1566,9 +1793,11 @@ async function showManageTemplatePreview(t) {
                 // Try to find id from list API if not present in object
                 try {
                     const { data } = await axios.get('/templates');
-                    const entry = Object.entries(data || {}).find(([k, v]) => v && v.name === t.name && JSON.stringify(v.coords) === JSON.stringify(t.coords));
+                    const entry = Object.entries(data || {}).find(
+                        ([k, v]) => v && v.name === t.name && JSON.stringify(v.coords) === JSON.stringify(t.coords)
+                    );
                     if (entry) templateId = entry[0];
-                } catch (_) { }
+                } catch (_) {}
             }
             if (!templateId) return;
             const data = await loadHeatData(templateId);
@@ -1579,7 +1808,8 @@ async function showManageTemplatePreview(t) {
             const label = document.getElementById('mtHeatLabel');
             const heatGroupEl = document.querySelector('.mt-ctrl-group.heatmap');
             if (heatGroupEl) {
-                if (STATE.heatMax === 0) heatGroupEl.classList.add('disabled'); else heatGroupEl.classList.remove('disabled');
+                if (STATE.heatMax === 0) heatGroupEl.classList.add('disabled');
+                else heatGroupEl.classList.remove('disabled');
             }
             if (slider) {
                 slider.max = String(STATE.heatMax);
@@ -1595,13 +1825,16 @@ async function showManageTemplatePreview(t) {
                     render();
                 };
             }
-        } catch (_) { }
+        } catch (_) {}
     }
     // Init heat controls
     await reloadHeat();
 
     async function refreshCanvas() {
-        if (btnRefresh) { btnRefresh.disabled = true; btnRefresh.textContent = 'Refreshing...'; }
+        if (btnRefresh) {
+            btnRefresh.disabled = true;
+            btnRefresh.textContent = 'Refreshing...';
+        }
         try {
             await loadTilesIntoBuffer();
             src = bctx.getImageData(0, 0, displayWidth, displayHeight).data;
@@ -1613,46 +1846,56 @@ async function showManageTemplatePreview(t) {
         } catch (e) {
             handleError(e);
         } finally {
-            if (btnRefresh) { btnRefresh.disabled = false; btnRefresh.textContent = 'Refresh canvas'; }
+            if (btnRefresh) {
+                btnRefresh.disabled = false;
+                btnRefresh.textContent = 'Refresh canvas';
+            }
         }
     }
 
-    if (btnRefresh) btnRefresh.onclick = () => { refreshCanvas(); };
+    if (btnRefresh)
+        btnRefresh.onclick = () => {
+            refreshCanvas();
+        };
 
-    if (btnClearHeat) btnClearHeat.onclick = async () => {
-        try {
-            const id = String(t.id || t._id || t.__id || '');
-            let templateId = id;
-            if (!templateId) {
-                try {
-                    const { data } = await axios.get('/templates');
-                    const entry = Object.entries(data || {}).find(([k, v]) => v && v.name === t.name && JSON.stringify(v.coords) === JSON.stringify(t.coords));
-                    if (entry) templateId = entry[0];
-                } catch (_) { }
+    if (btnClearHeat)
+        btnClearHeat.onclick = async () => {
+            try {
+                const id = String(t.id || t._id || t.__id || '');
+                let templateId = id;
+                if (!templateId) {
+                    try {
+                        const { data } = await axios.get('/templates');
+                        const entry = Object.entries(data || {}).find(
+                            ([k, v]) => v && v.name === t.name && JSON.stringify(v.coords) === JSON.stringify(t.coords)
+                        );
+                        if (entry) templateId = entry[0];
+                    } catch (_) {}
+                }
+                if (!templateId) return;
+                showConfirmation(
+                    'Clear heatmap',
+                    'Are you sure you want to clear painting history for this template?',
+                    async () => {
+                        try {
+                            await axios.delete(`/template/${templateId}/heatmap`);
+                            await reloadHeat();
+                            render();
+                            showMessage('Heatmap', 'Painting history cleared.');
+                        } catch (e) {
+                            handleError(e);
+                        }
+                    }
+                );
+            } catch (e) {
+                handleError(e);
             }
-            if (!templateId) return;
-            showConfirmation('Clear heatmap', 'Are you sure you want to clear painting history for this template?', async () => {
-                try {
-                    await axios.delete(`/template/${templateId}/heatmap`);
-                    await reloadHeat();
-                    render();
-                    showMessage('Heatmap', 'Painting history cleared.');
-                } catch (e) { handleError(e); }
-            });
-        } catch (e) { handleError(e); }
-    };
-
-
+        };
 
     updateButtons();
     render();
     overlay.style.display = 'flex';
 }
-
-
-
-
-
 
 const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
@@ -1664,9 +1907,11 @@ const nearestimgdecoder = (imageData, width, height) => {
             const i = (y * width + x) * 4;
             const a = d[i + 3];
             if (a === 255) {
-                const r = d[i], g = d[i + 1], b = d[i + 2];
+                const r = d[i],
+                    g = d[i + 1],
+                    b = d[i + 2];
                 const rgb = `${r},${g},${b}`;
-                if (rgb === "158,189,255") matrix[x][y] = -1;
+                if (rgb === '158,189,255') matrix[x][y] = -1;
                 else {
                     const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
                     matrix[x][y] = id;
@@ -1685,14 +1930,14 @@ let currentTemplate = { width: 0, height: 0, data: [] };
 const processImageFile = (file, callback) => {
     if (file) {
         const reader = new FileReader();
-        reader.onload = e => {
+        reader.onload = (e) => {
             const image = new Image();
             image.src = e.target.result;
             image.onload = async () => {
-                const canvas = document.createElement("canvas");
+                const canvas = document.createElement('canvas');
                 canvas.width = image.width;
                 canvas.height = image.height;
-                const ctx = canvas.getContext("2d");
+                const ctx = canvas.getContext('2d');
                 ctx.drawImage(image, 0, 0);
 
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1708,23 +1953,24 @@ const processImageFile = (file, callback) => {
 };
 
 const processEvent = (soft = false) => {
-
     if (usePaidColors && usePaidColors.__editHandler) {
-        try { usePaidColors.removeEventListener('change', usePaidColors.__editHandler); } catch (_) { }
+        try {
+            usePaidColors.removeEventListener('change', usePaidColors.__editHandler);
+        } catch (_) {}
         usePaidColors.__editHandler = null;
     }
     currentTemplate = { width: 0, height: 0, data: [] };
     if (!soft && templateCanvas) {
-        const c = templateCanvas.getContext("2d");
+        const c = templateCanvas.getContext('2d');
         c.clearRect(0, 0, templateCanvas.width, templateCanvas.height);
         templateCanvas.width = 0;
         templateCanvas.height = 0;
     }
     if (previewCanvas) {
         if (!soft) {
-            const c2 = previewCanvas.getContext("2d");
+            const c2 = previewCanvas.getContext('2d');
             c2.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-            previewCanvas.style.display = "none";
+            previewCanvas.style.display = 'none';
         }
     }
     const list = document.getElementById('paletteList');
@@ -1733,24 +1979,26 @@ const processEvent = (soft = false) => {
     if (!soft && list) list.innerHTML = '';
     if (!soft && uniqueEl) uniqueEl.textContent = '0';
     if (!soft && totalEl) totalEl.textContent = '0';
-    if (!soft) details.style.display = "none";
+    if (!soft) details.style.display = 'none';
     if (!soft) size.textContent = '';
     if (!soft) ink.textContent = '0';
 
     const file = convertInput.files[0];
     if (!file) return;
-    templateName.value = file.name.replace(/\.[^/.]+$/, "");
+    templateName.value = file.name.replace(/\.[^/.]+$/, '');
     processImageFile(file, (template) => {
         currentTemplate = template;
 
         drawTemplate(template, templateCanvas);
         size.innerHTML = `${template.width}x${template.height}px`;
         ink.innerHTML = template.ink;
-        details.style.display = "block";
+        details.style.display = 'block';
         renderPalette(template);
         const sel = document.getElementById('userSortMode');
-        if (sel) { sel.value = 'priority'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
-
+        if (sel) {
+            sel.value = 'priority';
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
     });
 };
 
@@ -1763,21 +2011,20 @@ if (usePaidColors) {
     });
 }
 
-
 previewCanvasButton?.addEventListener('click', async () => {
     const txVal = parseInt(tx.value, 10);
     const tyVal = parseInt(ty.value, 10);
     const pxVal = parseInt(px.value, 10);
     const pyVal = parseInt(py.value, 10);
     if (isNaN(txVal) || isNaN(tyVal) || isNaN(pxVal) || isNaN(pyVal) || currentTemplate.width === 0) {
-        showMessage("Error", "Please convert an image and enter valid coordinates before previewing.");
+        showMessage('Error', 'Please convert an image and enter valid coordinates before previewing.');
         return;
     }
     try {
         previewCanvasButton.disabled = true;
         previewCanvasButton.innerHTML = '<img src="icons/eye.svg" alt="" /> Loading...';
         await fetchCanvas(txVal, tyVal, pxVal, pyVal, currentTemplate.width, currentTemplate.height);
-        previewCanvas.style.display = "block";
+        previewCanvas.style.display = 'block';
     } catch (e) {
         handleError(e);
     } finally {
@@ -1804,14 +2051,13 @@ autoBuyNeededColors?.addEventListener('change', () => {
     if (autoBuyNeededColors.checked) {
         if (typeof usePaidColors !== 'undefined' && usePaidColors && !usePaidColors.checked) {
             autoBuyNeededColors.checked = false;
-            showMessage("Warning", "Enable 'Use premium (paid) colors' to auto-purchase premium colors.");
+            showMessage('Warning', "Enable 'Use premium (paid) colors' to auto-purchase premium colors.");
             return;
         }
         canBuyMaxCharges.checked = false;
         canBuyCharges.checked = false;
     }
 });
-
 
 if (typeof usePaidColors !== 'undefined' && usePaidColors) {
     usePaidColors.addEventListener('change', () => {
@@ -1828,15 +2074,15 @@ if (heatmapEnabled && heatmapLimitWrap) {
 }
 
 const resetTemplateForm = () => {
-    killPreviewPipelines()
+    killPreviewPipelines();
     templateForm.reset();
     if (convertInput) convertInput.value = '';
-    templateFormTitle.textContent = "Add Template";
+    templateFormTitle.textContent = 'Add Template';
     submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
     delete templateForm.dataset.editId;
-    details.style.display = "none";
-    previewCanvas.style.display = "none";
-    editTmpltMsg.style.display = "none";
+    details.style.display = 'none';
+    previewCanvas.style.display = 'none';
+    editTmpltMsg.style.display = 'none';
     currentTemplate = { width: 0, height: 0, data: [] };
     if (heatmapLimitWrap) heatmapLimitWrap.style.display = 'none';
 };
@@ -1847,12 +2093,14 @@ templateForm.addEventListener('submit', async (e) => {
     const isEditMode = !!templateForm.dataset.editId;
 
     if (!isEditMode && (!currentTemplate || currentTemplate.width === 0)) {
-        showMessage("Error", "Please convert an image before creating a template.");
+        showMessage('Error', 'Please convert an image before creating a template.');
         return;
     }
-    const selectedUsers = Array.from(document.querySelectorAll('input[name="user_checkbox"]:checked')).map(cb => cb.value);
+    const selectedUsers = Array.from(document.querySelectorAll('input[name="user_checkbox"]:checked')).map(
+        (cb) => cb.value
+    );
     if (selectedUsers.length === 0) {
-        showMessage("Error", "Please select at least one user.");
+        showMessage('Error', 'Please select at least one user.');
         return;
     }
 
@@ -1862,14 +2110,14 @@ templateForm.addEventListener('submit', async (e) => {
         userIds: selectedUsers,
         canBuyCharges: !!canBuyCharges.checked,
         canBuyMaxCharges: !!canBuyMaxCharges.checked,
-        autoBuyNeededColors: !!autoBuyNeededColors?.checked && !!(usePaidColors?.checked),
+        autoBuyNeededColors: !!autoBuyNeededColors?.checked && !!usePaidColors?.checked,
         antiGriefMode: !!antiGriefMode.checked,
         skipPaintedPixels: !!skipPaintedPixels.checked,
         outlineMode: !!outlineMode.checked,
         paintTransparentPixels: !!paintTransparent.checked,
         heatmapEnabled: !!(heatmapEnabled && heatmapEnabled.checked),
         heatmapLimit: Math.max(1, Math.floor(Number(heatmapLimit && heatmapLimit.value ? heatmapLimit.value : 10000))),
-        autoStart: !!autoStart.checked
+        autoStart: !!autoStart.checked,
     };
 
     if (currentTemplate && currentTemplate.width > 0) {
@@ -1879,16 +2127,16 @@ templateForm.addEventListener('submit', async (e) => {
     try {
         if (isEditMode) {
             await axios.put(`/template/edit/${templateForm.dataset.editId}`, data);
-            showMessage("Success", "Template updated!");
+            showMessage('Success', 'Template updated!');
         } else {
             await axios.post('/template', data);
-            showMessage("Success", "Template created!");
+            showMessage('Success', 'Template created!');
         }
         resetTemplateForm();
         openManageTemplates.click();
     } catch (error) {
         handleError(error);
-    };
+    }
 });
 startAll.addEventListener('click', async () => {
     // Always ask for confirmation before starting all templates
@@ -1898,9 +2146,9 @@ startAll.addEventListener('click', async () => {
                 await axios.put(`/template/${child.id}`, { running: true });
             } catch (error) {
                 handleError(error);
-            };
-        };
-        showMessage("Success", "Finished! Check console for details.");
+            }
+        }
+        showMessage('Success', 'Finished! Check console for details.');
         openManageTemplates.click();
     });
     if (typeof messageBoxConfirm !== 'undefined' && messageBoxConfirm) messageBoxConfirm.textContent = 'Start';
@@ -1913,13 +2161,11 @@ stopAll.addEventListener('click', async () => {
             await axios.put(`/template/${child.id}`, { running: false });
         } catch (error) {
             handleError(error);
-        };
-    };
-    showMessage("Success", "Finished! Check console for details.");
+        }
+    }
+    showMessage('Success', 'Finished! Check console for details.');
     openManageTemplates.click();
 });
-
-
 
 let currentTab = main;
 const changeTab = (el) => {
@@ -1927,22 +2173,24 @@ const changeTab = (el) => {
         MODE_PREVIEW.stopAll();
     }
     if (currentTab === queuePreview) {
-        try { stopQueueAutoRefresh(); } catch (_) { }
+        try {
+            stopQueueAutoRefresh();
+        } catch (_) {}
     }
     if (currentTab === manageTemplates && templateUpdateInterval) {
         clearInterval(templateUpdateInterval);
         templateUpdateInterval = null;
     }
 
-    currentTab.style.display = "none";
-    el.style.display = "block";
+    currentTab.style.display = 'none';
+    el.style.display = 'block';
     currentTab = el;
 
     if (currentTab === settings && typeof MODE_PREVIEW !== 'undefined' && MODE_PREVIEW.start) {
         setTimeout(() => {
             const ref = document.getElementById('modeReference');
             if (ref && MODE_PREVIEW.drawReference) MODE_PREVIEW.drawReference(ref);
-            document.querySelectorAll('.mode-preview[data-mode]').forEach(cv => MODE_PREVIEW.start(cv));
+            document.querySelectorAll('.mode-preview[data-mode]').forEach((cv) => MODE_PREVIEW.start(cv));
         }, 50);
     }
 
@@ -1953,48 +2201,54 @@ const changeTab = (el) => {
         initFlagsManager().catch(console.error);
     }
 
-
-
-
     function applyFlagsCacheToState() {
         try {
             if (!FLAGS_CACHE?.report) return false;
-            (FLAGS_CACHE.report || []).forEach(r => {
+            (FLAGS_CACHE.report || []).forEach((r) => {
                 if (!r || !r.userId) return;
                 USERS_FLAG_STATE[String(r.userId)] = {
                     name: r.name,
                     flagsBitmap: r.flagsBitmap,
-                    equippedFlag: (r.equippedFlag | 0),
-                    droplets: (r.droplets | 0)
+                    equippedFlag: r.equippedFlag | 0,
+                    droplets: r.droplets | 0,
                 };
             });
-            if (flagsLastCheckLabel && FLAGS_CACHE?.ts) flagsLastCheckLabel.textContent = new Date(FLAGS_CACHE.ts).toLocaleString();
+            if (flagsLastCheckLabel && FLAGS_CACHE?.ts)
+                flagsLastCheckLabel.textContent = new Date(FLAGS_CACHE.ts).toLocaleString();
             return true;
-        } catch (_) { return false; }
+        } catch (_) {
+            return false;
+        }
     }
 
     async function initFlagsManager() {
         if (FLAGS_INIT) return;
         FLAGS_INIT = true;
-        try { if (FLAGS_CACHE?.ts) flagsLastCheckLabel.textContent = new Date(FLAGS_CACHE.ts).toLocaleString(); } catch (_) { }
+        try {
+            if (FLAGS_CACHE?.ts) flagsLastCheckLabel.textContent = new Date(FLAGS_CACHE.ts).toLocaleString();
+        } catch (_) {}
 
         // load flags json
         try {
             const { data } = await axios.get('/flags.json');
             if (Array.isArray(data)) FLAGS_LIST = data;
-        } catch (_) { }
+        } catch (_) {}
 
         // try applying cache on tab open
         const hadCache = applyFlagsCacheToState();
         buildFlagsCatalog();
         if (hadCache && CURRENT_SELECTED_FLAG != null) {
-            try { renderFlagDetails(CURRENT_SELECTED_FLAG); } catch (_) { }
+            try {
+                renderFlagDetails(CURRENT_SELECTED_FLAG);
+            } catch (_) {}
         }
 
         try {
             await loadUsersColorState(true);
-        } catch (_) { }
-        try { buildFlagsCatalog(); } catch (_) { }
+        } catch (_) {}
+        try {
+            buildFlagsCatalog();
+        } catch (_) {}
 
         // click delegation like Colors
         flagsAllList?.addEventListener('click', (e) => {
@@ -2003,22 +2257,27 @@ const changeTab = (el) => {
             const fid = parseInt(art.getAttribute('data-flag-id'), 10);
             if (Number.isFinite(fid)) selectFlag(fid);
             // highlight selected like Colors
-            flagsAllList.querySelectorAll('.palette-item.selected').forEach(el => el.classList.remove('selected'));
+            flagsAllList.querySelectorAll('.palette-item.selected').forEach((el) => el.classList.remove('selected'));
             art.classList.add('selected');
         });
 
         try {
             if (!COLORS_CACHE) {
                 await loadUsersColorState(false);
-                try { buildFlagsCatalog(); } catch (_) { }
+                try {
+                    buildFlagsCatalog();
+                } catch (_) {}
             }
-        } catch (_) { }
+        } catch (_) {}
 
-        $("checkFlagsAll")?.addEventListener('click', async () => {
+        $('checkFlagsAll')?.addEventListener('click', async () => {
             let timer = null;
             try {
                 const btn = document.getElementById('checkFlagsAll');
-                if (btn) { btn.disabled = true; btn.textContent = 'Checking...'; }
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Checking...';
+                }
 
                 const updateProgress = async () => {
                     try {
@@ -2026,66 +2285,117 @@ const changeTab = (el) => {
                         const total = data?.total || 0;
                         const completed = data?.completed || 0;
                         if (data?.active && total > 0 && btn) btn.textContent = `Checking... ${completed}/${total}`;
-                    } catch (_) { }
+                    } catch (_) {}
                 };
                 timer = setInterval(updateProgress, 500);
-                updateProgress().catch(() => { });
+                updateProgress().catch(() => {});
 
                 const { data } = await axios.post('/users/flags-check');
                 const nowTs = data?.ts || Date.now();
                 try {
-                    const existing = (COLORS_CACHE?.report || []).reduce((m, r) => { if (r?.userId) m[String(r.userId)] = r; return m; }, {});
-                    for (const r of (data?.report || [])) {
+                    const existing = (COLORS_CACHE?.report || []).reduce((m, r) => {
+                        if (r?.userId) m[String(r.userId)] = r;
+                        return m;
+                    }, {});
+                    for (const r of data?.report || []) {
                         const prev = existing[String(r.userId)] || { userId: String(r.userId), name: r.name };
-                        existing[String(r.userId)] = { ...prev, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag, droplets: r.droplets ?? prev.droplets };
+                        existing[String(r.userId)] = {
+                            ...prev,
+                            flagsBitmap: r.flagsBitmap,
+                            equippedFlag: r.equippedFlag,
+                            droplets: r.droplets ?? prev.droplets,
+                        };
                     }
                     COLORS_CACHE = { ts: nowTs, report: Object.values(existing) };
                     saveColorsCache();
-                } catch (_) { }
+                } catch (_) {}
                 FLAGS_CACHE = { ts: nowTs, report: data?.report || [] };
                 saveFlagsCache();
                 if (flagsLastCheckLabel) flagsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
-                (FLAGS_CACHE.report || []).forEach(r => { USERS_FLAG_STATE[String(r.userId)] = { name: r.name, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag | 0, droplets: r.droplets | 0 }; });
+                (FLAGS_CACHE.report || []).forEach((r) => {
+                    USERS_FLAG_STATE[String(r.userId)] = {
+                        name: r.name,
+                        flagsBitmap: r.flagsBitmap,
+                        equippedFlag: r.equippedFlag | 0,
+                        droplets: r.droplets | 0,
+                    };
+                });
                 buildFlagsCatalog();
                 if (CURRENT_SELECTED_FLAG != null) renderFlagDetails(CURRENT_SELECTED_FLAG);
-            } catch (e) { handleError(e); }
-            finally {
+            } catch (e) {
+                handleError(e);
+            } finally {
                 if (timer) clearInterval(timer);
                 const btn = document.getElementById('checkFlagsAll');
-                if (btn) { btn.disabled = false; btn.innerHTML = '<img src="icons/check.svg" alt="" />Check Flags (All)'; }
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<img src="icons/check.svg" alt="" />Check Flags (All)';
+                }
             }
         });
 
-        $("loadFlagsCache")?.addEventListener('click', () => {
+        $('loadFlagsCache')?.addEventListener('click', () => {
             try {
                 if (!FLAGS_CACHE?.report) return;
-                (FLAGS_CACHE.report || []).forEach(r => { USERS_FLAG_STATE[String(r.userId)] = { name: r.name, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag | 0, droplets: r.droplets | 0 }; });
+                (FLAGS_CACHE.report || []).forEach((r) => {
+                    USERS_FLAG_STATE[String(r.userId)] = {
+                        name: r.name,
+                        flagsBitmap: r.flagsBitmap,
+                        equippedFlag: r.equippedFlag | 0,
+                        droplets: r.droplets | 0,
+                    };
+                });
 
                 try {
-                    const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => { if (rr?.userId) m[String(rr.userId)] = rr; return m; }, {});
-                    for (const r of (FLAGS_CACHE.report || [])) {
+                    const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => {
+                        if (rr?.userId) m[String(rr.userId)] = rr;
+                        return m;
+                    }, {});
+                    for (const r of FLAGS_CACHE.report || []) {
                         const prev = existing[String(r.userId)] || { userId: String(r.userId), name: r.name };
-                        existing[String(r.userId)] = { ...prev, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag, droplets: r.droplets ?? prev.droplets };
+                        existing[String(r.userId)] = {
+                            ...prev,
+                            flagsBitmap: r.flagsBitmap,
+                            equippedFlag: r.equippedFlag,
+                            droplets: r.droplets ?? prev.droplets,
+                        };
                     }
                     COLORS_CACHE = { ts: FLAGS_CACHE.ts, report: Object.values(existing) };
                     saveColorsCache();
-                } catch (_) { }
-                if (flagsLastCheckLabel && FLAGS_CACHE?.ts) flagsLastCheckLabel.textContent = new Date(FLAGS_CACHE.ts).toLocaleString();
+                } catch (_) {}
+                if (flagsLastCheckLabel && FLAGS_CACHE?.ts)
+                    flagsLastCheckLabel.textContent = new Date(FLAGS_CACHE.ts).toLocaleString();
                 buildFlagsCatalog();
                 if (CURRENT_SELECTED_FLAG != null) renderFlagDetails(CURRENT_SELECTED_FLAG);
-            } catch (_) { }
+            } catch (_) {}
         });
 
-        selectAllNoFlag?.addEventListener('click', () => { usersNoFlag.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true); });
-        UnselectAllNoFlag?.addEventListener('click', () => { usersNoFlag.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false); });
-        selectAllHaveFlag?.addEventListener('click', () => { usersHaveFlag.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true); });
-        unselectAllHaveFlag?.addEventListener('click', () => { usersHaveFlag.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false); });
+        selectAllNoFlag?.addEventListener('click', () => {
+            usersNoFlag.querySelectorAll('input[type="checkbox"]').forEach((cb) => (cb.checked = true));
+        });
+        UnselectAllNoFlag?.addEventListener('click', () => {
+            usersNoFlag.querySelectorAll('input[type="checkbox"]').forEach((cb) => (cb.checked = false));
+        });
+        selectAllHaveFlag?.addEventListener('click', () => {
+            usersHaveFlag.querySelectorAll('input[type="checkbox"]').forEach((cb) => (cb.checked = true));
+        });
+        unselectAllHaveFlag?.addEventListener('click', () => {
+            usersHaveFlag.querySelectorAll('input[type="checkbox"]').forEach((cb) => (cb.checked = false));
+        });
 
         purchaseFlagBtn?.addEventListener('click', async () => {
-            if (CURRENT_SELECTED_FLAG == null) { showMessage('Error', 'Select a flag first.'); return; }
+            if (CURRENT_SELECTED_FLAG == null) {
+                showMessage('Error', 'Select a flag first.');
+                return;
+            }
             const flagId = CURRENT_SELECTED_FLAG;
-            const selectedUserIds = Array.from(usersNoFlag.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-            if (!selectedUserIds.length) { showMessage('Error', 'Select at least one user without this flag.'); return; }
+            const selectedUserIds = Array.from(usersNoFlag.querySelectorAll('input[type="checkbox"]:checked')).map(
+                (cb) => cb.value
+            );
+            if (!selectedUserIds.length) {
+                showMessage('Error', 'Select at least one user without this flag.');
+                return;
+            }
 
             const COUNT = selectedUserIds.length;
             const COST_PER = 20000;
@@ -2101,25 +2411,38 @@ const changeTab = (el) => {
             showConfirmation('Confirm purchase', confirmHtml, async () => {
                 let timer = null;
                 try {
-                    purchaseFlagBtn.disabled = true; purchaseFlagBtn.textContent = 'Processing...';
+                    purchaseFlagBtn.disabled = true;
+                    purchaseFlagBtn.textContent = 'Processing...';
                     const updateProgress = async () => {
                         try {
                             const { data } = await axios.get('/users/purchase-flag/progress');
-                            const total = data?.total || 0; const completed = data?.completed || 0;
-                            if (data?.active && total > 0) purchaseFlagBtn.textContent = `Processing... ${completed}/${total}`;
-                        } catch (_) { }
+                            const total = data?.total || 0;
+                            const completed = data?.completed || 0;
+                            if (data?.active && total > 0)
+                                purchaseFlagBtn.textContent = `Processing... ${completed}/${total}`;
+                        } catch (_) {}
                     };
-                    timer = setInterval(updateProgress, 500); updateProgress().catch(() => { });
+                    timer = setInterval(updateProgress, 500);
+                    updateProgress().catch(() => {});
 
                     const { data } = await axios.post('/users/purchase-flag', { flagId, userIds: selectedUserIds });
                     const report = data?.report || [];
-                    let ok = 0, skipped = 0, failed = 0;
-                    const lines = report.map(r => {
-                        if (r.error) { failed++; return `❌ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.error)}`; }
-                        if (r.skipped) { skipped++; return `⏭️ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.reason || 'skipped')}`; }
+                    let ok = 0,
+                        skipped = 0,
+                        failed = 0;
+                    const lines = report.map((r) => {
+                        if (r.error) {
+                            failed++;
+                            return `❌ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.error)}`;
+                        }
+                        if (r.skipped) {
+                            skipped++;
+                            return `⏭️ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.reason || 'skipped')}`;
+                        }
                         if (r.ok || r.success) {
                             ok++;
-                            const before = (r.beforeDroplets ?? '-'), after = (r.afterDroplets ?? '-');
+                            const before = r.beforeDroplets ?? '-',
+                                after = r.afterDroplets ?? '-';
                             return `✅ ${escapeHtml(r.name || '')} (#${r.userId}) — purchased. Droplets ${before} → ${after}`;
                         }
                         return `– ${escapeHtml(r.name || '')} (#${r.userId})`;
@@ -2145,8 +2468,12 @@ const changeTab = (el) => {
                             const bytes = (function () {
                                 try {
                                     const binaryString = atob(String(b64 || ''));
-                                    return new Uint8Array(binaryString.length).map((_, i) => binaryString.charCodeAt(i));
-                                } catch (_) { return new Uint8Array(0); }
+                                    return new Uint8Array(binaryString.length).map((_, i) =>
+                                        binaryString.charCodeAt(i)
+                                    );
+                                } catch (_) {
+                                    return new Uint8Array(0);
+                                }
                             })();
                             const needLen = byteIndexFromEnd + 1;
                             const arr = new Uint8Array(Math.max(bytes.length, needLen));
@@ -2157,7 +2484,9 @@ const changeTab = (el) => {
                             try {
                                 const binaryString = String.fromCharCode(...arr);
                                 return btoa(binaryString);
-                            } catch (_) { return b64 || ''; }
+                            } catch (_) {
+                                return b64 || '';
+                            }
                         };
 
                         const nowTs = Date.now();
@@ -2165,88 +2494,161 @@ const changeTab = (el) => {
                         for (const r of report) {
                             if (r && !r.error && !r.skipped) {
                                 const key = String(r.userId);
-                                const prev = USERS_FLAG_STATE[key] || { name: r.name, flagsBitmap: '', equippedFlag: 0, droplets: 0 };
+                                const prev = USERS_FLAG_STATE[key] || {
+                                    name: r.name,
+                                    flagsBitmap: '',
+                                    equippedFlag: 0,
+                                    droplets: 0,
+                                };
                                 const updatedBitmap = setFlagInBitmap(prev.flagsBitmap, flagId);
-                                USERS_FLAG_STATE[key] = { name: r.name, flagsBitmap: updatedBitmap, equippedFlag: prev.equippedFlag | 0, droplets: r.afterDroplets ?? prev.droplets };
-                                console.log(`[FlagPurchase] Updated user ${r.name} (#${r.userId}) - flag #${flagId} added to bitmap: ${prev.flagsBitmap} -> ${updatedBitmap}`);
+                                USERS_FLAG_STATE[key] = {
+                                    name: r.name,
+                                    flagsBitmap: updatedBitmap,
+                                    equippedFlag: prev.equippedFlag | 0,
+                                    droplets: r.afterDroplets ?? prev.droplets,
+                                };
+                                console.log(
+                                    `[FlagPurchase] Updated user ${r.name} (#${r.userId}) - flag #${flagId} added to bitmap: ${prev.flagsBitmap} -> ${updatedBitmap}`
+                                );
                             }
                         }
                         // Rebuild FLAGS_CACHE.report from USERS_FLAG_STATE if it exists
                         try {
-                            const entries = Object.entries(USERS_FLAG_STATE).map(([uid, v]) => ({ userId: uid, name: v.name, flagsBitmap: v.flagsBitmap, equippedFlag: v.equippedFlag | 0, droplets: v.droplets | 0 }));
+                            const entries = Object.entries(USERS_FLAG_STATE).map(([uid, v]) => ({
+                                userId: uid,
+                                name: v.name,
+                                flagsBitmap: v.flagsBitmap,
+                                equippedFlag: v.equippedFlag | 0,
+                                droplets: v.droplets | 0,
+                            }));
                             FLAGS_CACHE = { ts: nowTs, report: entries };
                             saveFlagsCache();
-                            console.log(`[FlagPurchase] Rebuilt FLAGS_CACHE with ${entries.length} users, timestamp: ${nowTs}`);
-                        } catch (_) { }
+                            console.log(
+                                `[FlagPurchase] Rebuilt FLAGS_CACHE with ${entries.length} users, timestamp: ${nowTs}`
+                            );
+                        } catch (_) {}
                         if (flagsLastCheckLabel) flagsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
 
                         // Merge into COLORS_CACHE like in colors purchase flow so badges align
                         try {
-                            const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => { if (rr?.userId) m[String(rr.userId)] = rr; return m; }, {});
-                            for (const r of (FLAGS_CACHE?.report || [])) {
+                            const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => {
+                                if (rr?.userId) m[String(rr.userId)] = rr;
+                                return m;
+                            }, {});
+                            for (const r of FLAGS_CACHE?.report || []) {
                                 const prev = existing[String(r.userId)] || { userId: String(r.userId), name: r.name };
-                                existing[String(r.userId)] = { ...prev, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag, droplets: r.droplets ?? prev.droplets };
+                                existing[String(r.userId)] = {
+                                    ...prev,
+                                    flagsBitmap: r.flagsBitmap,
+                                    equippedFlag: r.equippedFlag,
+                                    droplets: r.droplets ?? prev.droplets,
+                                };
                             }
                             COLORS_CACHE = { ts: FLAGS_CACHE?.ts || nowTs, report: Object.values(existing) };
                             saveColorsCache();
-                        } catch (_) { }
+                        } catch (_) {}
 
                         buildFlagsCatalog();
                         if (CURRENT_SELECTED_FLAG != null) renderFlagDetails(CURRENT_SELECTED_FLAG);
 
                         // Clear checkboxes after successful purchase
-                        usersNoFlag.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-                    } catch (_) { }
+                        usersNoFlag.querySelectorAll('input[type="checkbox"]').forEach((cb) => (cb.checked = false));
+                    } catch (_) {}
                 } catch (e) {
                     handleError(e);
                 } finally {
                     if (timer) clearInterval(timer);
-                    purchaseFlagBtn.disabled = false; purchaseFlagBtn.textContent = 'Attempt to Buy for Selected';
+                    purchaseFlagBtn.disabled = false;
+                    purchaseFlagBtn.textContent = 'Attempt to Buy for Selected';
                 }
             });
         });
 
         equipFlagBtn?.addEventListener('click', async () => {
-            if (CURRENT_SELECTED_FLAG == null) { showMessage('Error', 'Select a flag first.'); return; }
-            const selectedUserIds = Array.from(usersHaveFlag.querySelectorAll('input[type="radio"]:checked')).map(cb => cb.value);
-            if (selectedUserIds.length !== 1) { showMessage('Info', 'Select exactly one user to equip flag.'); return; }
+            if (CURRENT_SELECTED_FLAG == null) {
+                showMessage('Error', 'Select a flag first.');
+                return;
+            }
+            const selectedUserIds = Array.from(usersHaveFlag.querySelectorAll('input[type="radio"]:checked')).map(
+                (cb) => cb.value
+            );
+            if (selectedUserIds.length !== 1) {
+                showMessage('Info', 'Select exactly one user to equip flag.');
+                return;
+            }
             const uid = selectedUserIds[0];
             try {
-                equipFlagBtn.disabled = true; equipFlagBtn.textContent = 'Equipping...';
+                equipFlagBtn.disabled = true;
+                equipFlagBtn.textContent = 'Equipping...';
                 const { data } = await axios.post(`/user/${uid}/flag/equip`, { flagId: CURRENT_SELECTED_FLAG });
                 if (data?.success) showMessage('Success', 'Equipped');
-            } catch (e) { handleError(e); }
-            finally { equipFlagBtn.disabled = false; equipFlagBtn.textContent = 'Equip Selected (single)'; }
+            } catch (e) {
+                handleError(e);
+            } finally {
+                equipFlagBtn.disabled = false;
+                equipFlagBtn.textContent = 'Equip Selected (single)';
+            }
         });
 
         const setFlagButtonsBusy = (busy, textEquip, textUnequip) => {
-            if (equipFlagBatchBtn) { equipFlagBatchBtn.disabled = !!busy; if (typeof textEquip === 'string') equipFlagBatchBtn.textContent = textEquip; }
-            if (unequipFlagBatchBtn) { unequipFlagBatchBtn.disabled = !!busy; if (typeof textUnequip === 'string') unequipFlagBatchBtn.textContent = textUnequip; }
+            if (equipFlagBatchBtn) {
+                equipFlagBatchBtn.disabled = !!busy;
+                if (typeof textEquip === 'string') equipFlagBatchBtn.textContent = textEquip;
+            }
+            if (unequipFlagBatchBtn) {
+                unequipFlagBatchBtn.disabled = !!busy;
+                if (typeof textUnequip === 'string') unequipFlagBatchBtn.textContent = textUnequip;
+            }
             if (purchaseFlagBtn) purchaseFlagBtn.disabled = !!busy;
         };
 
         equipFlagBatchBtn?.addEventListener('click', async () => {
-            if (CURRENT_SELECTED_FLAG == null) { showMessage('Error', 'Select a flag first.'); return; }
-            const selectedUserIds = Array.from(usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-            if (!selectedUserIds.length) { showMessage('Info', 'Select users to equip.'); return; }
+            if (CURRENT_SELECTED_FLAG == null) {
+                showMessage('Error', 'Select a flag first.');
+                return;
+            }
+            const selectedUserIds = Array.from(usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked')).map(
+                (cb) => cb.value
+            );
+            if (!selectedUserIds.length) {
+                showMessage('Info', 'Select users to equip.');
+                return;
+            }
             let timer = null;
             try {
                 setFlagButtonsBusy(true, 'Equipping...', 'Unequip');
                 const updateProgress = async () => {
                     try {
                         const { data } = await axios.get('/users/equip-flag/progress');
-                        const total = data?.total || 0; const completed = data?.completed || 0;
-                        if (data?.active && total > 0 && equipFlagBatchBtn) equipFlagBatchBtn.textContent = `Equipping... ${completed}/${total}`;
-                    } catch (_) { }
+                        const total = data?.total || 0;
+                        const completed = data?.completed || 0;
+                        if (data?.active && total > 0 && equipFlagBatchBtn)
+                            equipFlagBatchBtn.textContent = `Equipping... ${completed}/${total}`;
+                    } catch (_) {}
                 };
-                timer = setInterval(updateProgress, 500); updateProgress().catch(() => { });
-                const { data } = await axios.post('/users/equip-flag', { flagId: CURRENT_SELECTED_FLAG, userIds: selectedUserIds });
+                timer = setInterval(updateProgress, 500);
+                updateProgress().catch(() => {});
+                const { data } = await axios.post('/users/equip-flag', {
+                    flagId: CURRENT_SELECTED_FLAG,
+                    userIds: selectedUserIds,
+                });
                 const report = data?.report || [];
-                let ok = 0, skipped = 0, failed = 0;
-                const lines = report.map(r => {
-                    if (r.error) { failed++; return `❌ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.error)}`; }
-                    if (r.skipped) { skipped++; return `⏭️ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.reason || 'skipped')}`; }
-                    if (r.ok || r.success) { ok++; return `✅ ${escapeHtml(r.name || '')} (#${r.userId}) — equipped`; }
+                let ok = 0,
+                    skipped = 0,
+                    failed = 0;
+                const lines = report.map((r) => {
+                    if (r.error) {
+                        failed++;
+                        return `❌ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.error)}`;
+                    }
+                    if (r.skipped) {
+                        skipped++;
+                        return `⏭️ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.reason || 'skipped')}`;
+                    }
+                    if (r.ok || r.success) {
+                        ok++;
+                        return `✅ ${escapeHtml(r.name || '')} (#${r.userId}) — equipped`;
+                    }
                     return `– ${escapeHtml(r.name || '')} (#${r.userId})`;
                 });
                 const html = `
@@ -2265,12 +2667,17 @@ const changeTab = (el) => {
                     for (const r of report) {
                         if (r && !r.error && !r.skipped) {
                             const key = String(r.userId);
-                            const prev = USERS_FLAG_STATE[key] || { name: r.name, flagsBitmap: '', equippedFlag: 0, droplets: 0 };
+                            const prev = USERS_FLAG_STATE[key] || {
+                                name: r.name,
+                                flagsBitmap: '',
+                                equippedFlag: 0,
+                                droplets: 0,
+                            };
                             USERS_FLAG_STATE[key] = {
                                 name: r.name,
                                 flagsBitmap: prev.flagsBitmap,
                                 equippedFlag: CURRENT_SELECTED_FLAG,
-                                droplets: prev.droplets
+                                droplets: prev.droplets,
                             };
                         }
                     }
@@ -2280,55 +2687,83 @@ const changeTab = (el) => {
                         name: v.name,
                         flagsBitmap: v.flagsBitmap,
                         equippedFlag: v.equippedFlag | 0,
-                        droplets: v.droplets | 0
+                        droplets: v.droplets | 0,
                     }));
                     FLAGS_CACHE = { ts: nowTs, report: entries };
                     saveFlagsCache();
                     if (flagsLastCheckLabel) flagsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
 
                     // Update COLORS_CACHE as well
-                    const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => { if (rr?.userId) m[String(rr.userId)] = rr; return m; }, {});
-                    for (const r of (FLAGS_CACHE?.report || [])) {
+                    const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => {
+                        if (rr?.userId) m[String(rr.userId)] = rr;
+                        return m;
+                    }, {});
+                    for (const r of FLAGS_CACHE?.report || []) {
                         const prev = existing[String(r.userId)] || { userId: String(r.userId), name: r.name };
-                        existing[String(r.userId)] = { ...prev, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag, droplets: r.droplets ?? prev.droplets };
+                        existing[String(r.userId)] = {
+                            ...prev,
+                            flagsBitmap: r.flagsBitmap,
+                            equippedFlag: r.equippedFlag,
+                            droplets: r.droplets ?? prev.droplets,
+                        };
                     }
                     COLORS_CACHE = { ts: FLAGS_CACHE?.ts || nowTs, report: Object.values(existing) };
                     saveColorsCache();
 
                     buildFlagsCatalog();
                     if (CURRENT_SELECTED_FLAG != null) renderFlagDetails(CURRENT_SELECTED_FLAG);
-                } catch (_) { }
+                } catch (_) {}
 
                 // Clear checkboxes after successful operation
-                usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => cb.checked = false);
-            } catch (e) { handleError(e); }
-            finally {
+                usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked').forEach((cb) => (cb.checked = false));
+            } catch (e) {
+                handleError(e);
+            } finally {
                 if (timer) clearInterval(timer);
                 setFlagButtonsBusy(false, 'Equip', 'Unequip');
             }
         });
 
         unequipFlagBatchBtn?.addEventListener('click', async () => {
-            const selectedUserIds = Array.from(usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-            if (!selectedUserIds.length) { showMessage('Info', 'Select users to unequip.'); return; }
+            const selectedUserIds = Array.from(usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked')).map(
+                (cb) => cb.value
+            );
+            if (!selectedUserIds.length) {
+                showMessage('Info', 'Select users to unequip.');
+                return;
+            }
             let timer = null;
             try {
                 setFlagButtonsBusy(true, 'Equip', 'Unequipping...');
                 const updateProgress = async () => {
                     try {
                         const { data } = await axios.get('/users/unequip-flag/progress');
-                        const total = data?.total || 0; const completed = data?.completed || 0;
-                        if (data?.active && total > 0 && unequipFlagBatchBtn) unequipFlagBatchBtn.textContent = `Unequipping... ${completed}/${total}`;
-                    } catch (_) { }
+                        const total = data?.total || 0;
+                        const completed = data?.completed || 0;
+                        if (data?.active && total > 0 && unequipFlagBatchBtn)
+                            unequipFlagBatchBtn.textContent = `Unequipping... ${completed}/${total}`;
+                    } catch (_) {}
                 };
-                timer = setInterval(updateProgress, 500); updateProgress().catch(() => { });
+                timer = setInterval(updateProgress, 500);
+                updateProgress().catch(() => {});
                 const { data } = await axios.post('/users/unequip-flag', { userIds: selectedUserIds });
                 const report = data?.report || [];
-                let ok = 0, skipped = 0, failed = 0;
-                const lines = report.map(r => {
-                    if (r.error) { failed++; return `❌ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.error)}`; }
-                    if (r.skipped) { skipped++; return `⏭️ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.reason || 'skipped')}`; }
-                    if (r.ok || r.success) { ok++; return `✅ ${escapeHtml(r.name || '')} (#${r.userId}) — unequipped`; }
+                let ok = 0,
+                    skipped = 0,
+                    failed = 0;
+                const lines = report.map((r) => {
+                    if (r.error) {
+                        failed++;
+                        return `❌ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.error)}`;
+                    }
+                    if (r.skipped) {
+                        skipped++;
+                        return `⏭️ ${escapeHtml(r.name || '')} (#${r.userId}): ${escapeHtml(r.reason || 'skipped')}`;
+                    }
+                    if (r.ok || r.success) {
+                        ok++;
+                        return `✅ ${escapeHtml(r.name || '')} (#${r.userId}) — unequipped`;
+                    }
                     return `– ${escapeHtml(r.name || '')} (#${r.userId})`;
                 });
                 const html = `
@@ -2347,12 +2782,17 @@ const changeTab = (el) => {
                     for (const r of report) {
                         if (r && !r.error && !r.skipped) {
                             const key = String(r.userId);
-                            const prev = USERS_FLAG_STATE[key] || { name: r.name, flagsBitmap: '', equippedFlag: 0, droplets: 0 };
+                            const prev = USERS_FLAG_STATE[key] || {
+                                name: r.name,
+                                flagsBitmap: '',
+                                equippedFlag: 0,
+                                droplets: 0,
+                            };
                             USERS_FLAG_STATE[key] = {
                                 name: r.name,
                                 flagsBitmap: prev.flagsBitmap,
                                 equippedFlag: 0, // unequip = 0
-                                droplets: prev.droplets
+                                droplets: prev.droplets,
                             };
                         }
                     }
@@ -2362,29 +2802,38 @@ const changeTab = (el) => {
                         name: v.name,
                         flagsBitmap: v.flagsBitmap,
                         equippedFlag: v.equippedFlag | 0,
-                        droplets: v.droplets | 0
+                        droplets: v.droplets | 0,
                     }));
                     FLAGS_CACHE = { ts: nowTs, report: entries };
                     saveFlagsCache();
                     if (flagsLastCheckLabel) flagsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
 
                     // Update COLORS_CACHE as well
-                    const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => { if (rr?.userId) m[String(rr.userId)] = rr; return m; }, {});
-                    for (const r of (FLAGS_CACHE?.report || [])) {
+                    const existing = (COLORS_CACHE?.report || []).reduce((m, rr) => {
+                        if (rr?.userId) m[String(rr.userId)] = rr;
+                        return m;
+                    }, {});
+                    for (const r of FLAGS_CACHE?.report || []) {
                         const prev = existing[String(r.userId)] || { userId: String(r.userId), name: r.name };
-                        existing[String(r.userId)] = { ...prev, flagsBitmap: r.flagsBitmap, equippedFlag: r.equippedFlag, droplets: r.droplets ?? prev.droplets };
+                        existing[String(r.userId)] = {
+                            ...prev,
+                            flagsBitmap: r.flagsBitmap,
+                            equippedFlag: r.equippedFlag,
+                            droplets: r.droplets ?? prev.droplets,
+                        };
                     }
                     COLORS_CACHE = { ts: FLAGS_CACHE?.ts || nowTs, report: Object.values(existing) };
                     saveColorsCache();
 
                     buildFlagsCatalog();
                     if (CURRENT_SELECTED_FLAG != null) renderFlagDetails(CURRENT_SELECTED_FLAG);
-                } catch (_) { }
+                } catch (_) {}
 
                 // Clear checkboxes after successful operation
-                usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => cb.checked = false);
-            } catch (e) { handleError(e); }
-            finally {
+                usersHaveFlag.querySelectorAll('input[type="checkbox"]:checked').forEach((cb) => (cb.checked = false));
+            } catch (e) {
+                handleError(e);
+            } finally {
                 if (timer) clearInterval(timer);
                 setFlagButtonsBusy(false, 'Equip', 'Unequip');
             }
@@ -2393,7 +2842,7 @@ const changeTab = (el) => {
 
     function renderFlagDetails(flagId) {
         CURRENT_SELECTED_FLAG = flagId;
-        const meta = FLAGS_LIST.find(f => f.id === flagId);
+        const meta = FLAGS_LIST.find((f) => f.id === flagId);
         selectedFlagTitle.textContent = `${meta?.name || 'Flag'} (${meta?.code || 'XX'})`;
         selectedFlagId.textContent = `ID: ${flagId}`;
         // render emoji and parse with Twemoji like in tiles
@@ -2405,28 +2854,33 @@ const changeTab = (el) => {
         flagDetailsCard.style.display = '';
 
         try {
-            flagsAllList?.querySelectorAll('.color-tile').forEach(el => {
+            flagsAllList?.querySelectorAll('.color-tile').forEach((el) => {
                 if (parseInt(el.getAttribute('data-flag-id'), 10) === flagId) el.classList.add('selected');
                 else el.classList.remove('selected');
             });
-        } catch (_) { }
+        } catch (_) {}
 
         // group users
-        const have = []; const no = [];
-        const byId = FLAGS_CACHE?.report ? new Map(FLAGS_CACHE.report.map(r => [String(r.userId), r])) : new Map();
+        const have = [];
+        const no = [];
+        const byId = FLAGS_CACHE?.report ? new Map(FLAGS_CACHE.report.map((r) => [String(r.userId), r])) : new Map();
         for (const [id, u] of Object.entries(USERS_FLAG_STATE)) {
             try {
                 const ids = bitmapToFlagIds(String(u.flagsBitmap || ''));
-                if (ids.includes(flagId)) have.push([id, u]); else no.push([id, u]);
-            } catch (_) { no.push([id, u]); }
+                if (ids.includes(flagId)) have.push([id, u]);
+                else no.push([id, u]);
+            } catch (_) {
+                no.push([id, u]);
+            }
         }
 
         usersHaveFlag.innerHTML = have.length
-            ? have.map(([id, u]) => {
-                const equippedFlagId = Number(u.equippedFlag || 0);
-                const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find(f => f.id === equippedFlagId) : null;
-                const equippedEmoji = equippedFlag ? flagMetaToEmoji(equippedFlag) : '';
-                return `
+            ? have
+                  .map(([id, u]) => {
+                      const equippedFlagId = Number(u.equippedFlag || 0);
+                      const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find((f) => f.id === equippedFlagId) : null;
+                      const equippedEmoji = equippedFlag ? flagMetaToEmoji(equippedFlag) : '';
+                      return `
         <div class="user-select-item">
           <input type="checkbox" id="flag_have_${id}" value="${id}">
           <label class="label-margin0" for="flag_have_${id}">
@@ -2435,7 +2889,8 @@ const changeTab = (el) => {
           <span class="drops-badge" title="Droplets at last check">${u.droplets | 0} drops</span>
         </div>
       `;
-            }).join('')
+                  })
+                  .join('')
             : `<span class="muted">Nobody has this flag yet.</span>`;
 
         // toggle bulk select and actions visibility depending on availability
@@ -2445,14 +2900,15 @@ const changeTab = (el) => {
             const showControls = have.length > 0;
             if (bulkWrap) bulkWrap.style.display = showControls ? '' : 'none';
             if (actionsWrap) actionsWrap.style.display = showControls ? '' : 'none';
-        } catch (_) { }
+        } catch (_) {}
 
         usersNoFlag.innerHTML = no.length
-            ? no.map(([id, u]) => {
-                const equippedFlagId = Number(u.equippedFlag || 0);
-                const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find(f => f.id === equippedFlagId) : null;
-                const equippedEmoji = equippedFlag ? flagMetaToEmoji(equippedFlag) : '';
-                return `
+            ? no
+                  .map(([id, u]) => {
+                      const equippedFlagId = Number(u.equippedFlag || 0);
+                      const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find((f) => f.id === equippedFlagId) : null;
+                      const equippedEmoji = equippedFlag ? flagMetaToEmoji(equippedFlag) : '';
+                      return `
         <div class="user-select-item">
           <input type="checkbox" id="flag_user_${id}" value="${id}">
           <label class="label-margin0" for="flag_user_${id}">
@@ -2461,11 +2917,12 @@ const changeTab = (el) => {
           <span class="drops-badge" title="Droplets at last check">${u.droplets | 0} drops</span>
         </div>
       `;
-            }).join('')
+                  })
+                  .join('')
             : `<span class="muted">Everyone already has this flag.</span>`;
 
         // parse Twemoji for flag emojis in user lists (after HTML is set)
-        [usersHaveFlag, usersNoFlag].filter(Boolean).forEach(el => parseTwemojiIn(el, 16));
+        [usersHaveFlag, usersNoFlag].filter(Boolean).forEach((el) => parseTwemojiIn(el, 16));
     }
 
     function selectFlag(flagId) {
@@ -2481,7 +2938,7 @@ const changeTab = (el) => {
                 const ids = bitmapToFlagIds(String(rec.flagsBitmap || ''));
                 for (const id of ids) countByFlag.set(id, (countByFlag.get(id) || 0) + 1);
             }
-        } catch (_) { }
+        } catch (_) {}
 
         const toFlagEmoji = (code, fallback) => flagMetaToEmoji({ code, flag: fallback }) || '🏳️';
 
@@ -2492,12 +2949,13 @@ const changeTab = (el) => {
             return (cntB > 0) - (cntA > 0) || a.id - b.id;
         });
 
-        const html = sortedFlags.map(f => {
-            const cnt = countByFlag.get(f.id) || 0;
-            const badge = cnt > 0 ? `<span class="count-badge" title="Users with this flag">${cnt}</span>` : '';
-            const type = `${f.code} (#${f.id})`;
-            const emoji = toFlagEmoji(f.code, f.flag);
-            return `
+        const html = sortedFlags
+            .map((f) => {
+                const cnt = countByFlag.get(f.id) || 0;
+                const badge = cnt > 0 ? `<span class="count-badge" title="Users with this flag">${cnt}</span>` : '';
+                const type = `${f.code} (#${f.id})`;
+                const emoji = toFlagEmoji(f.code, f.flag);
+                return `
       <article class="palette-item color-tile" data-flag-id="${f.id}" title="${f.name} ${type}">
         <div class="swatch flag-emoji" style="display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1">${emoji}</div>
         <div class="palette-meta">
@@ -2507,12 +2965,12 @@ const changeTab = (el) => {
         ${badge}
       </article>
     `;
-        }).join('');
+            })
+            .join('');
         flagsAllList.innerHTML = html;
 
         parseTwemojiIn(flagsAllList, 20);
     }
-
 
     if (currentTab === liveLogs) {
         // refresh log toggles from backend when opening Live Logs
@@ -2520,18 +2978,31 @@ const changeTab = (el) => {
             if (typeof applyLogSettingsFromServer === 'function') {
                 applyLogSettingsFromServer();
             }
-        } catch (_) { }
+        } catch (_) {}
         // start SSE stream when entering logs tab
         startLogsStream();
     } else {
-        try { if (__sse) { __sse.close(); __sse = null; } } catch (_) { }
+        try {
+            if (__sse) {
+                __sse.close();
+                __sse = null;
+            }
+        } catch (_) {}
     }
 
     if (currentTab === queuePreview) {
-        try { loadQueueSettings(); } catch (_) { }
-        try { loadQueuePreview(); } catch (_) { }
-        try { if (autoRefreshQueue && autoRefreshQueue.checked) startQueueAutoRefresh(); } catch (_) { }
-        try { toggleRefreshIntervalInput(); } catch (_) { }
+        try {
+            loadQueueSettings();
+        } catch (_) {}
+        try {
+            loadQueuePreview();
+        } catch (_) {}
+        try {
+            if (autoRefreshQueue && autoRefreshQueue.checked) startQueueAutoRefresh();
+        } catch (_) {}
+        try {
+            toggleRefreshIntervalInput();
+        } catch (_) {}
     }
 };
 
@@ -2575,28 +3046,28 @@ const changeTab = (el) => {
     }
 })();
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const formatSpaces = (val) => {
     const n = Number(val);
     if (!Number.isFinite(n)) return String(val ?? '');
     return String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 };
 
-openManageUsers.addEventListener("click", async () => {
-    userList.innerHTML = "";
+openManageUsers.addEventListener('click', async () => {
+    userList.innerHTML = '';
     userForm.reset();
-    totalCharges.textContent = "?";
-    totalMaxCharges.textContent = "?";
+    totalCharges.textContent = '?';
+    totalMaxCharges.textContent = '?';
 
     // Initialize flags state from cache if available
     try {
         if (FLAGS_CACHE?.report) {
-            (FLAGS_CACHE.report || []).forEach(r => {
+            (FLAGS_CACHE.report || []).forEach((r) => {
                 USERS_FLAG_STATE[String(r.userId)] = {
                     name: r.name,
                     flagsBitmap: r.flagsBitmap,
                     equippedFlag: r.equippedFlag | 0,
-                    droplets: r.droplets | 0
+                    droplets: r.droplets | 0,
                 };
             });
         }
@@ -2614,7 +3085,7 @@ openManageUsers.addEventListener("click", async () => {
         console.error('[ManageUsers] Error loading flags cache:', e);
     }
 
-    loadUsers(users => {
+    loadUsers((users) => {
         const userCount = Object.keys(users).length;
         if (manageUsersTitle) manageUsersTitle.textContent = `Existing Users (${userCount})`;
         for (const id of Object.keys(users)) {
@@ -2622,18 +3093,21 @@ openManageUsers.addEventListener("click", async () => {
             user.className = 'user';
             user.id = `user-${id}`;
 
-
             const expirationDate = users[id].expirationDate;
             const expirationStr = expirationDate ? new Date(expirationDate * 1000).toLocaleString() : 'N/A';
 
             const shortLabel = (users[id].shortLabel || '').trim();
             const shortLabelSafe = escapeHtml(shortLabel);
-            const shortLabelCut = shortLabelSafe ? (shortLabelSafe.length > 20 ? shortLabelSafe.slice(0, 40) + '…' : shortLabelSafe) : '';
+            const shortLabelCut = shortLabelSafe
+                ? shortLabelSafe.length > 20
+                    ? shortLabelSafe.slice(0, 40) + '…'
+                    : shortLabelSafe
+                : '';
 
             // Get equipped flag for this user from flags cache
             const userFlagData = USERS_FLAG_STATE[String(id)];
             const equippedFlagId = userFlagData?.equippedFlag || 0;
-            const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find(f => f.id === equippedFlagId) : null;
+            const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find((f) => f.id === equippedFlagId) : null;
             const equippedEmoji = equippedFlag ? flagMetaToEmoji(equippedFlag) : '';
 
             user.innerHTML = `
@@ -2652,22 +3126,21 @@ openManageUsers.addEventListener("click", async () => {
                     <!-- <button class="open-profile-btn" title="Open Profile"><img src="icons/eye.svg"></button> -->
                 </div>`;
 
-            user.querySelector('.delete-btn').addEventListener("click", () => {
+            user.querySelector('.delete-btn').addEventListener('click', () => {
                 showConfirmation(
-                    "Delete User",
+                    'Delete User',
                     `Are you sure you want to delete ${users[id].name} (#${id})? This will also remove them from all templates.`,
                     async () => {
                         try {
                             await axios.delete(`/user/${id}`);
-                            showMessage("Success", "User deleted.");
+                            showMessage('Success', 'User deleted.');
                             openManageUsers.click();
                         } catch (error) {
                             handleError(error);
-                        };
+                        }
                     }
                 );
             });
-
 
             const editBtn = user.querySelector('.edit-btn');
             editBtn.addEventListener('click', async () => {
@@ -2675,10 +3148,15 @@ openManageUsers.addEventListener("click", async () => {
                 try {
                     const r = await axios.get(`/user/status/${id}`);
                     u = r.data || {};
-                } catch (_) { u = {}; }
+                } catch (_) {
+                    u = {};
+                }
 
                 const nameInit = String(u.name || users[id].name || '').slice(0, 15);
-                const discordInit = String(typeof u.discord === 'string' ? u.discord : (users[id].discord || '')).slice(0, 15);
+                const discordInit = String(typeof u.discord === 'string' ? u.discord : users[id].discord || '').slice(
+                    0,
+                    15
+                );
                 const showInit = typeof u.showLastPixel === 'boolean' ? !!u.showLastPixel : !!users[id].showLastPixel;
                 const allianceIdInit = u.allianceId || '–';
 
@@ -2736,15 +3214,21 @@ openManageUsers.addEventListener("click", async () => {
                     const shortLabel = (shortLabelEl?.value || '').trim().slice(0, 40);
                     const discord = (discordEl?.value || '').trim().slice(0, 15);
                     const showLastPixel = !!showEl?.checked;
-                    if (name.length < 2) { showMessage('Error', 'Name must be at least 2 characters.'); return; }
+                    if (name.length < 2) {
+                        showMessage('Error', 'Name must be at least 2 characters.');
+                        return;
+                    }
                     try {
                         const payload = { name, discord, showLastPixel, shortLabel };
                         const resp = await axios.put(`/user/${id}/update-profile`, payload);
                         if (resp.status === 200 && resp.data?.success) {
                             // Update username + short label inline
                             const usernameEl = user.querySelector('.user-info-username');
-                            const shortCut = shortLabel ? escapeHtml(shortLabel.length > 40 ? shortLabel.slice(0, 40) + '…' : shortLabel) : '';
-                            if (usernameEl) usernameEl.innerHTML = `${escapeHtml(name)}${shortCut ? ` <span class=\"user-info-id\">(${shortCut})</span>` : ''}`;
+                            const shortCut = shortLabel
+                                ? escapeHtml(shortLabel.length > 40 ? shortLabel.slice(0, 40) + '…' : shortLabel)
+                                : '';
+                            if (usernameEl)
+                                usernameEl.innerHTML = `${escapeHtml(name)}${shortCut ? ` <span class=\"user-info-id\">(${shortCut})</span>` : ''}`;
                             users[id].name = name;
                             users[id].shortLabel = shortLabel;
                             users[id].discord = discord;
@@ -2758,7 +3242,8 @@ openManageUsers.addEventListener("click", async () => {
                         handleError(error);
                     }
                 });
-                if (typeof messageBoxConfirmBig !== 'undefined' && messageBoxConfirmBig) messageBoxConfirmBig.textContent = 'Save';
+                if (typeof messageBoxConfirmBig !== 'undefined' && messageBoxConfirmBig)
+                    messageBoxConfirmBig.textContent = 'Save';
 
                 const joinBtn = document.getElementById(`edit-alliance-join-${id}`);
                 const leaveBtn = document.getElementById(`edit-alliance-leave-${id}`);
@@ -2766,7 +3251,10 @@ openManageUsers.addEventListener("click", async () => {
                 joinBtn?.addEventListener('click', async () => {
                     const uuidEl = document.getElementById(`edit-alliance-uuid-${id}`);
                     const uuid = (uuidEl?.value || '').trim();
-                    if (!uuid) { showMessage('Alliance', 'Please enter Alliance UUID.'); return; }
+                    if (!uuid) {
+                        showMessage('Alliance', 'Please enter Alliance UUID.');
+                        return;
+                    }
                     try {
                         joinBtn.disabled = true;
                         joinBtn.innerHTML = 'Joining...';
@@ -2781,7 +3269,7 @@ openManageUsers.addEventListener("click", async () => {
                                     if (joinWrap) joinWrap.style.display = 'none';
                                     if (leaveBtn) leaveBtn.style.display = '';
                                 }
-                            } catch (_) { }
+                            } catch (_) {}
                         } else {
                             handleError({ response: { data: resp.data, status: resp.status } });
                         }
@@ -2815,7 +3303,7 @@ openManageUsers.addEventListener("click", async () => {
                     }
                 });
             });
-            user.querySelector('.json-btn').addEventListener("click", async () => {
+            user.querySelector('.json-btn').addEventListener('click', async () => {
                 try {
                     const response = await axios.get(`/user/status/${id}`);
                     const u = response.data;
@@ -2823,12 +3311,14 @@ openManageUsers.addEventListener("click", async () => {
                     for (let c = 32; c <= 63; c++) {
                         if ((u.extraColorsBitmap | 0) & (1 << (c - 32))) paidColors.push(c);
                     }
-                    const paidSwatches = paidColors.map(cid => {
-                        const meta = COLORS.find(c => c.id === cid);
-                        const rgb = meta ? `rgb(${meta.rgb[0]},${meta.rgb[1]},${meta.rgb[2]})` : '#333';
-                        const fg = meta ? getContrastColor(meta.rgb[0], meta.rgb[1], meta.rgb[2]) : '#fff';
-                        return `<span class=\"tiny-swatch\" style=\"background:${rgb};color:${fg}\">${cid}</span>`;
-                    }).join('');
+                    const paidSwatches = paidColors
+                        .map((cid) => {
+                            const meta = COLORS.find((c) => c.id === cid);
+                            const rgb = meta ? `rgb(${meta.rgb[0]},${meta.rgb[1]},${meta.rgb[2]})` : '#333';
+                            const fg = meta ? getContrastColor(meta.rgb[0], meta.rgb[1], meta.rgb[2]) : '#fff';
+                            return `<span class=\"tiny-swatch\" style=\"background:${rgb};color:${fg}\">${cid}</span>`;
+                        })
+                        .join('');
                     // Load FLAGS_LIST if not already loaded
                     if (!FLAGS_LIST || FLAGS_LIST.length === 0) {
                         try {
@@ -2841,30 +3331,35 @@ openManageUsers.addEventListener("click", async () => {
 
                     // Get purchased and equipped flags for this user
                     const purchasedFlagIds = u.flagsBitmap ? bitmapToFlagIds(u.flagsBitmap) : [];
-                    const purchasedFlags = purchasedFlagIds.map(flagId => FLAGS_LIST.find(f => f.id === flagId)).filter(Boolean);
-                    const flagSwatches = purchasedFlags.map(flag => {
-                        const emoji = flagMetaToEmoji(flag);
-                        const tooltip = `${flag.name} (${flag.code}) - ID: ${flag.id}`;
-                        return `<span class="flag-swatch" title="${tooltip}" style="font-size:16px;margin:2px;display:inline-block;">${emoji}</span>`;
-                    }).join('');
+                    const purchasedFlags = purchasedFlagIds
+                        .map((flagId) => FLAGS_LIST.find((f) => f.id === flagId))
+                        .filter(Boolean);
+                    const flagSwatches = purchasedFlags
+                        .map((flag) => {
+                            const emoji = flagMetaToEmoji(flag);
+                            const tooltip = `${flag.name} (${flag.code}) - ID: ${flag.id}`;
+                            return `<span class="flag-swatch" title="${tooltip}" style="font-size:16px;margin:2px;display:inline-block;">${emoji}</span>`;
+                        })
+                        .join('');
 
                     // Get equipped flag
                     const equippedFlagId = u.equippedFlag || 0;
-                    const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find(f => f.id === equippedFlagId) : null;
+                    const equippedFlag = equippedFlagId > 0 ? FLAGS_LIST.find((f) => f.id === equippedFlagId) : null;
                     const equippedEmoji = equippedFlag ? flagMetaToEmoji(equippedFlag) : '';
-                    const equippedFlagInfo = equippedFlag ? `${equippedFlag.name} (${equippedFlag.code}) - ID: ${equippedFlagId}` : 'None';
-
+                    const equippedFlagInfo = equippedFlag
+                        ? `${equippedFlag.name} (${equippedFlag.code}) - ID: ${equippedFlagId}`
+                        : 'None';
 
                     const info = `
                         <b>User:</b> <span style="color:#f97a1f">${u.name}</span><br>
                         <b>Charges:</b> <span style="color:#f97a1f">${Math.floor(u.charges.count)}</span>/<span style="color:#f97a1f">${u.charges.max}</span><br>
                         <b>Droplets:</b> <span style="color:#f97a1f">${u.droplets}</span><br>
                         <b>Level:</b> <span style="color:#f97a1f">${Math.floor(u.level)} (${Math.round((u.level % 1) * 100)}%)</span><br>
-                        <b>Favorite Locations:</b> <span style="color:#f97a1f">${u.favoriteLocations?.length ?? 0}</span>/<span style="color:#f97a1f">${u.maxFavoriteLocations ?? "?"}</span><br>
-                        <b>Discord:</b> <span style="color:#f97a1f">${u.discord ?? "-"}</span><br>
-                        <b>Country:</b> <span style="color:#f97a1f">${u.country ?? "-"}</span><br>
-                        <b>Pixels Painted:</b> <span style="color:#f97a1f">${u.pixelsPainted ?? "-"}</span><br>
-                        <b>Alliance:</b> <span style="color:#f97a1f">${u.allianceId ?? "-"}</span> / <span style="color:#f97a1f">${u.allianceRole ?? "-"}</span><br>
+                        <b>Favorite Locations:</b> <span style="color:#f97a1f">${u.favoriteLocations?.length ?? 0}</span>/<span style="color:#f97a1f">${u.maxFavoriteLocations ?? '?'}</span><br>
+                        <b>Discord:</b> <span style="color:#f97a1f">${u.discord ?? '-'}</span><br>
+                        <b>Country:</b> <span style="color:#f97a1f">${u.country ?? '-'}</span><br>
+                        <b>Pixels Painted:</b> <span style="color:#f97a1f">${u.pixelsPainted ?? '-'}</span><br>
+                        <b>Alliance:</b> <span style="color:#f97a1f">${u.allianceId ?? '-'}</span> / <span style="color:#f97a1f">${u.allianceRole ?? '-'}</span><br>
                         <b>Paid colors:</b>
                         <div class=\"tiny-swatches\">${paidSwatches || '<span class=\"muted\">none</span>'}</div>
                         <b>Purchased flags:</b>
@@ -2875,7 +3370,7 @@ openManageUsers.addEventListener("click", async () => {
 
                     try {
                         const nowTs = Date.now();
-                        const byId = new Map((COLORS_CACHE?.report || []).map(r => [String(r.userId), r]));
+                        const byId = new Map((COLORS_CACHE?.report || []).map((r) => [String(r.userId), r]));
                         byId.set(String(id), {
                             userId: String(id),
                             name: u.name,
@@ -2883,38 +3378,43 @@ openManageUsers.addEventListener("click", async () => {
                             droplets: u.droplets | 0,
                             charges: { count: Math.floor(u.charges.count), max: u.charges.max },
                             level: Math.floor(u.level),
-                            progress: Math.round((u.level % 1) * 100)
+                            progress: Math.round((u.level % 1) * 100),
                         });
                         COLORS_CACHE = { ts: nowTs, report: Array.from(byId.values()) };
                         saveColorsCache();
                         if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
-                        if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
-                        USERS_COLOR_STATE[String(id)] = { name: u.name, extraColorsBitmap: u.extraColorsBitmap | 0, droplets: u.droplets | 0 };
+                        if (usersColorsLastCheckLabel)
+                            usersColorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
+                        USERS_COLOR_STATE[String(id)] = {
+                            name: u.name,
+                            extraColorsBitmap: u.extraColorsBitmap | 0,
+                            droplets: u.droplets | 0,
+                        };
 
                         // Update flags cache with fresh data from /user/status
                         USERS_FLAG_STATE[String(id)] = {
                             name: u.name,
                             flagsBitmap: u.flagsBitmap || '',
                             equippedFlag: u.equippedFlag || 0,
-                            droplets: u.droplets || 0
+                            droplets: u.droplets || 0,
                         };
 
                         // Update FLAGS_CACHE if it exists
                         if (FLAGS_CACHE?.report) {
-                            const flagReport = FLAGS_CACHE.report.filter(r => String(r.userId) !== String(id));
+                            const flagReport = FLAGS_CACHE.report.filter((r) => String(r.userId) !== String(id));
                             flagReport.push({
                                 userId: String(id),
                                 name: u.name,
                                 flagsBitmap: u.flagsBitmap || '',
                                 equippedFlag: u.equippedFlag || 0,
-                                droplets: u.droplets || 0
+                                droplets: u.droplets || 0,
                             });
                             FLAGS_CACHE = { ts: nowTs, report: flagReport };
                             saveFlagsCache();
                         }
-                    } catch (_) { }
+                    } catch (_) {}
 
-                    showConfirmation("User Info", info, () => {
+                    showConfirmation('User Info', info, () => {
                         navigator.clipboard.writeText(JSON.stringify(u, null, 2));
                     });
 
@@ -2931,10 +3431,9 @@ openManageUsers.addEventListener("click", async () => {
                         const equippedFlags = container.querySelectorAll('.flag-emoji-inline');
 
                         if (flagSwatches) parseTwemojiIn(flagSwatches, 16);
-                        equippedFlags.forEach(el => parseTwemojiIn(el, 16));
+                        equippedFlags.forEach((el) => parseTwemojiIn(el, 16));
                         parseTwemojiIn(container, 16);
                     }, 0);
-
                 } catch (error) {
                     handleError(error);
                 }
@@ -2979,7 +3478,8 @@ openManageUsers.addEventListener("click", async () => {
         if (totals) {
             if (totalCharges) totalCharges.textContent = formatSpaces(totals.charges ?? totalCharges.textContent);
             if (totalMaxCharges) totalMaxCharges.textContent = formatSpaces(totals.max ?? totalMaxCharges.textContent);
-            if (totalDropletsEl) totalDropletsEl.textContent = formatSpaces(totals.droplets ?? totalDropletsEl.textContent);
+            if (totalDropletsEl)
+                totalDropletsEl.textContent = formatSpaces(totals.droplets ?? totalDropletsEl.textContent);
             if (regenPphEl) regenPphEl.textContent = formatSpaces(totals.regen ?? regenPphEl.textContent);
         }
     });
@@ -3004,7 +3504,7 @@ async function processInParallel(tasks, concurrency) {
     await Promise.all(workers);
 }
 
-checkUserStatus.addEventListener("click", async () => {
+checkUserStatus.addEventListener('click', async () => {
     const __bypass = Number(window.__skipAccountCheckCooldownWarningCounter || 0);
     if (__bypass === 0) {
         try {
@@ -3033,18 +3533,28 @@ checkUserStatus.addEventListener("click", async () => {
                     window.__skipAccountCheckCooldownWarningCounter = 1;
                     checkUserStatus.click();
                 });
-                if (typeof messageBoxConfirmBig !== 'undefined' && messageBoxConfirmBig) messageBoxConfirmBig.textContent = 'OK, start anyway';
-                if (typeof messageBoxCancelBig !== 'undefined' && messageBoxCancelBig) messageBoxCancelBig.textContent = 'Close';
+                if (typeof messageBoxConfirmBig !== 'undefined' && messageBoxConfirmBig)
+                    messageBoxConfirmBig.textContent = 'OK, start anyway';
+                if (typeof messageBoxCancelBig !== 'undefined' && messageBoxCancelBig)
+                    messageBoxCancelBig.textContent = 'Close';
                 return;
             }
-        } catch (_) { }
+        } catch (_) {}
     } else {
         window.__skipAccountCheckCooldownWarningCounter = __bypass - 1;
     }
     checkUserStatus.disabled = true;
-    if (checkUsersResult) { checkUsersResult.style.display = 'none'; checkUsersResult.innerHTML = ''; }
-    if (checkUsersProgress) { checkUsersProgress.style.display = 'block'; checkUsersProgress.textContent = 'Progress: 0% (0 checked)'; }
-    if (cleanupExpiredWrap) { cleanupExpiredWrap.style.display = 'none'; }
+    if (checkUsersResult) {
+        checkUsersResult.style.display = 'none';
+        checkUsersResult.innerHTML = '';
+    }
+    if (checkUsersProgress) {
+        checkUsersProgress.style.display = 'block';
+        checkUsersProgress.textContent = 'Progress: 0% (0 checked)';
+    }
+    if (cleanupExpiredWrap) {
+        cleanupExpiredWrap.style.display = 'none';
+    }
     const userElements = Array.from(document.querySelectorAll('.user'));
     const totalUsersToCheck = userElements.length;
     let checkedUsersCount = 0;
@@ -3059,7 +3569,6 @@ checkUserStatus.addEventListener("click", async () => {
     const colorReport = [];
     const accountResults = [];
 
-
     let settingsAccountCheckCooldown = 0;
     let settingsProxyEnabled = false;
     let settingsParallelWorkers = 5;
@@ -3069,7 +3578,7 @@ checkUserStatus.addEventListener("click", async () => {
         settingsProxyEnabled = !!s.proxyEnabled;
         const pw = Number(s.parallelWorkers);
         settingsParallelWorkers = Number.isFinite(pw) && pw > 0 ? pw : 5;
-    } catch (_) { }
+    } catch (_) {}
 
     const doOne = async (userEl) => {
         const id = userEl.id.split('-')[1];
@@ -3080,11 +3589,17 @@ checkUserStatus.addEventListener("click", async () => {
         const currentDroplets = userEl.querySelector('.user-stats b:nth-of-type(4)');
         const levelProgressEl = userEl.querySelector('.level-progress');
 
-        infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
+        infoSpans.forEach((span) => (span.style.color = 'var(--warning-color)'));
 
         let success = false;
         let lastReason = 'error';
-        let lastName = (() => { try { return userEl.querySelector('.user-info-username')?.textContent?.trim() || `#${id}` } catch (_) { return `#${id}` } })();
+        let lastName = (() => {
+            try {
+                return userEl.querySelector('.user-info-username')?.textContent?.trim() || `#${id}`;
+            } catch (_) {
+                return `#${id}`;
+            }
+        })();
 
         for (let attempt = 1; attempt <= 3; attempt++) {
             try {
@@ -3097,7 +3612,14 @@ checkUserStatus.addEventListener("click", async () => {
                 const level = Math.floor(userInfo.level);
                 const progress = Math.round((userInfo.level % 1) * 100);
 
-                LAST_USER_STATUS[id] = { charges, max, droplets, level, progress, extraColorsBitmap: userInfo.extraColorsBitmap | 0 };
+                LAST_USER_STATUS[id] = {
+                    charges,
+                    max,
+                    droplets,
+                    level,
+                    progress,
+                    extraColorsBitmap: userInfo.extraColorsBitmap | 0,
+                };
                 saveLastStatus();
 
                 colorReport.push({
@@ -3107,7 +3629,7 @@ checkUserStatus.addEventListener("click", async () => {
                     droplets,
                     charges: { count: charges, max },
                     level,
-                    progress
+                    progress,
                 });
 
                 currentChargesEl.textContent = charges;
@@ -3119,24 +3641,31 @@ checkUserStatus.addEventListener("click", async () => {
                 USERS_COLOR_STATE[id] = {
                     name: userInfo.name || `#${id}`,
                     extraColorsBitmap: userInfo.extraColorsBitmap | 0,
-                    droplets
+                    droplets,
                 };
                 totalCurrent += charges;
                 totalMax += max;
                 totalDroplets += Number(droplets) || 0;
 
-                infoSpans.forEach(span => span.style.color = 'var(--success-color)');
+                infoSpans.forEach((span) => (span.style.color = 'var(--success-color)'));
                 lastName = USERS_COLOR_STATE[id]?.name || userInfo.name || `#${id}`;
                 success = true;
                 break;
             } catch (error) {
-                try { lastReason = (error && error.response && error.response.data && error.response.data.error) ? String(error.response.data.error) : String(error && error.message || error) } catch (_) { lastReason = 'error'; }
-                currentChargesEl.textContent = "ERR";
-                maxChargesEl.textContent = "ERR";
-                currentLevelEl.textContent = "?";
-                levelProgressEl.textContent = "(?%)";
-                currentDroplets.textContent = "?";
-                infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+                try {
+                    lastReason =
+                        error && error.response && error.response.data && error.response.data.error
+                            ? String(error.response.data.error)
+                            : String((error && error.message) || error);
+                } catch (_) {
+                    lastReason = 'error';
+                }
+                currentChargesEl.textContent = 'ERR';
+                maxChargesEl.textContent = 'ERR';
+                currentLevelEl.textContent = '?';
+                levelProgressEl.textContent = '(?%)';
+                currentDroplets.textContent = '?';
+                infoSpans.forEach((span) => (span.style.color = 'var(--error-color)'));
                 if (attempt < 3) {
                     await sleep(1000);
                 }
@@ -3156,18 +3685,17 @@ checkUserStatus.addEventListener("click", async () => {
         checkedUsersCount++;
         updateCheckBtn();
         if (checkUsersProgress) {
-            const pct = totalUsersToCheck > 0 ? Math.round(checkedUsersCount / totalUsersToCheck * 100) : 100;
+            const pct = totalUsersToCheck > 0 ? Math.round((checkedUsersCount / totalUsersToCheck) * 100) : 100;
             checkUsersProgress.textContent = `Progress: ${pct}% (${checkedUsersCount} checked)`;
         }
     };
 
     if (settingsAccountCheckCooldown > 0) {
-
         for (const el of userElements) {
             await doOne(el);
         }
     } else {
-        const tasks = userElements.map(el => () => doOne(el));
+        const tasks = userElements.map((el) => () => doOne(el));
         const concurrency = settingsProxyEnabled ? settingsParallelWorkers : 5;
         await processInParallel(tasks, concurrency);
     }
@@ -3178,7 +3706,7 @@ checkUserStatus.addEventListener("click", async () => {
     if (regenPphEl) {
         const userElementsArr = Array.from(document.querySelectorAll('.user'));
         let regen = 0;
-        userElementsArr.forEach(el => {
+        userElementsArr.forEach((el) => {
             const id = el.id.split('-')[1];
             const s = LAST_USER_STATUS[id] || {};
             const max = Math.floor(s.max || 0);
@@ -3188,16 +3716,15 @@ checkUserStatus.addEventListener("click", async () => {
         saveLatestTotals({ charges: totalCurrent, max: totalMax, droplets: totalDroplets, regen });
     }
 
-
     try {
         const nowTs = Date.now();
-        const byId = new Map((COLORS_CACHE?.report || []).map(r => [String(r.userId), r]));
+        const byId = new Map((COLORS_CACHE?.report || []).map((r) => [String(r.userId), r]));
         for (const r of colorReport) byId.set(String(r.userId), r);
         COLORS_CACHE = { ts: nowTs, report: Array.from(byId.values()) };
         saveColorsCache();
         if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
         if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
-    } catch (_) { }
+    } catch (_) {}
 
     checkUserStatus.disabled = false;
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
@@ -3205,7 +3732,10 @@ checkUserStatus.addEventListener("click", async () => {
     // Build results table similar to Test proxies
     try {
         const total = accountResults.length;
-        let ok = 0, expired = 0, banned = 0, otherErr = 0;
+        let ok = 0,
+            expired = 0,
+            banned = 0,
+            otherErr = 0;
         const isExpired = (r) => {
             const msg = String(r.reason || '').toLowerCase();
             return /authentication failed\s*\(401\)/i.test(r.reason || '') || /unauthorized/i.test(msg);
@@ -3214,22 +3744,38 @@ checkUserStatus.addEventListener("click", async () => {
             const msg = String(r.reason || '').toLowerCase();
             return /banned|suspended/.test(msg);
         };
-        const rows = accountResults.map((r, i) => {
-            let status = 'OK';
-            let tag = '<span style="color:var(--success-color);">OK</span>';
-            if (!r.ok) {
-                if (isExpired(r)) { status = 'EXPIRED'; tag = '<span style="color:var(--error-color);">EXPIRED</span>'; expired++; }
-                else if (isBanned(r)) { status = 'BANNED'; tag = '<span style="color:var(--error-color);">BANNED</span>'; banned++; }
-                else { status = 'ERROR'; tag = '<span style="color:var(--warning-color);">ERROR</span>'; otherErr++; }
-            } else { ok++; }
-            const reasonShort = String(r.reason || '').slice(0, 180).replace(/</g, '&lt;');
-            return `<tr>
+        const rows = accountResults
+            .map((r, i) => {
+                let status = 'OK';
+                let tag = '<span style="color:var(--success-color);">OK</span>';
+                if (!r.ok) {
+                    if (isExpired(r)) {
+                        status = 'EXPIRED';
+                        tag = '<span style="color:var(--error-color);">EXPIRED</span>';
+                        expired++;
+                    } else if (isBanned(r)) {
+                        status = 'BANNED';
+                        tag = '<span style="color:var(--error-color);">BANNED</span>';
+                        banned++;
+                    } else {
+                        status = 'ERROR';
+                        tag = '<span style="color:var(--warning-color);">ERROR</span>';
+                        otherErr++;
+                    }
+                } else {
+                    ok++;
+                }
+                const reasonShort = String(r.reason || '')
+                    .slice(0, 180)
+                    .replace(/</g, '&lt;');
+                return `<tr>
                         <td style="padding:6px 8px;">${i + 1}</td>
                         <td style="padding:6px 8px; white-space:nowrap;">${r.name} <span class="muted">(#${r.id})</span></td>
                         <td style="padding:6px 8px;">${tag}</td>
                         <td style="padding:6px 8px;">${r.ok ? '-' : reasonShort}</td>
                     </tr>`;
-        }).join('');
+            })
+            .join('');
         const summary = `<div><b>Total:</b> ${total} • <b>OK:</b> ${ok} • <b>Expired:</b> ${expired} • <b>Banned:</b> ${banned} • <b>Other errors:</b> ${otherErr}</div>`;
         if (checkUsersResult) {
             checkUsersResult.innerHTML = `${summary}
@@ -3253,16 +3799,20 @@ checkUserStatus.addEventListener("click", async () => {
         // Show cleanup button if there are expired or banned accounts
         if (expired > 0 || banned > 0) {
             try {
-                const expiredIds = accountResults.filter(r => !r.ok && (isExpired(r) || isBanned(r))).map(r => r.id);
+                const expiredIds = accountResults
+                    .filter((r) => !r.ok && (isExpired(r) || isBanned(r)))
+                    .map((r) => r.id);
                 if (cleanupExpiredWrap) cleanupExpiredWrap.style.display = 'block';
                 if (cleanupExpiredBtn) cleanupExpiredBtn.dataset.expiredIds = JSON.stringify(expiredIds);
-            } catch (_) { }
+            } catch (_) {}
         } else {
             if (cleanupExpiredWrap) cleanupExpiredWrap.style.display = 'none';
             if (cleanupExpiredBtn) cleanupExpiredBtn.dataset.expiredIds = '[]';
         }
         showMessage('Success', 'Accounts check finished.');
-    } catch (e) { /* no-op */ }
+    } catch (e) {
+        /* no-op */
+    }
 });
 
 // Cleanup expired/banned accounts with confirmation (creates users.json backup)
@@ -3274,35 +3824,43 @@ cleanupExpiredBtn?.addEventListener('click', async () => {
             showMessage('Info', 'No expired accounts to remove.');
             return;
         }
-        showConfirmation('Remove expired/banned accounts', `Are you sure you want to remove ${toRemove.length} expired/banned accounts? A backup will be created.`, async () => {
-            try {
-                const resp = await axios.post('/users/cleanup-expired', { removeIds: toRemove });
-                if (resp?.data?.success) {
-                    showMessage('Success', `Removed ${resp.data.removed} accounts. Remaining: ${resp.data.remaining}. Backup: ${resp.data.backup}`);
-                    if (cleanupExpiredWrap) cleanupExpiredWrap.style.display = 'none';
-                    // Refresh Users tab to reflect deleted accounts
-                    openManageUsers.click();
-                } else {
-                    showMessage('Error', 'Cleanup failed.');
+        showConfirmation(
+            'Remove expired/banned accounts',
+            `Are you sure you want to remove ${toRemove.length} expired/banned accounts? A backup will be created.`,
+            async () => {
+                try {
+                    const resp = await axios.post('/users/cleanup-expired', { removeIds: toRemove });
+                    if (resp?.data?.success) {
+                        showMessage(
+                            'Success',
+                            `Removed ${resp.data.removed} accounts. Remaining: ${resp.data.remaining}. Backup: ${resp.data.backup}`
+                        );
+                        if (cleanupExpiredWrap) cleanupExpiredWrap.style.display = 'none';
+                        // Refresh Users tab to reflect deleted accounts
+                        openManageUsers.click();
+                    } else {
+                        showMessage('Error', 'Cleanup failed.');
+                    }
+                } catch (error) {
+                    handleError(error);
                 }
-            } catch (error) {
-                handleError(error);
             }
-        });
-    } catch (error) { handleError(error); }
+        );
+    } catch (error) {
+        handleError(error);
+    }
 });
 
-buyMaxUpgradesAll?.addEventListener("click", () => {
+buyMaxUpgradesAll?.addEventListener('click', () => {
     showConfirmation(
-        "Buy max charge upgrades (all)",
+        'Buy max charge upgrades (all)',
         `Buy the maximum number of Max Charge upgrades for all accounts in turn?
         <br><br><b>Note: </b><i>Droplet reserve</i> is used from settings 
         <i>Purchase Cooldown</i> (default 5 sec).`,
         async () => {
             try {
                 buyMaxUpgradesAll.disabled = true;
-                buyMaxUpgradesAll.innerHTML = "Processing...";
-
+                buyMaxUpgradesAll.innerHTML = 'Processing...';
 
                 window.__bm_timer = setInterval(async () => {
                     try {
@@ -3312,16 +3870,18 @@ buyMaxUpgradesAll?.addEventListener("click", () => {
                         if (data?.active && total > 0) {
                             buyMaxUpgradesAll.innerHTML = `Processing... ${completed}/${total}`;
                         }
-                    } catch (_) { }
+                    } catch (_) {}
                 }, 500);
 
-                const { data } = await axios.post("/users/buy-max-upgrades", {});
+                const { data } = await axios.post('/users/buy-max-upgrades', {});
                 const rep = data?.report || [];
 
-                const ok = rep.filter(r => r.amount > 0).length;
-                const skippedBusy = rep.filter(r => r.skipped && r.reason === "busy").length;
-                const skippedNoFunds = rep.filter(r => r.skipped && r.reason === "insufficient_droplets_or_reserve").length;
-                const failed = rep.filter(r => r.error).length;
+                const ok = rep.filter((r) => r.amount > 0).length;
+                const skippedBusy = rep.filter((r) => r.skipped && r.reason === 'busy').length;
+                const skippedNoFunds = rep.filter(
+                    (r) => r.skipped && r.reason === 'insufficient_droplets_or_reserve'
+                ).length;
+                const failed = rep.filter((r) => r.error).length;
 
                 let html = `<b>Cooldown:</b> ${Math.round((data.cooldownMs || 0) / 1000)}s<br>
                             <b>Reserve:</b> ${data.reserve || 0} droplets<br><br>
@@ -3330,37 +3890,43 @@ buyMaxUpgradesAll?.addEventListener("click", () => {
                             <b>Skipped (no funds):</b> ${skippedNoFunds}<br>
                             <b>Failed:</b> ${failed}<br><br>`;
 
-                const lines = rep.slice(0, 10).map(r => {
-                    if (r.error) return `❌ ${r.name} (#${r.userId}): ${r.error}`;
-                    if (r.skipped) return `⏭️ ${r.name} (#${r.userId}): ${r.reason}`;
-                    return `✅ ${r.name} (#${r.userId}): +${r.amount} (droplets ${r.beforeDroplets} → ${r.afterDroplets})`;
-                }).join("<br>");
+                const lines = rep
+                    .slice(0, 10)
+                    .map((r) => {
+                        if (r.error) return `❌ ${r.name} (#${r.userId}): ${r.error}`;
+                        if (r.skipped) return `⏭️ ${r.name} (#${r.userId}): ${r.reason}`;
+                        return `✅ ${r.name} (#${r.userId}): +${r.amount} (droplets ${r.beforeDroplets} → ${r.afterDroplets})`;
+                    })
+                    .join('<br>');
 
                 html += lines;
                 if (rep.length > 10) html += `<br>...and ${rep.length - 10} more`;
 
-                showMessage("Bulk purchase finished", html);
+                showMessage('Bulk purchase finished', html);
             } catch (error) {
                 handleError(error);
             } finally {
                 buyMaxUpgradesAll.disabled = false;
                 buyMaxUpgradesAll.innerHTML = '<img src="icons/playAll.svg" alt=""/> Buy Max Charge Upgrades (All)';
-                try { const t = window.__bm_timer; if (t) clearInterval(t); window.__bm_timer = null; } catch (_) { }
+                try {
+                    const t = window.__bm_timer;
+                    if (t) clearInterval(t);
+                    window.__bm_timer = null;
+                } catch (_) {}
             }
         }
     );
 });
 
-
-buyChargesAll?.addEventListener("click", () => {
+buyChargesAll?.addEventListener('click', () => {
     showConfirmation(
-        "Buy paint charges (all)",
+        'Buy paint charges (all)',
         `Buy the maximum number of paint charges for all accounts?
         <br><br><b>Note: </b>Uses <i>Droplet reserve</i> from Settings and <i>Purchase Cooldown</i>.`,
         async () => {
             try {
                 buyChargesAll.disabled = true;
-                buyChargesAll.innerHTML = "Processing...";
+                buyChargesAll.innerHTML = 'Processing...';
 
                 window.__bc_timer = setInterval(async () => {
                     try {
@@ -3370,16 +3936,18 @@ buyChargesAll?.addEventListener("click", () => {
                         if (data?.active && total > 0) {
                             buyChargesAll.innerHTML = `Processing... ${completed}/${total}`;
                         }
-                    } catch (_) { }
+                    } catch (_) {}
                 }, 500);
 
-                const { data } = await axios.post("/users/buy-charges", {});
+                const { data } = await axios.post('/users/buy-charges', {});
                 const rep = data?.report || [];
 
-                const ok = rep.filter(r => r.amount > 0).length;
-                const skippedBusy = rep.filter(r => r.skipped && r.reason === "busy").length;
-                const skippedNoFunds = rep.filter(r => r.skipped && r.reason === "insufficient_droplets_or_reserve").length;
-                const failed = rep.filter(r => r.error).length;
+                const ok = rep.filter((r) => r.amount > 0).length;
+                const skippedBusy = rep.filter((r) => r.skipped && r.reason === 'busy').length;
+                const skippedNoFunds = rep.filter(
+                    (r) => r.skipped && r.reason === 'insufficient_droplets_or_reserve'
+                ).length;
+                const failed = rep.filter((r) => r.error).length;
 
                 let html = `<b>Cooldown:</b> ${Math.round((data.cooldownMs || 0) / 1000)}s<br>
                             <b>Reserve:</b> ${data.reserve || 0} droplets<br><br>
@@ -3388,35 +3956,40 @@ buyChargesAll?.addEventListener("click", () => {
                             <b>Skipped (no funds):</b> ${skippedNoFunds}<br>
                             <b>Failed:</b> ${failed}<br><br>`;
 
-                const lines = rep.slice(0, 10).map(r => {
-                    if (r.error) return `❌ ${r.name} (#${r.userId}): ${r.error}`;
-                    if (r.skipped) return `⏭️ ${r.name} (#${r.userId}): ${r.reason}`;
-                    return `✅ ${r.name} (#${r.userId}): +${r.amount} (droplets ${r.beforeDroplets} → ${r.afterDroplets})`;
-                }).join("<br>");
+                const lines = rep
+                    .slice(0, 10)
+                    .map((r) => {
+                        if (r.error) return `❌ ${r.name} (#${r.userId}): ${r.error}`;
+                        if (r.skipped) return `⏭️ ${r.name} (#${r.userId}): ${r.reason}`;
+                        return `✅ ${r.name} (#${r.userId}): +${r.amount} (droplets ${r.beforeDroplets} → ${r.afterDroplets})`;
+                    })
+                    .join('<br>');
 
                 html += lines;
                 if (rep.length > 10) html += `<br>...and ${rep.length - 10} more`;
 
-                showMessage("Bulk charge purchase finished", html);
+                showMessage('Bulk charge purchase finished', html);
             } catch (error) {
                 handleError(error);
             } finally {
                 buyChargesAll.disabled = false;
                 buyChargesAll.innerHTML = '<img src="icons/playAll.svg" alt=""/> Buy paint charges (All)';
-                try { const t = window.__bc_timer; if (t) clearInterval(t); window.__bc_timer = null; } catch (_) { }
+                try {
+                    const t = window.__bc_timer;
+                    if (t) clearInterval(t);
+                    window.__bc_timer = null;
+                } catch (_) {}
             }
         }
     );
 });
 
-
-showLatestInfo.addEventListener("click", () => {
+showLatestInfo.addEventListener('click', () => {
     const hasAny = LAST_USER_STATUS && Object.keys(LAST_USER_STATUS).length > 0;
     if (!hasAny) {
-        showMessage("Latest Info", "Nothing to show. Press «Check Account Status».");
+        showMessage('Latest Info', 'Nothing to show. Press «Check Account Status».');
         return;
     }
-
 
     const userElements = Array.from(document.querySelectorAll('.user'));
 
@@ -3425,7 +3998,7 @@ showLatestInfo.addEventListener("click", () => {
     let sumDroplets = 0;
     let touched = false;
 
-    userElements.forEach(userEl => {
+    userElements.forEach((userEl) => {
         const id = userEl.id.split('-')[1];
         const s = LAST_USER_STATUS[id];
         if (!s) return;
@@ -3454,7 +4027,7 @@ showLatestInfo.addEventListener("click", () => {
         if (totalDropletsEl) totalDropletsEl.textContent = formatSpaces(sumDroplets);
         if (regenPphEl) {
             let regen = 0;
-            Object.values(LAST_USER_STATUS || {}).forEach(s => {
+            Object.values(LAST_USER_STATUS || {}).forEach((s) => {
                 const max = Math.floor(s.max || 0);
                 regen += Math.min(120, max);
             });
@@ -3464,19 +4037,18 @@ showLatestInfo.addEventListener("click", () => {
 
         try {
             if (usersColorsLastCheckLabel) {
-                const ts = (typeof COLORS_CACHE?.ts === 'number') ? COLORS_CACHE.ts : Date.now();
+                const ts = typeof COLORS_CACHE?.ts === 'number' ? COLORS_CACHE.ts : Date.now();
                 usersColorsLastCheckLabel.textContent = new Date(ts).toLocaleString();
             }
-        } catch (_) { }
+        } catch (_) {}
     } else {
-        showMessage("Latest Info", "There is no saved data for current accounts..");
+        showMessage('Latest Info', 'There is no saved data for current accounts..');
     }
 });
 
-
-openAddTemplate.addEventListener("click", () => {
+openAddTemplate.addEventListener('click', () => {
     resetTemplateForm();
-    userSelectList.innerHTML = "";
+    userSelectList.innerHTML = '';
 
     const toolbarId = 'userSelectToolbar';
     let toolbar = document.getElementById(toolbarId);
@@ -3488,13 +4060,13 @@ openAddTemplate.addEventListener("click", () => {
         right.style.cssText = 'display:flex; align-items:center; gap:6px;';
         const select = document.createElement('select');
         select.id = 'userSortMode';
-        select.innerHTML = '<option value="priority">Priority (needed colors)</option><option value="droplets">Droplets</option><option value="available">Available charges</option><option value="id">User ID</option>';
+        select.innerHTML =
+            '<option value="priority">Priority (needed colors)</option><option value="droplets">Droplets</option><option value="available">Available charges</option><option value="id">User ID</option>';
         select.value = 'available';
         right.append(select);
 
         toolbar.append(right);
     }
-
 
     const usersLabel = document.querySelector('label[for="userSelectList"]');
     if (usersLabel) {
@@ -3507,14 +4079,14 @@ openAddTemplate.addEventListener("click", () => {
         }
     }
 
-
     const parentField = userSelectList.parentElement;
     if (usersLabel && toolbar && parentField) {
         let headerRow = document.getElementById('userUsersHeaderRow');
         if (!headerRow) {
             headerRow = document.createElement('div');
             headerRow.id = 'userUsersHeaderRow';
-            headerRow.style.cssText = 'display:flex; align-items:end; justify-content:space-between; gap:8px; margin:6px 0px;';
+            headerRow.style.cssText =
+                'display:flex; align-items:end; justify-content:space-between; gap:8px; margin:6px 0px;';
 
             parentField.insertBefore(headerRow, usersLabel);
         }
@@ -3523,7 +4095,11 @@ openAddTemplate.addEventListener("click", () => {
     }
 
     const readColorsCache = () => {
-        try { return JSON.parse(localStorage.getItem('wplacer_colors_cache_v1') || 'null'); } catch { return null; }
+        try {
+            return JSON.parse(localStorage.getItem('wplacer_colors_cache_v1') || 'null');
+        } catch {
+            return null;
+        }
     };
     const getAsOf = () => {
         const cc = readColorsCache();
@@ -3541,15 +4117,16 @@ openAddTemplate.addEventListener("click", () => {
             if (!tpl?.data) return set;
             for (let x = 0; x < tpl.width; x++) {
                 for (let y = 0; y < tpl.height; y++) {
-                    const id = tpl.data?.[x]?.[y] | 0; if (id >= 32 && id <= 63) set.add(id);
+                    const id = tpl.data?.[x]?.[y] | 0;
+                    if (id >= 32 && id <= 63) set.add(id);
                 }
             }
-        } catch { }
+        } catch {}
         return set;
     };
 
     const tinySwatch = (cid) => {
-        const meta = (typeof COLORS !== 'undefined') ? COLORS.find(c => c.id === cid) : null;
+        const meta = typeof COLORS !== 'undefined' ? COLORS.find((c) => c.id === cid) : null;
         const rgb = meta ? `rgb(${meta.rgb[0]},${meta.rgb[1]},${meta.rgb[2]})` : '#333';
         const fg = meta ? getContrastColor(meta.rgb[0], meta.rgb[1], meta.rgb[2]) : '#fff';
         return `<span class="tiny-swatch" title="#${cid}" style="background:${rgb};color:${fg}">${cid}</span>`;
@@ -3557,7 +4134,11 @@ openAddTemplate.addEventListener("click", () => {
 
     const getMergedUserInfo = (usersObj) => {
         const cache = readColorsCache();
-        const mapById = cache?.report?.reduce((m, r) => { if (r?.userId && !r.error) m[String(r.userId)] = r; return m; }, {}) || {};
+        const mapById =
+            cache?.report?.reduce((m, r) => {
+                if (r?.userId && !r.error) m[String(r.userId)] = r;
+                return m;
+            }, {}) || {};
         const out = {};
         for (const id of Object.keys(usersObj)) {
             const s = LAST_USER_STATUS[id] || {};
@@ -3565,10 +4146,10 @@ openAddTemplate.addEventListener("click", () => {
             out[id] = {
                 id,
                 name: usersObj[id].name,
-                droplets: (typeof s.droplets === 'number') ? s.droplets : (c.droplets | 0),
-                bitmap: (typeof s.extraColorsBitmap === 'number') ? s.extraColorsBitmap : (c.extraColorsBitmap | 0),
-                charges: (typeof s.charges === 'number') ? Math.floor(s.charges) : Math.floor(c?.charges?.count || 0),
-                max: (typeof s.max === 'number') ? Math.floor(s.max) : Math.floor(c?.charges?.max || 0)
+                droplets: typeof s.droplets === 'number' ? s.droplets : c.droplets | 0,
+                bitmap: typeof s.extraColorsBitmap === 'number' ? s.extraColorsBitmap : c.extraColorsBitmap | 0,
+                charges: typeof s.charges === 'number' ? Math.floor(s.charges) : Math.floor(c?.charges?.count || 0),
+                max: typeof s.max === 'number' ? Math.floor(s.max) : Math.floor(c?.charges?.max || 0),
             };
         }
         return out;
@@ -3577,19 +4158,39 @@ openAddTemplate.addEventListener("click", () => {
     const renderList = (usersObj, sortMode) => {
         const info = getMergedUserInfo(usersObj);
         const req = computeRequiredPremiumSet();
-        const entries = Object.keys(usersObj).map(id => {
+        const entries = Object.keys(usersObj).map((id) => {
             const u = info[id];
 
-            let ownedCount = 0; const ownedList = [];
+            let ownedCount = 0;
+            const ownedList = [];
             const bm = u.bitmap | 0;
-            for (const cid of req) { if ((bm & (1 << (cid - 32))) !== 0) { ownedCount++; ownedList.push(cid); } }
-            return { id, name: u.name, droplets: u.droplets | 0, bitmap: bm, ownedCount, ownedList, charges: u.charges | 0, max: u.max | 0 };
+            for (const cid of req) {
+                if ((bm & (1 << (cid - 32))) !== 0) {
+                    ownedCount++;
+                    ownedList.push(cid);
+                }
+            }
+            return {
+                id,
+                name: u.name,
+                droplets: u.droplets | 0,
+                bitmap: bm,
+                ownedCount,
+                ownedList,
+                charges: u.charges | 0,
+                max: u.max | 0,
+            };
         });
 
-        if (sortMode === 'priority') entries.sort((a, b) => b.ownedCount - a.ownedCount || b.droplets - a.droplets || (Number(b.id) - Number(a.id)));
-        else if (sortMode === 'droplets') entries.sort((a, b) => b.droplets - a.droplets || (Number(a.id) - Number(b.id)));
-        else if (sortMode === 'available') entries.sort((a, b) => (b.charges - a.charges) || (b.max - a.max) || (Number(a.id) - Number(b.id)));
-        else entries.sort((a, b) => (Number(a.id) - Number(b.id)));
+        if (sortMode === 'priority')
+            entries.sort(
+                (a, b) => b.ownedCount - a.ownedCount || b.droplets - a.droplets || Number(b.id) - Number(a.id)
+            );
+        else if (sortMode === 'droplets')
+            entries.sort((a, b) => b.droplets - a.droplets || Number(a.id) - Number(b.id));
+        else if (sortMode === 'available')
+            entries.sort((a, b) => b.charges - a.charges || b.max - a.max || Number(a.id) - Number(b.id));
+        else entries.sort((a, b) => Number(a.id) - Number(b.id));
 
         userSelectList.innerHTML = '';
         for (const e of entries) {
@@ -3600,7 +4201,9 @@ openAddTemplate.addEventListener("click", () => {
             checkbox.id = `user_${e.id}`;
             checkbox.name = 'user_checkbox';
             checkbox.value = e.id;
-            const keep = (editSelectedUserIds && editSelectedUserIds.has(String(e.id))) || (Array.isArray(pendingUserSelection) && pendingUserSelection.includes(String(e.id)));
+            const keep =
+                (editSelectedUserIds && editSelectedUserIds.has(String(e.id))) ||
+                (Array.isArray(pendingUserSelection) && pendingUserSelection.includes(String(e.id)));
             if (keep) checkbox.checked = true;
 
             const label = document.createElement('label');
@@ -3608,7 +4211,7 @@ openAddTemplate.addEventListener("click", () => {
             label.htmlFor = `user_${e.id}`;
             const swatches = e.ownedList.slice(0, 12).map(tinySwatch).join('');
             const more = e.ownedList.length > 12 ? ` +${e.ownedList.length - 12}` : '';
-            const chargesStr = (Number.isFinite(e.charges) && Number.isFinite(e.max)) ? `${e.charges}/${e.max}` : '–/–';
+            const chargesStr = Number.isFinite(e.charges) && Number.isFinite(e.max) ? `${e.charges}/${e.max}` : '–/–';
             label.innerHTML = `${e.name} <span class="muted-user-id">(#${e.id})</span> <span class="drops-badge" title="Charges">${chargesStr}</span> <span class="drops-badge" title="Droplets">${e.droplets} drops</span> ${swatches}${more}`;
 
             userDiv.appendChild(checkbox);
@@ -3622,23 +4225,26 @@ openAddTemplate.addEventListener("click", () => {
         const mode = sel ? sel.value : 'priority';
         // Capture current checked before rerender (persist selection across sort)
         try {
-            const checked = Array.from(document.querySelectorAll('#userSelectList input[name="user_checkbox"]:checked')).map(cb => String(cb.value));
+            const checked = Array.from(
+                document.querySelectorAll('#userSelectList input[name="user_checkbox"]:checked')
+            ).map((cb) => String(cb.value));
             editSelectedUserIds = new Set(checked);
-        } catch { editSelectedUserIds = editSelectedUserIds || null; }
+        } catch {
+            editSelectedUserIds = editSelectedUserIds || null;
+        }
         renderList(usersObj, mode);
     };
 
-    loadUsers(users => {
+    loadUsers((users) => {
         if (Object.keys(users).length === 0) {
-            userSelectList.innerHTML = "<span>No users added. Please add a user first.</span>";
+            userSelectList.innerHTML = '<span>No users added. Please add a user first.</span>';
             return;
         }
         setAsOfLabel();
         const selInit = document.getElementById('userSortMode');
         if (selInit) {
-            selInit.value = (Array.isArray(pendingUserSelection) && pendingUserSelection.length)
-                ? 'priority'
-                : 'available';
+            selInit.value =
+                Array.isArray(pendingUserSelection) && pendingUserSelection.length ? 'priority' : 'available';
         }
         applySort(users);
 
@@ -3660,24 +4266,30 @@ openAddTemplate.addEventListener("click", () => {
     changeTab(addTemplate);
 });
 selectAllUsers.addEventListener('click', () => {
-    document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
-    try { editSelectedUserIds = new Set(Array.from(document.querySelectorAll('#userSelectList input[name="user_checkbox"]:checked')).map(cb => String(cb.value))); } catch { }
+    document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach((cb) => (cb.checked = true));
+    try {
+        editSelectedUserIds = new Set(
+            Array.from(document.querySelectorAll('#userSelectList input[name="user_checkbox"]:checked')).map((cb) =>
+                String(cb.value)
+            )
+        );
+    } catch {}
 });
 document.getElementById('unselectAllUsers')?.addEventListener('click', () => {
-    document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach((cb) => (cb.checked = false));
     editSelectedUserIds = new Set();
 });
 
-document.getElementById("HideSensInfo").addEventListener("click", function () {
+document.getElementById('HideSensInfo').addEventListener('click', function () {
     const btn = this;
-    const elements = document.querySelectorAll(".user-info-username, .user-actions, .user-info-id");
-    const isHidden = btn.dataset.hidden === "true";
+    const elements = document.querySelectorAll('.user-info-username, .user-actions, .user-info-id');
+    const isHidden = btn.dataset.hidden === 'true';
 
-    elements.forEach(el => {
+    elements.forEach((el) => {
         if (!isHidden) {
-            el.style.setProperty("display", "none", "important");
+            el.style.setProperty('display', 'none', 'important');
         } else {
-            el.style.removeProperty("display");
+            el.style.removeProperty('display');
         }
     });
 
@@ -3687,16 +4299,16 @@ document.getElementById("HideSensInfo").addEventListener("click", function () {
             const headerCells = checkUsersResult.querySelectorAll('table thead tr th:nth-child(2)');
             const bodyCells = checkUsersResult.querySelectorAll('table tbody tr td:nth-child(2)');
             if (!isHidden) {
-                headerCells.forEach(el => el.style.setProperty('display', 'none', 'important'));
-                bodyCells.forEach(el => el.style.setProperty('display', 'none', 'important'));
+                headerCells.forEach((el) => el.style.setProperty('display', 'none', 'important'));
+                bodyCells.forEach((el) => el.style.setProperty('display', 'none', 'important'));
             } else {
-                headerCells.forEach(el => el.style.removeProperty('display'));
-                bodyCells.forEach(el => el.style.removeProperty('display'));
+                headerCells.forEach((el) => el.style.removeProperty('display'));
+                bodyCells.forEach((el) => el.style.removeProperty('display'));
             }
         }
-    } catch (_) { }
+    } catch (_) {}
 
-    btn.textContent = isHidden ? "Hide Sensitive Info" : "Show Sensitive Info";
+    btn.textContent = isHidden ? 'Hide Sensitive Info' : 'Show Sensitive Info';
     btn.dataset.hidden = !isHidden;
 });
 
@@ -3729,11 +4341,13 @@ let createToggleButton = (template, id, buttonsContainer, statusSpan) => {
                             window.__skipAccountTurnCooldownWarningCounter = 1;
                             button.click();
                         });
-                        if (typeof messageBoxConfirmBig !== 'undefined' && messageBoxConfirmBig) messageBoxConfirmBig.textContent = 'OK, start anyway';
-                        if (typeof messageBoxCancelBig !== 'undefined' && messageBoxCancelBig) messageBoxCancelBig.textContent = 'Close';
+                        if (typeof messageBoxConfirmBig !== 'undefined' && messageBoxConfirmBig)
+                            messageBoxConfirmBig.textContent = 'OK, start anyway';
+                        if (typeof messageBoxCancelBig !== 'undefined' && messageBoxCancelBig)
+                            messageBoxCancelBig.textContent = 'Close';
                         return;
                     }
-                } catch (_) { }
+                } catch (_) {}
             } else {
                 window.__skipAccountTurnCooldownWarningCounter = bypass - 1;
             }
@@ -3743,7 +4357,6 @@ let createToggleButton = (template, id, buttonsContainer, statusSpan) => {
             template.running = !isRunning;
             const newButton = createToggleButton(template, id, buttonsContainer, statusSpan);
             button.replaceWith(newButton);
-
         } catch (error) {
             handleError(error);
         }
@@ -3751,17 +4364,16 @@ let createToggleButton = (template, id, buttonsContainer, statusSpan) => {
     return button;
 };
 
-
 const updateTemplateStatus = async () => {
     try {
-        const { data: templates } = await axios.get("/templates");
+        const { data: templates } = await axios.get('/templates');
         for (const id in templates) {
             const t = templates[id];
             const templateElement = $(id);
             if (!templateElement) continue;
 
-            const total = t.totalPixels || (t.template?.width * t.template?.height) || 1;
-            const remaining = (typeof t.pixelsRemaining === 'number') ? t.pixelsRemaining : total;
+            const total = t.totalPixels || t.template?.width * t.template?.height || 1;
+            const remaining = typeof t.pixelsRemaining === 'number' ? t.pixelsRemaining : total;
             const completed = Math.max(0, total - remaining);
             const percent = Math.floor((completed / total) * 100);
 
@@ -3775,9 +4387,10 @@ const updateTemplateStatus = async () => {
             if (pixelCount) pixelCount.textContent = `${completed} / ${total}`;
 
             //30 means 30 seconds (for 1 pixel)
-            if (estimatedTimeLeft) estimatedTimeLeft.textContent = `~${formatTime((total - completed) / t.userIds.length * 30)}`;
+            if (estimatedTimeLeft)
+                estimatedTimeLeft.textContent = `~${formatTime(((total - completed) / t.userIds.length) * 30)}`;
 
-            if (t.status === "Finished." || t.status === "Finished") {
+            if (t.status === 'Finished.' || t.status === 'Finished') {
                 progressBar.classList.add('finished');
                 progressBar.classList.remove('stopped');
             } else if (!t.running) {
@@ -3788,33 +4401,33 @@ const updateTemplateStatus = async () => {
             }
         }
     } catch (error) {
-        console.warn("Failed to update template statuses:", error);
+        console.warn('Failed to update template statuses:', error);
     }
 };
 
-openManageTemplates.addEventListener("click", () => {
-    templateList.innerHTML = "";
+openManageTemplates.addEventListener('click', () => {
+    templateList.innerHTML = '';
     if (templateUpdateInterval) {
         clearInterval(templateUpdateInterval);
         templateUpdateInterval = null;
     }
 
-    loadUsers(users => {
-        loadTemplates(templates => {
+    loadUsers((users) => {
+        loadTemplates((templates) => {
             const pinned = new Set(getPinned().map(String));
             const ids = Object.keys(templates);
-            const pinnedIds = ids.filter(id => pinned.has(id));
-            const otherIds = ids.filter(id => !pinned.has(id));
+            const pinnedIds = ids.filter((id) => pinned.has(id));
+            const otherIds = ids.filter((id) => !pinned.has(id));
             const ordered = [...pinnedIds, ...otherIds];
             for (const id of ordered) {
                 const t = templates[id];
 
                 const template = document.createElement('div');
                 template.id = id;
-                template.className = "template";
+                template.className = 'template';
 
-                const total = t.totalPixels || (t.template?.width * t.template?.height) || 1;
-                const remaining = (typeof t.pixelsRemaining === 'number') ? t.pixelsRemaining : total;
+                const total = t.totalPixels || t.template?.width * t.template?.height || 1;
+                const remaining = typeof t.pixelsRemaining === 'number' ? t.pixelsRemaining : total;
                 const completed = Math.max(0, total - remaining);
                 const percent = Math.floor((completed / total) * 100);
 
@@ -3861,17 +4474,18 @@ openManageTemplates.addEventListener("click", () => {
 
                 const hasPremium = (() => {
                     try {
-                        const tpl = t.template; if (!tpl?.data) return false;
+                        const tpl = t.template;
+                        if (!tpl?.data) return false;
                         for (let x = 0; x < tpl.width; x++) {
                             for (let y = 0; y < tpl.height; y++) {
-                                const id = tpl.data?.[x]?.[y] | 0; if (id >= 32 && id <= 63) return true;
+                                const id = tpl.data?.[x]?.[y] | 0;
+                                if (id >= 32 && id <= 63) return true;
                             }
                         }
-                    } catch (_) { }
+                    } catch (_) {}
                     return false;
                 })();
                 const paletteLine = `<div><span class="t-templates-enabled">Palette:</span> <span class="${hasPremium ? 'premium' : 'basic'}">${hasPremium ? 'Premium' : 'Basic'}</span></div>`;
-
 
                 const enabled = [];
                 if (t.canBuyCharges) enabled.push('Buy charges');
@@ -3881,13 +4495,15 @@ openManageTemplates.addEventListener("click", () => {
                 if (t.antiGriefMode) enabled.push('Anti‑grief mode');
                 if (t.skipPaintedPixels) enabled.push('Skip painted pixels');
                 if (t.outlineMode) enabled.push('Outline first');
-                const enabledLine = enabled.length ? `<div><span class="t-templates-enabled">Enabled:</span> ${enabled.join(', ')}</div>` : '';
+                const enabledLine = enabled.length
+                    ? `<div><span class="t-templates-enabled">Enabled:</span> ${enabled.join(', ')}</div>`
+                    : '';
 
                 meta.innerHTML = `
                     ${paletteLine}
-                    <div><span class="t-templates-enabled">Coords:</span> ${t.coords.join(", ")}</div>
+                    <div><span class="t-templates-enabled">Coords:</span> ${t.coords.join(', ')}</div>
                     <div><span class="t-templates-enabled">Pixels:</span> <span class="pixel-count">${completed} / ${total}</span></div>
-                    <div><span class="t-templates-enabled">Estimated time left:</span> <span class="estimated-time">~${formatTime((total - completed) / t.userIds.length * 30)}</span></div>
+                    <div><span class="t-templates-enabled">Estimated time left:</span> <span class="estimated-time">~${formatTime(((total - completed) / t.userIds.length) * 30)}</span></div>
                     ${enabledLine}
                 `;
 
@@ -3901,12 +4517,12 @@ openManageTemplates.addEventListener("click", () => {
                 infoSpan.appendChild(meta);
                 template.appendChild(infoSpan);
 
-                const canvas = document.createElement("canvas");
+                const canvas = document.createElement('canvas');
                 drawTemplate(t.template, canvas);
                 template.appendChild(canvas);
 
                 const actions = document.createElement('div');
-                actions.className = "template-actions";
+                actions.className = 'template-actions';
 
                 const progressBarContainer = document.createElement('div');
                 progressBarContainer.className = 'progress-bar-container';
@@ -3919,7 +4535,7 @@ openManageTemplates.addEventListener("click", () => {
                 progressBarText.className = 'progress-bar-text';
                 progressBarText.textContent = `${percent}% | ${t.status}`;
 
-                if (t.status === "Finished." || t.status === "Finished") {
+                if (t.status === 'Finished.' || t.status === 'Finished') {
                     progressBar.classList.add('finished');
                 } else if (!t.running) {
                     progressBar.classList.add('stopped');
@@ -3930,7 +4546,7 @@ openManageTemplates.addEventListener("click", () => {
                 actions.appendChild(progressBarContainer);
 
                 const buttonsRow = document.createElement('div');
-                buttonsRow.className = "template-actions-row";
+                buttonsRow.className = 'template-actions-row';
 
                 const pinBtn = document.createElement('button');
                 pinBtn.className = 'secondary-button button-templates';
@@ -3938,14 +4554,14 @@ openManageTemplates.addEventListener("click", () => {
                 pinBtn.innerHTML = pinnedNow ? '<img src="icons/pin.svg">Unpin' : '<img src="icons/pin.svg">Pin';
                 pinBtn.addEventListener('click', () => {
                     const curr = new Set(getPinned().map(String));
-                    if (curr.has(id)) curr.delete(id); else curr.add(id);
+                    if (curr.has(id)) curr.delete(id);
+                    else curr.add(id);
                     savePinned(Array.from(curr));
                     openManageTemplates.click();
                 });
 
                 const toggleButton = createToggleButton(t, id, buttonsRow, infoSpan.querySelector('.status-text'));
                 buttonsRow.appendChild(toggleButton);
-
 
                 const previewButton = document.createElement('button');
                 previewButton.className = 'secondary-button button-templates';
@@ -3970,7 +4586,7 @@ openManageTemplates.addEventListener("click", () => {
                     try {
                         const { data } = await axios.get(`/template/${id}`);
                         if (data) T = data;
-                    } catch (_) { }
+                    } catch (_) {}
 
                     pendingUserSelection = Array.isArray(T.userIds) ? T.userIds.map(String) : [];
 
@@ -3988,18 +4604,29 @@ openManageTemplates.addEventListener("click", () => {
                     skipPaintedPixels.checked = !!T.skipPaintedPixels;
                     outlineMode.checked = !!T.outlineMode;
                     paintTransparent.checked = !!T.paintTransparentPixels;
-                    if (typeof T.heatmapEnabled !== 'undefined' && heatmapEnabled) heatmapEnabled.checked = !!T.heatmapEnabled;
-                    if (heatmapLimitWrap) heatmapLimitWrap.style.display = heatmapEnabled && heatmapEnabled.checked ? '' : 'none';
-                    if (typeof T.heatmapLimit !== 'undefined' && heatmapLimit) heatmapLimit.value = Math.max(1, Number(T.heatmapLimit || 10000));
+                    if (typeof T.heatmapEnabled !== 'undefined' && heatmapEnabled)
+                        heatmapEnabled.checked = !!T.heatmapEnabled;
+                    if (heatmapLimitWrap)
+                        heatmapLimitWrap.style.display = heatmapEnabled && heatmapEnabled.checked ? '' : 'none';
+                    if (typeof T.heatmapLimit !== 'undefined' && heatmapLimit)
+                        heatmapLimit.value = Math.max(1, Number(T.heatmapLimit || 10000));
                     if (typeof T.autoStart !== 'undefined' && autoStart) autoStart.checked = !!T.autoStart;
 
-
-                    if (autoBuyNeededColors?.checked) { canBuyCharges.checked = false; canBuyMaxCharges.checked = false; }
-                    if (canBuyCharges.checked) { canBuyMaxCharges.checked = false; if (autoBuyNeededColors) autoBuyNeededColors.checked = false; }
-                    if (canBuyMaxCharges.checked) { canBuyCharges.checked = false; if (autoBuyNeededColors) autoBuyNeededColors.checked = false; }
+                    if (autoBuyNeededColors?.checked) {
+                        canBuyCharges.checked = false;
+                        canBuyMaxCharges.checked = false;
+                    }
+                    if (canBuyCharges.checked) {
+                        canBuyMaxCharges.checked = false;
+                        if (autoBuyNeededColors) autoBuyNeededColors.checked = false;
+                    }
+                    if (canBuyMaxCharges.checked) {
+                        canBuyCharges.checked = false;
+                        if (autoBuyNeededColors) autoBuyNeededColors.checked = false;
+                    }
 
                     setTimeout(() => {
-                        document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
+                        document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
                             cb.checked = (T.userIds || []).includes(cb.value);
                         });
                     }, 0);
@@ -4017,9 +4644,9 @@ openManageTemplates.addEventListener("click", () => {
                 const delButton = document.createElement('button');
                 delButton.className = 'destructive-button button-templates';
                 delButton.innerHTML = '<img src="icons/remove.svg">Delete';
-                delButton.addEventListener("click", () => {
+                delButton.addEventListener('click', () => {
                     showConfirmation(
-                        "Delete Template",
+                        'Delete Template',
                         `Are you sure you want to delete template "${t.name}"?`,
                         async () => {
                             try {
@@ -4036,7 +4663,8 @@ openManageTemplates.addEventListener("click", () => {
                 actions.appendChild(buttonsRow);
 
                 infoSpan.appendChild(actions);
-                if (pinned.has(id)) templateList.prepend(template); else templateList.append(template);
+                if (pinned.has(id)) templateList.prepend(template);
+                else templateList.append(template);
             }
             templateUpdateInterval = setInterval(updateTemplateStatus, 2000);
         });
@@ -4045,14 +4673,10 @@ openManageTemplates.addEventListener("click", () => {
     changeTab(manageTemplates);
 });
 
-
-
-
-openSettings.addEventListener("click", async () => {
+openSettings.addEventListener('click', async () => {
     try {
         const response = await axios.get('/settings');
         const currentSettings = response.data;
-
 
         setModeSelectionUI(currentSettings.drawingMethod);
 
@@ -4077,7 +4701,8 @@ openSettings.addEventListener("click", async () => {
         if (previewSpeed) {
             previewSpeed.value = speed0;
             if (previewSpeedLabel) previewSpeedLabel.textContent = `${speed0}×`;
-            if (typeof MODE_PREVIEW !== 'undefined' && MODE_PREVIEW.setSpeed) MODE_PREVIEW.setSpeed(speed0, { silent: true });
+            if (typeof MODE_PREVIEW !== 'undefined' && MODE_PREVIEW.setSpeed)
+                MODE_PREVIEW.setSpeed(speed0, { silent: true });
         }
 
         proxyEnabled.checked = !!currentSettings.proxyEnabled;
@@ -4087,16 +4712,17 @@ openSettings.addEventListener("click", async () => {
         proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
         if (parallelWorkers) parallelWorkers.value = String(currentSettings.parallelWorkers ?? 4);
 
-
         try {
             const cdTurn = parseInt(accountCooldown.value, 10) || 0;
             const cdCheck = parseInt(accountCheckCooldown.value, 10) || 0;
             const cdPurchase = parseInt(purchaseCooldown.value, 10) || 0;
             if (!proxyEnabled.checked && (cdTurn === 0 || cdCheck === 0 || cdPurchase === 0)) {
-                showMessage("Warning", "One of cooldowns is 0 while proxies are disabled. This may cause rate limiting or blocks.");
+                showMessage(
+                    'Warning',
+                    'One of cooldowns is 0 while proxies are disabled. This may cause rate limiting or blocks.'
+                );
             }
-        } catch (_) { }
-
+        } catch (_) {}
     } catch (error) {
         handleError(error);
     }
@@ -4107,18 +4733,19 @@ document.getElementById('log_maskPii')?.addEventListener('change', async (e) => 
     try {
         await axios.put('/settings', { logMaskPii: e.target.checked });
         showMessage('Success', 'PII masking saved!');
-    } catch (err) { handleError(err); }
+    } catch (err) {
+        handleError(err);
+    }
 });
 
-
 function setModeSelectionUI(method) {
-    document.querySelectorAll('.mode-card').forEach(card => {
+    document.querySelectorAll('.mode-card').forEach((card) => {
         const mode = card.dataset.mode;
         if (!mode) return;
-        if (mode === method) card.classList.add('selected'); else card.classList.remove('selected');
+        if (mode === method) card.classList.add('selected');
+        else card.classList.remove('selected');
     });
 }
-
 
 document.addEventListener('click', async (e) => {
     const card = e.target.closest('.mode-card');
@@ -4131,13 +4758,11 @@ document.addEventListener('click', async (e) => {
     setModeSelectionUI(mode);
     try {
         await axios.put('/settings', { drawingMethod: mode });
-        showMessage("Success", `Drawing mode set to "${mode}".`);
+        showMessage('Success', `Drawing mode set to "${mode}".`);
     } catch (error) {
         handleError(error);
     }
 });
-
-
 
 if (seedCountHidden) {
     seedCountHidden.addEventListener('change', async () => {
@@ -4148,10 +4773,10 @@ if (seedCountHidden) {
             seedCountHidden.value = n;
             await axios.put('/settings', { seedCount: n });
             window.BURST_SEED_COUNT = n;
-            showMessage("Success", `Burst seed count updated to ${n}.`);
+            showMessage('Success', `Burst seed count updated to ${n}.`);
             if (typeof MODE_PREVIEW !== 'undefined' && MODE_PREVIEW.stopAll && MODE_PREVIEW.start) {
                 MODE_PREVIEW.stopAll();
-                document.querySelectorAll('.mode-preview[data-mode]').forEach(cv => MODE_PREVIEW.start(cv));
+                document.querySelectorAll('.mode-preview[data-mode]').forEach((cv) => MODE_PREVIEW.start(cv));
             }
         } catch (error) {
             handleError(error);
@@ -4159,12 +4784,10 @@ if (seedCountHidden) {
     });
 }
 
-
-
 turnstileNotifications.addEventListener('change', async () => {
     try {
         await axios.put('/settings', { turnstileNotifications: turnstileNotifications.checked });
-        showMessage("Success", "Notification setting saved!");
+        showMessage('Success', 'Notification setting saved!');
     } catch (error) {
         handleError(error);
     }
@@ -4176,17 +4799,20 @@ try {
         try {
             const { data } = await axios.get('/token-needed');
             if (data?.needed && turnstileNotifications?.checked) {
-                showMessage("Turnstile", "Problem obtaining token. Please reload the extension and restart the browser. Possible Cloudflare Turnstile error (300030).");
+                showMessage(
+                    'Turnstile',
+                    'Problem obtaining token. Please reload the extension and restart the browser. Possible Cloudflare Turnstile error (300030).'
+                );
             }
-        } catch (_) { }
+        } catch (_) {}
     }, 1000);
-} catch (_) { }
+} catch (_) {}
 
 accountCooldown.addEventListener('change', async () => {
     try {
         const newCooldown = parseInt(accountCooldown.value, 10) * 1000;
         if (isNaN(newCooldown) || newCooldown < 0) {
-            showMessage("Error", "Please enter a valid non-negative number.");
+            showMessage('Error', 'Please enter a valid non-negative number.');
             return;
         }
         await axios.put('/settings', { accountCooldown: newCooldown });
@@ -4194,9 +4820,12 @@ accountCooldown.addEventListener('change', async () => {
         const cdCheck = parseInt(accountCheckCooldown.value, 10) || 0;
         const cdPurchase = parseInt(purchaseCooldown.value, 10) || 0;
         if (!proxyEnabled.checked && (cdTurn === 0 || cdCheck === 0 || cdPurchase === 0)) {
-            showMessage("Warning", "One of cooldowns is 0 while proxies are disabled.  This may cause rate limiting or blocks.");
+            showMessage(
+                'Warning',
+                'One of cooldowns is 0 while proxies are disabled.  This may cause rate limiting or blocks.'
+            );
         } else {
-            showMessage("Success", "Account check cooldown saved!");
+            showMessage('Success', 'Account check cooldown saved!');
         }
     } catch (error) {
         handleError(error);
@@ -4207,7 +4836,7 @@ purchaseCooldown.addEventListener('change', async () => {
     try {
         const newCooldown = parseInt(purchaseCooldown.value, 10) * 1000;
         if (isNaN(newCooldown) || newCooldown < 0) {
-            showMessage("Error", "Please enter a valid non-negative number.");
+            showMessage('Error', 'Please enter a valid non-negative number.');
             return;
         }
         await axios.put('/settings', { purchaseCooldown: newCooldown });
@@ -4215,9 +4844,12 @@ purchaseCooldown.addEventListener('change', async () => {
         const cdCheck = parseInt(accountCheckCooldown.value, 10) || 0;
         const cdPurchase = parseInt(purchaseCooldown.value, 10) || 0;
         if (!proxyEnabled.checked && (cdTurn === 0 || cdCheck === 0 || cdPurchase === 0)) {
-            showMessage("Warning", "One of cooldowns is 0 while proxies are disabled.  This may cause rate limiting or blocks.");
+            showMessage(
+                'Warning',
+                'One of cooldowns is 0 while proxies are disabled.  This may cause rate limiting or blocks.'
+            );
         } else {
-            showMessage("Success", "Purchase cooldown saved!");
+            showMessage('Success', 'Purchase cooldown saved!');
         }
     } catch (error) {
         handleError(error);
@@ -4228,7 +4860,7 @@ accountCheckCooldown.addEventListener('change', async () => {
     try {
         const v = parseInt(accountCheckCooldown.value, 10) * 1000;
         if (isNaN(v) || v < 0) {
-            showMessage("Error", "Please enter a valid non-negative number.");
+            showMessage('Error', 'Please enter a valid non-negative number.');
             return;
         }
         await axios.put('/settings', { accountCheckCooldown: v });
@@ -4236,9 +4868,12 @@ accountCheckCooldown.addEventListener('change', async () => {
         const cdCheck = parseInt(accountCheckCooldown.value, 10) || 0;
         const cdPurchase = parseInt(purchaseCooldown.value, 10) || 0;
         if (!proxyEnabled.checked && (cdTurn === 0 || cdCheck === 0 || cdPurchase === 0)) {
-            showMessage("Warning", "One of cooldowns is 0 while proxies are disabled.  This may cause rate limiting or blocks.");
+            showMessage(
+                'Warning',
+                'One of cooldowns is 0 while proxies are disabled.  This may cause rate limiting or blocks.'
+            );
         } else {
-            showMessage("Success", "Account check cooldown saved!");
+            showMessage('Success', 'Account check cooldown saved!');
         }
     } catch (error) {
         handleError(error);
@@ -4249,11 +4884,11 @@ dropletReserve.addEventListener('change', async () => {
     try {
         const newReserve = parseInt(dropletReserve.value, 10);
         if (isNaN(newReserve) || newReserve < 0) {
-            showMessage("Error", "Please enter a valid non-negative number.");
+            showMessage('Error', 'Please enter a valid non-negative number.');
             return;
         }
         await axios.put('/settings', { dropletReserve: newReserve });
-        showMessage("Success", "Droplet reserve saved!");
+        showMessage('Success', 'Droplet reserve saved!');
     } catch (error) {
         handleError(error);
     }
@@ -4263,11 +4898,11 @@ antiGriefStandby.addEventListener('change', async () => {
     try {
         const newStandby = parseInt(antiGriefStandby.value, 10) * 60000;
         if (isNaN(newStandby) || newStandby < 60000) {
-            showMessage("Error", "Please enter a valid number (at least 1 minute).");
+            showMessage('Error', 'Please enter a valid number (at least 1 minute).');
             return;
         }
         await axios.put('/settings', { antiGriefStandby: newStandby });
-        showMessage("Success", "Anti-grief standby time saved!");
+        showMessage('Success', 'Anti-grief standby time saved!');
     } catch (error) {
         handleError(error);
     }
@@ -4277,21 +4912,20 @@ chargeThreshold.addEventListener('change', async () => {
     try {
         const newThreshold = parseInt(chargeThreshold.value, 10);
         if (isNaN(newThreshold) || newThreshold < 1 || newThreshold > 100) {
-            showMessage("Error", "Please enter a valid percentage between 1 and 100.");
+            showMessage('Error', 'Please enter a valid percentage between 1 and 100.');
             return;
         }
         await axios.put('/settings', { chargeThreshold: newThreshold / 100 });
-        showMessage("Success", "Charge threshold saved!");
+        showMessage('Success', 'Charge threshold saved!');
     } catch (error) {
         handleError(error);
     }
 });
 
-
 alwaysDrawOnCharge.addEventListener('change', async () => {
     try {
         await axios.put('/settings', { alwaysDrawOnCharge: alwaysDrawOnCharge.checked });
-        showMessage("Success", "Always-draw-on-charge setting saved!");
+        showMessage('Success', 'Always-draw-on-charge setting saved!');
 
         chargeThresholdContainer.style.display = alwaysDrawOnCharge.checked ? 'none' : 'block';
     } catch (error) {
@@ -4299,23 +4933,20 @@ alwaysDrawOnCharge.addEventListener('change', async () => {
     }
 });
 
-
 maxPixelsPerPass?.addEventListener('change', async () => {
     try {
         const raw = parseInt(maxPixelsPerPass.value, 10);
         const val = isNaN(raw) ? 0 : Math.max(0, raw | 0);
         maxPixelsPerPass.value = String(val);
         await axios.put('/settings', { maxPixelsPerPass: val });
-        showMessage("Success", "Max pixels per pass saved!");
+        showMessage('Success', 'Max pixels per pass saved!');
     } catch (error) {
         handleError(error);
     }
 });
 
-
 const parseTxInput = () => {
     const raw = (tx.value || '').trim();
-
 
     const urlMatch = raw.match(/pixel\/(\d+)\/(\d+)\?x=(\d+)&y=(\d+)/i);
     if (urlMatch) {
@@ -4325,7 +4956,6 @@ const parseTxInput = () => {
         py.value = urlMatch[4];
         return true;
     }
-
 
     const cleaned = raw.replace(/[()]/g, '');
     const labeledMatch = cleaned.match(
@@ -4339,13 +4969,11 @@ const parseTxInput = () => {
         return true;
     }
 
-
     const nums = cleaned.match(/\d+/g);
     if (nums && nums.length >= 4) {
         [tx.value, ty.value, px.value, py.value] = nums.slice(0, 4);
         return true;
     } else {
-
         tx.value = raw.replace(/[^0-9]/g, '');
     }
     return false;
@@ -4353,32 +4981,30 @@ const parseTxInput = () => {
 
 tx.addEventListener('blur', parseTxInput);
 tx.addEventListener('paste', (e) => {
-
     setTimeout(parseTxInput, 0);
 });
 
-[ty, px, py].forEach(input => {
+[ty, px, py].forEach((input) => {
     input.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
 });
 
-
-const activeTemplatesBar = $("activeTemplatesBar");
-const activeTemplatesBarContent = $("activeTemplatesBarContent");
+const activeTemplatesBar = $('activeTemplatesBar');
+const activeTemplatesBarContent = $('activeTemplatesBarContent');
 
 const drawTemplatePreview = (t, canvas) => {
     const maxSize = 70;
     const scale = Math.min(maxSize / t.width, maxSize / t.height, 1);
     const w = Math.max(1, Math.round(t.width * scale));
     const h = Math.max(1, Math.round(t.height * scale));
-    const temp = document.createElement("canvas");
+    const temp = document.createElement('canvas');
     temp.width = t.width;
     temp.height = t.height;
     drawTemplate(t, temp);
     canvas.width = w;
     canvas.height = h;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(temp, 0, 0, w, h);
     temp.remove();
@@ -4386,37 +5012,37 @@ const drawTemplatePreview = (t, canvas) => {
 
 async function refreshActiveBar() {
     try {
-        const resp = await axios.get("/templates");
+        const resp = await axios.get('/templates');
         const tpls = resp.data || {};
         const active = Object.entries(tpls).filter(([, t]) => t.running);
 
-        activeTemplatesBarContent.innerHTML = "";
+        activeTemplatesBarContent.innerHTML = '';
         if (active.length === 0) {
-            activeTemplatesBar.classList.add("hidden");
+            activeTemplatesBar.classList.add('hidden');
             return;
         }
-        activeTemplatesBar.classList.remove("hidden");
+        activeTemplatesBar.classList.remove('hidden');
 
         for (const [id, t] of active) {
-            const item = document.createElement("div");
-            item.className = "active-item";
+            const item = document.createElement('div');
+            item.className = 'active-item';
 
-            const preview = document.createElement("canvas");
+            const preview = document.createElement('canvas');
             drawTemplatePreview(t.template, preview);
 
-            const meta = document.createElement("div");
-            meta.className = "meta";
+            const meta = document.createElement('div');
+            meta.className = 'meta';
 
-            const title = document.createElement("div");
-            title.className = "title";
+            const title = document.createElement('div');
+            title.className = 'title';
             title.textContent = t.name;
 
-            const actions = document.createElement("div");
-            actions.className = "actions";
+            const actions = document.createElement('div');
+            actions.className = 'actions';
 
             // progress bar for active item
-            const total = t.totalPixels || (t.template?.width * t.template?.height) || 1;
-            const remaining = (typeof t.pixelsRemaining === 'number') ? t.pixelsRemaining : total;
+            const total = t.totalPixels || t.template?.width * t.template?.height || 1;
+            const remaining = typeof t.pixelsRemaining === 'number' ? t.pixelsRemaining : total;
             const completed = Math.max(0, total - remaining);
             const percent = Math.floor((completed / total) * 100);
             const pbc = document.createElement('div');
@@ -4424,20 +5050,20 @@ async function refreshActiveBar() {
             const pb = document.createElement('div');
             pb.className = 'progress-bar';
             pb.style.width = `${percent}%`;
-            if (t.status === "Finished." || t.status === "Finished") pb.classList.add('finished');
+            if (t.status === 'Finished.' || t.status === 'Finished') pb.classList.add('finished');
             else if (!t.running) pb.classList.add('stopped');
             const pbt = document.createElement('span');
             pbt.className = 'progress-bar-text';
             pbt.textContent = `${percent}%`;
             pbc.append(pb, pbt);
 
-            const stopBtn = document.createElement("button");
-            stopBtn.className = "mini-btn destructive";
+            const stopBtn = document.createElement('button');
+            stopBtn.className = 'mini-btn destructive';
             stopBtn.innerHTML = '<img src="icons/pause.svg">Stop';
-            stopBtn.addEventListener("click", async () => {
+            stopBtn.addEventListener('click', async () => {
                 try {
                     await axios.put(`/template/${id}`, { running: false });
-                    showMessage("Success", `Template "${t.name}" stopped.`);
+                    showMessage('Success', `Template "${t.name}" stopped.`);
                 } catch (e) {
                     handleError(e);
                 } finally {
@@ -4446,8 +5072,8 @@ async function refreshActiveBar() {
                 }
             });
 
-            const previewBtn = document.createElement("button");
-            previewBtn.className = "mini-btn";
+            const previewBtn = document.createElement('button');
+            previewBtn.className = 'mini-btn';
             previewBtn.innerHTML = '<img src="icons/eye.svg">Preview';
             previewBtn.addEventListener('click', async () => {
                 try {
@@ -4460,15 +5086,15 @@ async function refreshActiveBar() {
                 }
             });
 
-            const editBtn = document.createElement("button");
-            editBtn.className = "mini-btn";
+            const editBtn = document.createElement('button');
+            editBtn.className = 'mini-btn';
             editBtn.innerHTML = '<img src="icons/settings.svg">Edit';
-            editBtn.addEventListener("click", async () => {
+            editBtn.addEventListener('click', async () => {
                 let T = t;
                 try {
                     const { data } = await axios.get(`/template/${id}`);
                     if (data) T = data;
-                } catch (_) { }
+                } catch (_) {}
 
                 pendingUserSelection = Array.isArray(T.userIds) ? T.userIds.map(String) : [];
                 editSelectedUserIds = new Set(pendingUserSelection);
@@ -4488,13 +5114,16 @@ async function refreshActiveBar() {
                 skipPaintedPixels.checked = !!T.skipPaintedPixels;
                 outlineMode.checked = !!T.outlineMode;
                 paintTransparent.checked = !!T.paintTransparentPixels;
-                if (typeof T.heatmapEnabled !== 'undefined' && heatmapEnabled) heatmapEnabled.checked = !!T.heatmapEnabled;
-                if (heatmapLimitWrap) heatmapLimitWrap.style.display = heatmapEnabled && heatmapEnabled.checked ? '' : 'none';
-                if (typeof T.heatmapLimit !== 'undefined' && heatmapLimit) heatmapLimit.value = Math.max(1, Number(T.heatmapLimit || 10000));
+                if (typeof T.heatmapEnabled !== 'undefined' && heatmapEnabled)
+                    heatmapEnabled.checked = !!T.heatmapEnabled;
+                if (heatmapLimitWrap)
+                    heatmapLimitWrap.style.display = heatmapEnabled && heatmapEnabled.checked ? '' : 'none';
+                if (typeof T.heatmapLimit !== 'undefined' && heatmapLimit)
+                    heatmapLimit.value = Math.max(1, Number(T.heatmapLimit || 10000));
                 if (typeof T.autoStart !== 'undefined' && autoStart) autoStart.checked = !!T.autoStart;
 
                 setTimeout(() => {
-                    document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
+                    document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
                         cb.checked = (T.userIds || []).includes(cb.value);
                     });
                 }, 0);
@@ -4523,7 +5152,7 @@ async function refreshActiveBar() {
             activeTemplatesBarContent.appendChild(item);
         }
     } catch (e) {
-        console.warn("Failed to refresh active bar:", e);
+        console.warn('Failed to refresh active bar:', e);
     }
 }
 
@@ -4539,10 +5168,8 @@ createToggleButton = function (template, id, buttonsContainer, statusSpan) {
 startAll.addEventListener('click', () => setTimeout(refreshActiveBar, 500));
 stopAll.addEventListener('click', () => setTimeout(refreshActiveBar, 500));
 
-openManageTemplates.addEventListener("click", () => setTimeout(refreshActiveBar, 300));
-document.addEventListener("DOMContentLoaded", refreshActiveBar);
-
-
+openManageTemplates.addEventListener('click', () => setTimeout(refreshActiveBar, 300));
+document.addEventListener('DOMContentLoaded', refreshActiveBar);
 
 const MODE_PREVIEW = (() => {
     // ---------- helpers ----------
@@ -4557,7 +5184,10 @@ const MODE_PREVIEW = (() => {
         localStorage.setItem('wplacer_preview_speed', String(SPEED));
         if (!opts.silent) {
             // restart all previews
-            document.querySelectorAll('.mode-preview[data-mode]').forEach(cv => { stop(cv); start(cv); });
+            document.querySelectorAll('.mode-preview[data-mode]').forEach((cv) => {
+                stop(cv);
+                start(cv);
+            });
             const ref = document.getElementById('modeReference');
             if (ref) drawReference(ref);
         }
@@ -4570,10 +5200,10 @@ const MODE_PREVIEW = (() => {
         let entry = BURST_SEEDS_CACHE.get(scene.id);
         if (!entry || !entry.seeds || entry.seeds.length !== k) {
             // take widely spaced seeds from scene points
-            const seeds = pickSeedsFarApart(points, Math.max(1, k)).map(s => ({ x: s.x, y: s.y }));
+            const seeds = pickSeedsFarApart(points, Math.max(1, k)).map((s) => ({ x: s.x, y: s.y }));
             entry = {
                 seeds,
-                activeIdx: Math.floor(Math.random() * Math.max(1, seeds.length))
+                activeIdx: Math.floor(Math.random() * Math.max(1, seeds.length)),
             };
             BURST_SEEDS_CACHE.set(scene.id, entry);
         }
@@ -4582,7 +5212,11 @@ const MODE_PREVIEW = (() => {
 
     // tiny pixel "painter"
     class Painter {
-        constructor(w, h) { this.w = w; this.h = h; this.m = new Map(); }
+        constructor(w, h) {
+            this.w = w;
+            this.h = h;
+            this.m = new Map();
+        }
         put(x, y, c) {
             if (x >= 0 && x < this.w && y >= 0 && y < this.h) this.m.set(`${x},${y}`, { x, y, colorIdx: c });
         }
@@ -4590,27 +5224,36 @@ const MODE_PREVIEW = (() => {
             for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) this.put(x, y, c);
         }
         circle(cx, cy, r, c) {
-            for (let y = cy - r; y <= cy + r; y++)for (let x = cx - r; x <= cx + r; x++) {
-                const dx = x - cx, dy = y - cy; if (dx * dx + dy * dy <= r * r) this.put(x, y, c);
-            }
+            for (let y = cy - r; y <= cy + r; y++)
+                for (let x = cx - r; x <= cx + r; x++) {
+                    const dx = x - cx,
+                        dy = y - cy;
+                    if (dx * dx + dy * dy <= r * r) this.put(x, y, c);
+                }
         }
         ellipse(cx, cy, rx, ry, c) {
-            for (let y = cy - ry; y <= cy + ry; y++)for (let x = cx - rx; x <= cx + rx; x++) {
-                const dx = (x - cx) / rx, dy = (y - cy) / ry; if (dx * dx + dy * dy <= 1) this.put(x, y, c);
-            }
+            for (let y = cy - ry; y <= cy + ry; y++)
+                for (let x = cx - rx; x <= cx + rx; x++) {
+                    const dx = (x - cx) / rx,
+                        dy = (y - cy) / ry;
+                    if (dx * dx + dy * dy <= 1) this.put(x, y, c);
+                }
         }
         tri(ax, ay, bx, by, cx, cy, col) {
             // bbox + barycentric fill
-            const minx = Math.floor(Math.min(ax, bx, cx)), maxx = Math.ceil(Math.max(ax, bx, cx));
-            const miny = Math.floor(Math.min(ay, by, cy)), maxy = Math.ceil(Math.max(ay, by, cy));
+            const minx = Math.floor(Math.min(ax, bx, cx)),
+                maxx = Math.ceil(Math.max(ax, bx, cx));
+            const miny = Math.floor(Math.min(ay, by, cy)),
+                maxy = Math.ceil(Math.max(ay, by, cy));
             const area = (x1, y1, x2, y2, x3, y3) => (x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1);
             const A = area(ax, ay, bx, by, cx, cy);
-            for (let y = miny; y <= maxy; y++)for (let x = minx; x <= maxx; x++) {
-                const a1 = area(x, y, bx, by, cx, cy) / A;
-                const a2 = area(ax, ay, x, y, cx, cy) / A;
-                const a3 = area(ax, ay, bx, by, x, y) / A;
-                if (a1 >= 0 && a2 >= 0 && a3 >= 0) this.put(x, y, col);
-            }
+            for (let y = miny; y <= maxy; y++)
+                for (let x = minx; x <= maxx; x++) {
+                    const a1 = area(x, y, bx, by, cx, cy) / A;
+                    const a2 = area(ax, ay, x, y, cx, cy) / A;
+                    const a3 = area(ax, ay, bx, by, x, y) / A;
+                    if (a1 >= 0 && a2 >= 0 && a3 >= 0) this.put(x, y, col);
+                }
         }
         text(x, y, str, col, scale = 1) {
             const glyph = (ch) => FONT5x7[ch] || FONT5x7['?'];
@@ -4620,35 +5263,38 @@ const MODE_PREVIEW = (() => {
                 for (let gy = 0; gy < g.length; gy++) {
                     for (let gx = 0; gx < g[gy].length; gx++) {
                         if (g[gy][gx] === '1') {
-                            for (let sy = 0; sy < scale; sy++)for (let sx = 0; sx < scale; sx++)
-                                this.put(cx + gx * scale + sx, y + gy * scale + sy, col);
+                            for (let sy = 0; sy < scale; sy++)
+                                for (let sx = 0; sx < scale; sx++)
+                                    this.put(cx + gx * scale + sx, y + gy * scale + sy, col);
                         }
                     }
                 }
-                cx += (5 * scale + 1); // width + 1px spacing
+                cx += 5 * scale + 1; // width + 1px spacing
             }
         }
-        toArray() { return Array.from(this.m.values()); }
+        toArray() {
+            return Array.from(this.m.values());
+        }
     }
 
     // Minimal 5x7 glyphs (only what we need)
     const FONT5x7 = {
-        'A': ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
-        'C': ["01110", "10001", "10000", "10000", "10000", "10001", "01110"],
-        'D': ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
-        'E': ["11111", "10000", "11110", "10000", "10000", "10000", "11111"],
-        'I': ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
-        'L': ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
-        'M': ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
-        'O': ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
-        'P': ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
-        'R': ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
-        'V': ["10001", "10001", "10001", "10001", "01010", "01010", "00100"],
-        'W': ["10001", "10001", "10101", "10101", "10101", "11011", "10001"],
-        'X': ["10001", "01010", "00100", "00100", "00100", "01010", "10001"],
-        'Z': ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
-        ' ': ["00000", "00000", "00000", "00000", "00000", "00000", "00000"],
-        '?': ["01110", "10001", "00010", "00100", "00100", "00000", "00100"]
+        A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+        C: ['01110', '10001', '10000', '10000', '10000', '10001', '01110'],
+        D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+        E: ['11111', '10000', '11110', '10000', '10000', '10000', '11111'],
+        I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+        L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+        M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+        O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+        P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+        R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+        V: ['10001', '10001', '10001', '10001', '01010', '01010', '00100'],
+        W: ['10001', '10001', '10101', '10101', '10101', '11011', '10001'],
+        X: ['10001', '01010', '00100', '00100', '00100', '01010', '10001'],
+        Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
+        ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
+        '?': ['01110', '10001', '00010', '00100', '00100', '00000', '00100'],
     };
 
     // ---------- scenes ----------
@@ -4657,17 +5303,22 @@ const MODE_PREVIEW = (() => {
         // 1) Space — 30x18, 4 clr
         (() => {
             const pal = ['#e74c3c', '#f1c40f', '#2ecc71', '#3498db']; // r,y,g,b
-            const w = 30, h = 18;
+            const w = 30,
+                h = 18;
             const build = () => {
                 const p = new Painter(w, h);
 
                 // Planet (blue)
-                const pcx = 9, pcy = 9, R = 6; p.circle(pcx, pcy, R, 3);
+                const pcx = 9,
+                    pcy = 9,
+                    R = 6;
+                p.circle(pcx, pcy, R, 3);
                 // Ring (yellow)
-                const a = R + 3, b = R - 1;
+                const a = R + 3,
+                    b = R - 1;
                 for (let x = pcx - a - 3; x <= pcx + a + 3; x++) {
                     const dx = x - pcx;
-                    const y = Math.round(pcy + (dx * 0.3));
+                    const y = Math.round(pcy + dx * 0.3);
                     for (let yy = -b - 2; yy <= b + 2; yy++) {
                         const val = (dx * dx) / (a * a) + (yy * yy) / (b * b);
                         if (val > 0.95 && val < 1.12) p.put(x, y + yy, 1);
@@ -4677,14 +5328,26 @@ const MODE_PREVIEW = (() => {
                 p.circle(pcx + 2, pcy - 2, 2, 2);
 
                 // Rocket (red)
-                const rx = 21, ry = 5;
+                const rx = 21,
+                    ry = 5;
                 for (let i = 0; i < 3; i++) for (let j = 0; j <= i; j++) p.put(rx + j, ry + i, 0);
                 for (let yy = 0; yy < 7; yy++) for (let xx = 0; xx < 3; xx++) p.put(rx + 1 + xx, ry + 2 + yy, 0);
-                p.put(rx + 2, ry + 4, 3); p.put(rx + 2, ry + 6, 3);
-                p.put(rx + 1, ry + 8, 0); p.put(rx + 4, ry + 8, 0); p.put(rx + 0, ry + 9, 0); p.put(rx + 5, ry + 9, 0);
+                p.put(rx + 2, ry + 4, 3);
+                p.put(rx + 2, ry + 6, 3);
+                p.put(rx + 1, ry + 8, 0);
+                p.put(rx + 4, ry + 8, 0);
+                p.put(rx + 0, ry + 9, 0);
+                p.put(rx + 5, ry + 9, 0);
                 for (let i = 0; i < 3; i++) for (let j = -i; j <= i; j++) p.put(rx + 3 + j, ry + 9 + i, 1);
 
-                [[2, 2], [5, 14], [14, 2], [27, 14], [24, 3], [18, 15]].forEach(([sx, sy]) => p.put(sx, sy, 1));
+                [
+                    [2, 2],
+                    [5, 14],
+                    [14, 2],
+                    [27, 14],
+                    [24, 3],
+                    [18, 15],
+                ].forEach(([sx, sy]) => p.put(sx, sy, 1));
 
                 return p.toArray();
             };
@@ -4694,7 +5357,8 @@ const MODE_PREVIEW = (() => {
         // 2) Portrait 150x90
         (() => {
             const pal = ['#3d2b1f', '#7a5b3a', '#d8b08c', '#5b7f3a']; // hair, dress, skin, bg green
-            const w = 150, h = 90;
+            const w = 150,
+                h = 90;
             const build = () => {
                 const p = new Painter(w, h);
                 p.rect(6, 6, w - 7, h - 7, 3);
@@ -4705,7 +5369,8 @@ const MODE_PREVIEW = (() => {
                 p.ellipse(78, 40, 28, 34, 0);
                 for (let y = 10; y < 75; y++) {
                     for (let x = 0; x < w; x++) {
-                        const dx = (x - 78) / 22, dy = (y - 42) / 28;
+                        const dx = (x - 78) / 22,
+                            dy = (y - 42) / 28;
                         if (dx * dx + dy * dy <= 1) p.put(x, y, 2);
                     }
                 }
@@ -4728,7 +5393,8 @@ const MODE_PREVIEW = (() => {
         // 3) Typo Art — 84x16
         (() => {
             const pal = ['#ffffff', '#ffcc00', '#00c896', '#333333']; // white, yellow, teal, dark bg
-            const w = 84, h = 16;
+            const w = 84,
+                h = 16;
             const build = () => {
                 const p = new Painter(w, h);
                 p.rect(0, 0, w - 1, h - 1, 3);
@@ -4744,11 +5410,12 @@ const MODE_PREVIEW = (() => {
         // 4) Landscape — 40x24
         (() => {
             const pal = ['#f5d76e', '#7f8fa6', '#273c75', '#4cd7f6']; // sun, mountains, deep, water
-            const w = 40, h = 24;
+            const w = 40,
+                h = 24;
             const build = () => {
                 const p = new Painter(w, h);
                 p.rect(0, 14, w - 1, h - 1, 3);
-                for (let x = 0; x < w; x++) if ((x % 3) === 0) p.put(x, 16, 0);
+                for (let x = 0; x < w; x++) if (x % 3 === 0) p.put(x, 16, 0);
 
                 p.tri(4, 14, 14, 14, 9, 6, 1);
                 p.tri(12, 14, 28, 14, 20, 4, 1);
@@ -4763,11 +5430,14 @@ const MODE_PREVIEW = (() => {
         // 5) Dungeon — 28x28
         (() => {
             const pal = ['#c0392b', '#ecf0f1', '#7f8c8d', '#2c3e50']; // fire, light, stone, dark
-            const w = 28, h = 28;
+            const w = 28,
+                h = 28;
             const build = () => {
                 const p = new Painter(w, h);
-                p.rect(0, 0, w - 1, 0, 2); p.rect(0, h - 1, w - 1, h - 1, 2);
-                p.rect(0, 0, 0, h - 1, 2); p.rect(w - 1, 0, w - 1, h - 1, 2);
+                p.rect(0, 0, w - 1, 0, 2);
+                p.rect(0, h - 1, w - 1, h - 1, 2);
+                p.rect(0, 0, 0, h - 1, 2);
+                p.rect(w - 1, 0, w - 1, h - 1, 2);
 
                 for (let y = 2; y < h - 2; y++) {
                     for (let x = 2; x < w - 2; x++) {
@@ -4778,9 +5448,12 @@ const MODE_PREVIEW = (() => {
                 p.rect(w / 2 - 2, h - 6, w / 2 + 2, h - 2, 2);
                 p.rect(w / 2 - 1, h - 5, w / 2 + 1, h - 3, 1);
 
-                p.rect(3, 6, 4, 12, 2); p.rect(w - 6, 6, w - 5, 12, 2);
-                p.rect(4, 6, 5, 7, 0); p.rect(w - 6, 6, w - 5, 7, 0);
-                p.put(5, 7, 1); p.put(w - 6, 7, 1);
+                p.rect(3, 6, 4, 12, 2);
+                p.rect(w - 6, 6, w - 5, 12, 2);
+                p.rect(4, 6, 5, 7, 0);
+                p.rect(w - 6, 6, w - 5, 7, 0);
+                p.put(5, 7, 1);
+                p.put(w - 6, 7, 1);
                 return p.toArray();
             };
             return { id: 5, name: 'Dungeon', w, h, palette: pal, build };
@@ -4789,17 +5462,19 @@ const MODE_PREVIEW = (() => {
         // 6) Emblem — 64x32
         (() => {
             const pal = ['#2ecc71', '#e74c3c', '#f1c40f', '#34495e']; // green, red, yellow, dark
-            const w = 64, h = 32;
+            const w = 64,
+                h = 32;
             const build = () => {
                 const p = new Painter(w, h);
                 p.ellipse(w / 2, h / 2 - 2, 20, 12, 3);
                 p.ellipse(w / 2, h / 2 - 2, 18, 10, 0);
-                for (let i = 0; i < 8; i++) p.tri(w / 2 - 2 - i, h / 2 + 6 + i, w / 2 + 2 + i, h / 2 + 6 + i, w / 2, h / 2 + 12 + i, 0);
+                for (let i = 0; i < 8; i++)
+                    p.tri(w / 2 - 2 - i, h / 2 + 6 + i, w / 2 + 2 + i, h / 2 + 6 + i, w / 2, h / 2 + 12 + i, 0);
 
                 for (let y = 0; y < h; y++) {
                     for (let x = 0; x < w; x++) {
-                        if (((x + y) % 7) === 0) p.put(x, y, 1);
-                        if (((x + y + 3) % 11) === 0) p.put(x, y, 2);
+                        if ((x + y) % 7 === 0) p.put(x, y, 1);
+                        if ((x + y + 3) % 11 === 0) p.put(x, y, 2);
                     }
                 }
 
@@ -4818,63 +5493,114 @@ const MODE_PREVIEW = (() => {
     }
 
     // ---------- ordering ----------
-    function shuffle(arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]] } return a; }
+    function shuffle(arr) {
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
     function orderByLinear(target, axis, reversed = false) {
         const arr = target.slice();
         arr.sort((a, b) => {
-            if (axis === 'y') { if (a.y !== b.y) return reversed ? b.y - a.y : a.y - b.y; return a.x - b.x; }
-            else { if (a.x !== b.x) return reversed ? b.x - a.x : a.x - b.x; return a.y - b.y; }
+            if (axis === 'y') {
+                if (a.y !== b.y) return reversed ? b.y - a.y : a.y - b.y;
+                return a.x - b.x;
+            } else {
+                if (a.x !== b.x) return reversed ? b.x - a.x : a.x - b.x;
+                return a.y - b.y;
+            }
         });
         return arr;
     }
-    function groupByColor(target) { const m = new Map(); for (const p of target) { if (!m.has(p.colorIdx)) m.set(p.colorIdx, []); m.get(p.colorIdx).push(p); } return m; }
+    function groupByColor(target) {
+        const m = new Map();
+        for (const p of target) {
+            if (!m.has(p.colorIdx)) m.set(p.colorIdx, []);
+            m.get(p.colorIdx).push(p);
+        }
+        return m;
+    }
     function orderByColor(target, random = false) {
-        const g = groupByColor(target), keys = Array.from(g.keys());
-        if (random) { keys.sort(); const perm = [2, 0, 3, 1, 4, 5, 6, 7]; const picked = perm.map(i => keys[i]).filter(v => v !== undefined); while (picked.length < keys.length) picked.push(keys[picked.length]); return picked.flatMap(k => orderByLinear(g.get(k), 'y', false)); }
-        return keys.sort().flatMap(k => orderByLinear(g.get(k), 'y', false));
+        const g = groupByColor(target),
+            keys = Array.from(g.keys());
+        if (random) {
+            keys.sort();
+            const perm = [2, 0, 3, 1, 4, 5, 6, 7];
+            const picked = perm.map((i) => keys[i]).filter((v) => v !== undefined);
+            while (picked.length < keys.length) picked.push(keys[picked.length]);
+            return picked.flatMap((k) => orderByLinear(g.get(k), 'y', false));
+        }
+        return keys.sort().flatMap((k) => orderByLinear(g.get(k), 'y', false));
     }
     function pickSeedsFarApart(target, k = 2) {
         if (!target.length) return [];
-        let bi = 0, bj = 0, best = -1;
-        for (let i = 0; i < target.length; i++)for (let j = i + 1; j < target.length; j++) {
-            const dx = target[i].x - target[j].x, dy = target[i].y - target[j].y, d2 = dx * dx + dy * dy;
-            if (d2 > best) { best = d2; bi = i; bj = j; }
-        }
-        const seeds = [target[bi]]; if (target.length > 1) seeds.push(target[bj]);
-        while (seeds.length < Math.min(k, target.length)) {
-            let pick = null, bestMin = -1;
-            for (const p of target) {
-                const md = Math.min(...seeds.map(s => (s.x - p.x) ** 2 + (s.y - p.y) ** 2));
-                if (md > bestMin) { bestMin = md; pick = p; }
+        let bi = 0,
+            bj = 0,
+            best = -1;
+        for (let i = 0; i < target.length; i++)
+            for (let j = i + 1; j < target.length; j++) {
+                const dx = target[i].x - target[j].x,
+                    dy = target[i].y - target[j].y,
+                    d2 = dx * dx + dy * dy;
+                if (d2 > best) {
+                    best = d2;
+                    bi = i;
+                    bj = j;
+                }
             }
-            if (!pick) break; seeds.push(pick);
+        const seeds = [target[bi]];
+        if (target.length > 1) seeds.push(target[bj]);
+        while (seeds.length < Math.min(k, target.length)) {
+            let pick = null,
+                bestMin = -1;
+            for (const p of target) {
+                const md = Math.min(...seeds.map((s) => (s.x - p.x) ** 2 + (s.y - p.y) ** 2));
+                if (md > bestMin) {
+                    bestMin = md;
+                    pick = p;
+                }
+            }
+            if (!pick) break;
+            seeds.push(pick);
         }
         return seeds.slice(0, k);
     }
     function orderByBurst(target, seedCount = 2) {
         if (!target.length) return [];
 
-        const byKey = new Map(target.map(p => [`${p.x},${p.y}`, p]));
+        const byKey = new Map(target.map((p) => [`${p.x},${p.y}`, p]));
 
         const seeds = pickSeedsFarApart(target, Math.max(1, seedCount | 0));
 
         const nearest = (sx, sy) => {
-            let best = null, bestD = Infinity;
+            let best = null,
+                bestD = Infinity;
             for (const p of target) {
                 const d2 = (p.x - sx) ** 2 + (p.y - sy) ** 2;
-                if (d2 < bestD) { bestD = d2; best = p; }
+                if (d2 < bestD) {
+                    bestD = d2;
+                    best = p;
+                }
             }
             return best;
         };
 
-        const starts = seeds.map(s => nearest(s.x, s.y)).filter(Boolean);
+        const starts = seeds.map((s) => nearest(s.x, s.y)).filter(Boolean);
 
         const visited = new Set();
         const queues = [];
         const speeds = [];
         const prefs = [];
 
-        const randDir = () => [[1, 0], [-1, 0], [0, 1], [0, -1]][Math.floor(Math.random() * 4)];
+        const randDir = () =>
+            [
+                [1, 0],
+                [-1, 0],
+                [0, 1],
+                [0, -1],
+            ][Math.floor(Math.random() * 4)];
 
         for (const sp of starts) {
             const k = `${sp.x},${sp.y}`;
@@ -4887,19 +5613,30 @@ const MODE_PREVIEW = (() => {
         }
 
         const pickQueue = () => {
-            const w = speeds.map((s, i) => queues[i].length ? s : 0);
+            const w = speeds.map((s, i) => (queues[i].length ? s : 0));
             const sum = w.reduce((a, b) => a + b, 0);
             if (!sum) return -1;
             let r = Math.random() * sum;
-            for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return i; }
-            return w.findIndex(x => x > 0);
+            for (let i = 0; i < w.length; i++) {
+                r -= w[i];
+                if (r <= 0) return i;
+            }
+            return w.findIndex((x) => x > 0);
         };
 
         const orderNeighbors = (dir) => {
-            const base = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-            base.sort((a, b) =>
-                (b[0] * dir[0] + b[1] * dir[1] + (Math.random() - 0.5) * 0.2) -
-                (a[0] * dir[0] + a[1] * dir[1] + (Math.random() - 0.5) * 0.2)
+            const base = [
+                [1, 0],
+                [-1, 0],
+                [0, 1],
+                [0, -1],
+            ];
+            base.sort(
+                (a, b) =>
+                    b[0] * dir[0] +
+                    b[1] * dir[1] +
+                    (Math.random() - 0.5) * 0.2 -
+                    (a[0] * dir[0] + a[1] * dir[1] + (Math.random() - 0.5) * 0.2)
             );
             return base;
         };
@@ -4908,14 +5645,17 @@ const MODE_PREVIEW = (() => {
             const dashChance = 0.45;
             const maxDash = 1 + Math.floor(Math.random() * 3);
             if (Math.random() > dashChance) return;
-            let cx = from.x, cy = from.y;
+            let cx = from.x,
+                cy = from.y;
             for (let step = 0; step < maxDash; step++) {
-                const nx = cx + dir[0], ny = cy + dir[1];
+                const nx = cx + dir[0],
+                    ny = cy + dir[1];
                 const key = `${nx},${ny}`;
                 if (!byKey.has(key) || visited.has(key)) break;
                 visited.add(key);
                 queues[qi].push(byKey.get(key));
-                cx = nx; cy = ny;
+                cx = nx;
+                cy = ny;
             }
         };
 
@@ -4929,16 +5669,21 @@ const MODE_PREVIEW = (() => {
             out.push(cur);
 
             const neigh = orderNeighbors(prefs[qi]);
-            let firstDir = null, firstPt = null;
+            let firstDir = null,
+                firstPt = null;
 
             for (const [dx, dy] of neigh) {
-                const nx = cur.x + dx, ny = cur.y + dy;
+                const nx = cur.x + dx,
+                    ny = cur.y + dy;
                 const k = `${nx},${ny}`;
                 if (byKey.has(k) && !visited.has(k)) {
                     visited.add(k);
                     const p = byKey.get(k);
                     queues[qi].push(p);
-                    if (!firstDir) { firstDir = [dx, dy]; firstPt = p; }
+                    if (!firstDir) {
+                        firstDir = [dx, dy];
+                        firstPt = p;
+                    }
                 }
             }
 
@@ -4957,9 +5702,19 @@ const MODE_PREVIEW = (() => {
                     while (q.length) {
                         const c = q.shift();
                         out.push(c);
-                        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]].sort(() => Math.random() - 0.5)) {
-                            const nx = c.x + dx, ny = c.y + dy, kk = `${nx},${ny}`;
-                            if (byKey.has(kk) && !visited.has(kk)) { visited.add(kk); q.push(byKey.get(kk)); }
+                        for (const [dx, dy] of [
+                            [1, 0],
+                            [-1, 0],
+                            [0, 1],
+                            [0, -1],
+                        ].sort(() => Math.random() - 0.5)) {
+                            const nx = c.x + dx,
+                                ny = c.y + dy,
+                                kk = `${nx},${ny}`;
+                            if (byKey.has(kk) && !visited.has(kk)) {
+                                visited.add(kk);
+                                q.push(byKey.get(kk));
+                            }
                         }
                     }
                 }
@@ -4969,43 +5724,58 @@ const MODE_PREVIEW = (() => {
         return out;
     }
 
-
     function orderByRadialInward(target, w, h) {
-        const cx = Math.floor(w / 2), cy = Math.floor(h / 2);
+        const cx = Math.floor(w / 2),
+            cy = Math.floor(h / 2);
         const r2 = (p) => (p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy);
         const ang = (p) => Math.atan2(p.y - cy, p.x - cx);
         const arr = target.slice();
-        arr.sort((a, b) => { const d = r2(b) - r2(a); return d !== 0 ? d : (ang(a) - ang(b)); });
+        arr.sort((a, b) => {
+            const d = r2(b) - r2(a);
+            return d !== 0 ? d : ang(a) - ang(b);
+        });
         return arr;
     }
     function orderByRadialOutward(target, w, h) {
-        const cx = Math.floor(w / 2), cy = Math.floor(h / 2);
+        const cx = Math.floor(w / 2),
+            cy = Math.floor(h / 2);
         const r2 = (p) => (p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy);
         const ang = (p) => Math.atan2(p.y - cy, p.x - cx);
         const arr = target.slice();
-        arr.sort((a, b) => { const d = r2(a) - r2(b); return d !== 0 ? d : (ang(a) - ang(b)); });
+        arr.sort((a, b) => {
+            const d = r2(a) - r2(b);
+            return d !== 0 ? d : ang(a) - ang(b);
+        });
         return arr;
     }
     function orderByColorsBurstRare(target, seedCount) {
         const g = groupByColor(target);
         const colorsAsc = Array.from(g.keys()).sort((a, b) => g.get(a).length - g.get(b).length);
-        const out = []; for (const c of colorsAsc) out.push(...orderByBurst(g.get(c), seedCount));
+        const out = [];
+        for (const c of colorsAsc) out.push(...orderByBurst(g.get(c), seedCount));
         return out;
     }
 
     function orderByOutlineThenBurst(target, seedCount) {
-        const cmap = new Map(target.map(p => [`${p.x},${p.y}`, p.colorIdx]));
+        const cmap = new Map(target.map((p) => [`${p.x},${p.y}`, p.colorIdx]));
         const isOutline = (p) => {
-            const neigh = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+            const neigh = [
+                [1, 0],
+                [-1, 0],
+                [0, 1],
+                [0, -1],
+            ];
             for (const [dx, dy] of neigh) {
-                const nx = p.x + dx, ny = p.y + dy;
+                const nx = p.x + dx,
+                    ny = p.y + dy;
                 const key = `${nx},${ny}`;
                 if (!cmap.has(key) || cmap.get(key) !== p.colorIdx) return true;
             }
             return false;
         };
 
-        const outline = [], inside = [];
+        const outline = [],
+            inside = [];
         for (const p of target) (isOutline(p) ? outline : inside).push(p);
 
         return [...orderByBurst(outline, seedCount), ...orderByBurst(inside, seedCount)];
@@ -5013,13 +5783,20 @@ const MODE_PREVIEW = (() => {
 
     function baseOrderForMode(mode, target, scene) {
         switch (mode) {
-            case 'linear': return orderByLinear(target, 'y', false);
-            case 'linear-reversed': return orderByLinear(target, 'y', true);
-            case 'linear-ltr': return orderByLinear(target, 'x', false);
-            case 'linear-rtl': return orderByLinear(target, 'x', true);
-            case 'singleColorRandom': return orderByColor(target, true);
-            case 'colorByColor': return orderByColor(target, false);
-            case 'random': return shuffle(target);
+            case 'linear':
+                return orderByLinear(target, 'y', false);
+            case 'linear-reversed':
+                return orderByLinear(target, 'y', true);
+            case 'linear-ltr':
+                return orderByLinear(target, 'x', false);
+            case 'linear-rtl':
+                return orderByLinear(target, 'x', true);
+            case 'singleColorRandom':
+                return orderByColor(target, true);
+            case 'colorByColor':
+                return orderByColor(target, false);
+            case 'random':
+                return shuffle(target);
             case 'burst':
                 return orderByBurst(target, window.BURST_SEED_COUNT || 2);
             case 'radial-inward':
@@ -5043,11 +5820,11 @@ const MODE_PREVIEW = (() => {
         const pool = ['outline-then-burst', 'burst', 'colors-burst-rare'];
 
         // keep remaining points to avoid repainting the same
-        const remaining = new Map(target.map(p => [`${p.x},${p.y}`, p]));
+        const remaining = new Map(target.map((p) => [`${p.x},${p.y}`, p]));
         const out = [];
 
         // segment size ~10% of frame, min 40 px
-        const segSize = Math.max(40, Math.floor(target.length * 0.10));
+        const segSize = Math.max(40, Math.floor(target.length * 0.1));
 
         while (remaining.size) {
             const pick = pool[Math.floor(Math.random() * pool.length)];
@@ -5058,7 +5835,8 @@ const MODE_PREVIEW = (() => {
             for (let i = 0; i < take; i++) {
                 const p = ordered[i];
                 const key = `${p.x},${p.y}`;
-                if (remaining.has(key)) { // in case of duplicates
+                if (remaining.has(key)) {
+                    // in case of duplicates
                     out.push(p);
                     remaining.delete(key);
                 }
@@ -5067,9 +5845,12 @@ const MODE_PREVIEW = (() => {
         return out;
     }
 
-
     // ---------- drawing ----------
-    let currentIndex = clamp(parseInt(localStorage.getItem('wplacer_preview_scene') || '1', 10) - 1, 0, SCENES.length - 1);
+    let currentIndex = clamp(
+        parseInt(localStorage.getItem('wplacer_preview_scene') || '1', 10) - 1,
+        0,
+        SCENES.length - 1
+    );
     let currentScene = null;
     const sceneCache = new Map(); // id -> {points, palette}
 
@@ -5107,8 +5888,10 @@ const MODE_PREVIEW = (() => {
         const offy = Math.floor((cssH - h) / 2);
 
         const tmp = document.createElement('canvas');
-        tmp.width = w; tmp.height = h;
-        const tctx = tmp.getContext('2d'); tctx.imageSmoothingEnabled = false;
+        tmp.width = w;
+        tmp.height = h;
+        const tctx = tmp.getContext('2d');
+        tctx.imageSmoothingEnabled = false;
 
         fillPoints(tctx, cell, scene, scene.points);
         ctx.drawImage(tmp, offx, offy);
@@ -5117,7 +5900,7 @@ const MODE_PREVIEW = (() => {
     function redrawThumbs() {
         const wrap = document.getElementById('presetSwitcher');
         if (!wrap) return;
-        wrap.querySelectorAll('.preset-btn').forEach(btn => {
+        wrap.querySelectorAll('.preset-btn').forEach((btn) => {
             const idx = parseInt(btn.dataset.index, 10);
             const cv = btn.querySelector('canvas');
             if (cv) drawThumb(cv, getScene(idx));
@@ -5130,9 +5913,12 @@ const MODE_PREVIEW = (() => {
         currentScene = getScene(currentIndex);
         const ctx = canvas.getContext('2d');
         const cell = Math.max(1, Math.floor(Math.min(canvas.width / currentScene.w, canvas.height / currentScene.h)));
-        const w = cell * currentScene.w, h = cell * currentScene.h;
-        canvas.width = w; canvas.height = h;
-        ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
+        const w = cell * currentScene.w,
+            h = cell * currentScene.h;
+        canvas.width = w;
+        canvas.height = h;
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, w, h);
         fillPoints(ctx, cell, currentScene, currentScene.points);
     }
 
@@ -5158,11 +5944,15 @@ const MODE_PREVIEW = (() => {
         const scene = currentScene;
 
         const ctx = canvas.getContext('2d');
-        const baseW = canvas.width, baseH = canvas.height;
+        const baseW = canvas.width,
+            baseH = canvas.height;
         const cell = Math.max(1, Math.floor(Math.min(baseW / scene.w, baseH / scene.h)));
-        const w = cell * scene.w, h = cell * scene.h;
-        canvas.width = w; canvas.height = h;
-        ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
+        const w = cell * scene.w,
+            h = cell * scene.h;
+        canvas.width = w;
+        canvas.height = h;
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, w, h);
 
         const mode = canvas.dataset.mode;
         const ordered = orderForMode(mode, scene.points, scene);
@@ -5196,12 +5986,12 @@ const MODE_PREVIEW = (() => {
         previews.set(canvas, { intervalId, restartTimeoutId: null });
     }
 
-
     function updateSelectedBtn() {
         const wrap = document.getElementById('presetSwitcher');
         if (!wrap) return;
         wrap.querySelectorAll('.preset-btn').forEach((btn, idx) => {
-            if (idx === currentIndex) btn.classList.add('selected'); else btn.classList.remove('selected');
+            if (idx === currentIndex) btn.classList.add('selected');
+            else btn.classList.remove('selected');
         });
     }
     function ensureUI() {
@@ -5216,7 +6006,8 @@ const MODE_PREVIEW = (() => {
 
             const thumb = document.createElement('canvas');
             thumb.className = 'preset-thumb';
-            thumb.width = thumb.clientWidth || 38; thumb.height = thumb.clientHeight || 26;
+            thumb.width = thumb.clientWidth || 38;
+            thumb.height = thumb.clientHeight || 26;
 
             const label = document.createElement('span');
             label.className = 'preset-label';
@@ -5245,8 +6036,9 @@ const MODE_PREVIEW = (() => {
         const ref = document.getElementById('modeReference');
         if (ref) drawReference(ref);
 
-        document.querySelectorAll('.mode-preview[data-mode]').forEach(cv => {
-            stop(cv); start(cv);
+        document.querySelectorAll('.mode-preview[data-mode]').forEach((cv) => {
+            stop(cv);
+            start(cv);
         });
     }
 
@@ -5262,10 +6054,7 @@ const MODE_PREVIEW = (() => {
 // Open changelog on demand
 openChangelog?.addEventListener('click', async () => {
     try {
-        const [{ data: vers }, ch] = await Promise.all([
-            axios.get('/version'),
-            axios.get('/changelog')
-        ]);
+        const [{ data: vers }, ch] = await Promise.all([axios.get('/version'), axios.get('/changelog')]);
         let changelog = '';
         try {
             const content = (ch.data?.local || '').trim();
@@ -5273,7 +6062,7 @@ openChangelog?.addEventListener('click', async () => {
                 const mdHtml = renderMarkdown(content);
                 changelog = `<div style="max-height:60vh; overflow:auto; border:1px solid var(--border); padding:8px; border-radius:6px; background: rgba(255,255,255,.04); text-align: left;">${mdHtml}</div>`;
             }
-        } catch (_) { }
+        } catch (_) {}
         const html = `<b>Current version</b> ${vers?.local || '?'}<br><br>${changelog || 'No changelog available.'}`;
         showMessageBig('Changelog', html);
     } catch (error) {
@@ -5288,55 +6077,64 @@ proxyEnabled?.addEventListener('change', async () => {
         proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
         const cdSec = parseInt(accountCooldown.value, 10) || 0;
         if (!proxyEnabled.checked && cdSec === 0) {
-            showMessage("Warning", "Account cooldown is 0 while proxies are disabled. This may cause rate limiting or blocks.");
+            showMessage(
+                'Warning',
+                'Account cooldown is 0 while proxies are disabled. This may cause rate limiting or blocks.'
+            );
         } else {
-            showMessage("Success", "Proxy setting saved!");
+            showMessage('Success', 'Proxy setting saved!');
         }
-    } catch (error) { handleError(error); }
+    } catch (error) {
+        handleError(error);
+    }
 });
 
 proxyRotationMode?.addEventListener('change', async () => {
     try {
         await axios.put('/settings', { proxyRotationMode: proxyRotationMode.value });
-        showMessage("Success", "Proxy rotation mode saved!");
-    } catch (error) { handleError(error); }
+        showMessage('Success', 'Proxy rotation mode saved!');
+    } catch (error) {
+        handleError(error);
+    }
 });
 
 logProxyUsage?.addEventListener('change', async () => {
     try {
         await axios.put('/settings', { logProxyUsage: logProxyUsage.checked });
-        showMessage("Success", "Proxy logging setting saved!");
-    } catch (error) { handleError(error); }
+        showMessage('Success', 'Proxy logging setting saved!');
+    } catch (error) {
+        handleError(error);
+    }
 });
 
 reloadProxiesBtn?.addEventListener('click', async () => {
     try {
         reloadProxiesBtn.disabled = true;
-        reloadProxiesBtn.textContent = "Reloading...";
+        reloadProxiesBtn.textContent = 'Reloading...';
         const { data } = await axios.post('/reload-proxies', {});
         if (data && typeof data.count === 'number') {
             proxyCount.textContent = String(data.count);
         }
-        showMessage("Success", "Proxies reloaded successfully!");
+        showMessage('Success', 'Proxies reloaded successfully!');
     } catch (error) {
         handleError(error);
     } finally {
         reloadProxiesBtn.disabled = false;
-        reloadProxiesBtn.textContent = "Reload proxies.txt";
+        reloadProxiesBtn.textContent = 'Reload proxies.txt';
     }
 });
 
 // Test proxies
-const testProxiesBtn = $("testProxiesBtn");
-const testProxiesResult = $("testProxiesResult");
-const testProxiesProgress = $("testProxiesProgress");
-const cleanupBlockedBtn = $("cleanupBlockedBtn");
-const cleanupBlockedWrap = $("cleanupBlockedWrap");
+const testProxiesBtn = $('testProxiesBtn');
+const testProxiesResult = $('testProxiesResult');
+const testProxiesProgress = $('testProxiesProgress');
+const cleanupBlockedBtn = $('cleanupBlockedBtn');
+const cleanupBlockedWrap = $('cleanupBlockedWrap');
 testProxiesBtn?.addEventListener('click', async () => {
     if (!testProxiesBtn || !testProxiesResult) return;
     try {
         testProxiesBtn.disabled = true;
-        testProxiesBtn.textContent = "Testing...";
+        testProxiesBtn.textContent = 'Testing...';
         testProxiesResult.style.display = 'none';
         testProxiesProgress.style.display = 'block';
         testProxiesProgress.textContent = 'Progress: 0% (0 tested)';
@@ -5352,7 +6150,9 @@ testProxiesBtn?.addEventListener('click', async () => {
         }
         const idxs = Array.from({ length: total }, (_, i) => i + 1);
         const results = new Array(total);
-        let tested = 0, ok = 0, blocked = 0;
+        let tested = 0,
+            ok = 0,
+            blocked = 0;
         const concurrency = 8;
         let cursor = 0;
         const worker = async () => {
@@ -5360,21 +6160,27 @@ testProxiesBtn?.addEventListener('click', async () => {
                 const my = cursor++;
                 if (my >= total) return;
                 const idx = idxs[my];
-                const one = await axios.get('/test-proxy', { params: { idx, target: 'me' } }).then(x => x.data).catch(() => null);
+                const one = await axios
+                    .get('/test-proxy', { params: { idx, target: 'me' } })
+                    .then((x) => x.data)
+                    .catch(() => null);
                 const row = one || { idx, proxy: '?', ok: false, status: 0, reason: 'error', elapsedMs: 0 };
                 results[my] = row;
                 tested++;
-                if (row.ok) ok++; else blocked++;
-                const pct = Math.round(tested / total * 100);
+                if (row.ok) ok++;
+                else blocked++;
+                const pct = Math.round((tested / total) * 100);
                 testProxiesProgress.textContent = `Progress: ${pct}% (${tested} tested)`;
             }
         };
         await Promise.all(Array.from({ length: Math.min(concurrency, total) }, () => worker()));
 
         const rows = results
-            .map(r => {
-                const status = r.ok ? '<span style="color:#22c55e">OK</span>' : '<span style="color:#ef4444">BLOCKED</span>';
-                const reason = r.ok ? (r.reason || 'ok') : (r.reason || 'unknown');
+            .map((r) => {
+                const status = r.ok
+                    ? '<span style="color:#22c55e">OK</span>'
+                    : '<span style="color:#ef4444">BLOCKED</span>';
+                const reason = r.ok ? r.reason || 'ok' : r.reason || 'unknown';
                 return `<tr>
                     <td style="padding:4px 8px;">#${r.idx}</td>
                     <td style="padding:4px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace;">${r.proxy}</td>
@@ -5408,9 +6214,7 @@ testProxiesBtn?.addEventListener('click', async () => {
         // Show cleanup button if there are blocked ones
         if (blocked > 0) {
             cleanupBlockedWrap.style.display = 'block';
-            cleanupBlockedBtn.dataset.blockedIdx = JSON.stringify(
-                results.filter(r => !r.ok).map(r => r.idx)
-            );
+            cleanupBlockedBtn.dataset.blockedIdx = JSON.stringify(results.filter((r) => !r.ok).map((r) => r.idx));
         } else {
             cleanupBlockedWrap.style.display = 'none';
             cleanupBlockedBtn.dataset.blockedIdx = '[]';
@@ -5425,14 +6229,17 @@ testProxiesBtn?.addEventListener('click', async () => {
 });
 
 // --- Logs toggles ---
-['tokenManager', 'cache', 'queuePreview', 'painting', 'startTurn', 'mismatches', 'estimatedTime'].forEach(key => {
+['tokenManager', 'cache', 'queuePreview', 'painting', 'startTurn', 'mismatches', 'estimatedTime'].forEach((key) => {
     const el = document.getElementById('log_' + key);
     el?.addEventListener('change', async () => {
         try {
-            const lc = {}; lc[key] = el.checked;
+            const lc = {};
+            lc[key] = el.checked;
             await axios.put('/settings', { logCategories: lc });
             showMessage('Success', 'Log category saved!');
-        } catch (e) { handleError(e); }
+        } catch (e) {
+            handleError(e);
+        }
     });
 });
 
@@ -5445,25 +6252,34 @@ cleanupBlockedBtn?.addEventListener('click', async () => {
             showMessage('Info', 'No BLOCKED proxies to remove.');
             return;
         }
-        showConfirmation('Remove BLOCKED proxies', `Are you sure you want to remove ${toRemove.length} blocked proxies? A backup will be created.`, async () => {
-            try {
-                const resp = await axios.post('/proxies/cleanup', { removeIdx: toRemove });
-                if (resp?.data?.success) {
-                    showMessage('Success', `Removed ${resp.data.removed} proxies. Kept: ${resp.data.kept}. Backup: ${resp.data.backup}`);
-                    // Refresh count in UI
-                    try {
-                        const { data } = await axios.post('/reload-proxies', {});
-                        if (data && typeof data.count === 'number') proxyCount.textContent = String(data.count);
-                    } catch (_) { }
-                    cleanupBlockedWrap.style.display = 'none';
-                } else {
-                    showMessage('Error', 'Cleanup failed.');
+        showConfirmation(
+            'Remove BLOCKED proxies',
+            `Are you sure you want to remove ${toRemove.length} blocked proxies? A backup will be created.`,
+            async () => {
+                try {
+                    const resp = await axios.post('/proxies/cleanup', { removeIdx: toRemove });
+                    if (resp?.data?.success) {
+                        showMessage(
+                            'Success',
+                            `Removed ${resp.data.removed} proxies. Kept: ${resp.data.kept}. Backup: ${resp.data.backup}`
+                        );
+                        // Refresh count in UI
+                        try {
+                            const { data } = await axios.post('/reload-proxies', {});
+                            if (data && typeof data.count === 'number') proxyCount.textContent = String(data.count);
+                        } catch (_) {}
+                        cleanupBlockedWrap.style.display = 'none';
+                    } else {
+                        showMessage('Error', 'Cleanup failed.');
+                    }
+                } catch (error) {
+                    handleError(error);
                 }
-            } catch (error) {
-                handleError(error);
             }
-        });
-    } catch (error) { handleError(error); }
+        );
+    } catch (error) {
+        handleError(error);
+    }
 });
 
 parallelWorkers?.addEventListener('change', async () => {
@@ -5479,75 +6295,75 @@ parallelWorkers?.addEventListener('change', async () => {
 
 // Palette
 const COLORS = [
-    { id: 0, name: "Transparent", rgb: [0, 0, 0] },
-    { id: 1, name: "Black", rgb: [0, 0, 0] },
-    { id: 2, name: "Dark Gray", rgb: [60, 60, 60] },
-    { id: 3, name: "Gray", rgb: [120, 120, 120] },
-    { id: 4, name: "Light Gray", rgb: [210, 210, 210] },
-    { id: 5, name: "White", rgb: [255, 255, 255] },
-    { id: 6, name: "Deep Red", rgb: [96, 0, 24] },
-    { id: 7, name: "Red", rgb: [237, 28, 36] },
-    { id: 8, name: "Orange", rgb: [255, 127, 39] },
-    { id: 9, name: "Gold", rgb: [246, 170, 9] },
-    { id: 10, name: "Yellow", rgb: [249, 221, 59] },
-    { id: 11, name: "Light Yellow", rgb: [255, 250, 188] },
-    { id: 12, name: "Dark Green", rgb: [14, 185, 104] },
-    { id: 13, name: "Green", rgb: [19, 230, 123] },
-    { id: 14, name: "Light Green", rgb: [135, 255, 94] },
-    { id: 15, name: "Dark Teal", rgb: [12, 129, 110] },
-    { id: 16, name: "Teal", rgb: [16, 174, 166] },
-    { id: 17, name: "Light Teal", rgb: [19, 225, 190] },
-    { id: 18, name: "Dark Blue", rgb: [40, 80, 158] },
-    { id: 19, name: "Blue", rgb: [64, 147, 228] },
-    { id: 20, name: "Cyan", rgb: [96, 247, 242] },
-    { id: 21, name: "Indigo", rgb: [107, 80, 246] },
-    { id: 22, name: "Light Indigo", rgb: [153, 177, 251] },
-    { id: 23, name: "Dark Purple", rgb: [120, 12, 153] },
-    { id: 24, name: "Purple", rgb: [170, 56, 185] },
-    { id: 25, name: "Light Purple", rgb: [224, 159, 249] },
-    { id: 26, name: "Dark Pink", rgb: [203, 0, 122] },
-    { id: 27, name: "Pink", rgb: [236, 31, 128] },
-    { id: 28, name: "Light Pink", rgb: [243, 141, 169] },
-    { id: 29, name: "Dark Brown", rgb: [104, 70, 52] },
-    { id: 30, name: "Brown", rgb: [149, 104, 42] },
-    { id: 31, name: "Beige", rgb: [248, 178, 119] },
-    { id: 32, name: "Medium Gray", rgb: [170, 170, 170] },
-    { id: 33, name: "Dark Red", rgb: [165, 14, 30] },
-    { id: 34, name: "Light Red", rgb: [250, 128, 114] },
-    { id: 35, name: "Dark Orange", rgb: [228, 92, 26] },
-    { id: 36, name: "Light Tan", rgb: [214, 181, 148] },
-    { id: 37, name: "Dark Goldenrod", rgb: [156, 132, 49] },
-    { id: 38, name: "Goldenrod", rgb: [197, 173, 49] },
-    { id: 39, name: "Light Goldenrod", rgb: [232, 212, 95] },
-    { id: 40, name: "Dark Olive", rgb: [74, 107, 58] },
-    { id: 41, name: "Olive", rgb: [90, 148, 74] },
-    { id: 42, name: "Light Olive", rgb: [132, 197, 115] },
-    { id: 43, name: "Dark Cyan", rgb: [15, 121, 159] },
-    { id: 44, name: "Light Cyan", rgb: [187, 250, 242] },
-    { id: 45, name: "Light Blue", rgb: [125, 199, 255] },
-    { id: 46, name: "Dark Indigo", rgb: [77, 49, 184] },
-    { id: 47, name: "Dark Slate Blue", rgb: [74, 66, 132] },
-    { id: 48, name: "Slate Blue", rgb: [122, 113, 196] },
-    { id: 49, name: "Light Slate Blue", rgb: [181, 174, 241] },
-    { id: 50, name: "Light Brown", rgb: [219, 164, 99] },
-    { id: 51, name: "Dark Beige", rgb: [209, 128, 81] },
-    { id: 52, name: "Light Beige", rgb: [255, 197, 165] },
-    { id: 53, name: "Dark Peach", rgb: [155, 82, 73] },
-    { id: 54, name: "Peach", rgb: [209, 128, 120] },
-    { id: 55, name: "Light Peach", rgb: [250, 182, 164] },
-    { id: 56, name: "Dark Tan", rgb: [123, 99, 82] },
-    { id: 57, name: "Tan", rgb: [156, 132, 107] },
-    { id: 58, name: "Dark Slate", rgb: [51, 57, 65] },
-    { id: 59, name: "Slate", rgb: [109, 117, 141] },
-    { id: 60, name: "Light Slate", rgb: [179, 185, 209] },
-    { id: 61, name: "Dark Stone", rgb: [109, 100, 63] },
-    { id: 62, name: "Stone", rgb: [148, 140, 107] },
-    { id: 63, name: "Light Stone", rgb: [205, 197, 158] }
+    { id: 0, name: 'Transparent', rgb: [0, 0, 0] },
+    { id: 1, name: 'Black', rgb: [0, 0, 0] },
+    { id: 2, name: 'Dark Gray', rgb: [60, 60, 60] },
+    { id: 3, name: 'Gray', rgb: [120, 120, 120] },
+    { id: 4, name: 'Light Gray', rgb: [210, 210, 210] },
+    { id: 5, name: 'White', rgb: [255, 255, 255] },
+    { id: 6, name: 'Deep Red', rgb: [96, 0, 24] },
+    { id: 7, name: 'Red', rgb: [237, 28, 36] },
+    { id: 8, name: 'Orange', rgb: [255, 127, 39] },
+    { id: 9, name: 'Gold', rgb: [246, 170, 9] },
+    { id: 10, name: 'Yellow', rgb: [249, 221, 59] },
+    { id: 11, name: 'Light Yellow', rgb: [255, 250, 188] },
+    { id: 12, name: 'Dark Green', rgb: [14, 185, 104] },
+    { id: 13, name: 'Green', rgb: [19, 230, 123] },
+    { id: 14, name: 'Light Green', rgb: [135, 255, 94] },
+    { id: 15, name: 'Dark Teal', rgb: [12, 129, 110] },
+    { id: 16, name: 'Teal', rgb: [16, 174, 166] },
+    { id: 17, name: 'Light Teal', rgb: [19, 225, 190] },
+    { id: 18, name: 'Dark Blue', rgb: [40, 80, 158] },
+    { id: 19, name: 'Blue', rgb: [64, 147, 228] },
+    { id: 20, name: 'Cyan', rgb: [96, 247, 242] },
+    { id: 21, name: 'Indigo', rgb: [107, 80, 246] },
+    { id: 22, name: 'Light Indigo', rgb: [153, 177, 251] },
+    { id: 23, name: 'Dark Purple', rgb: [120, 12, 153] },
+    { id: 24, name: 'Purple', rgb: [170, 56, 185] },
+    { id: 25, name: 'Light Purple', rgb: [224, 159, 249] },
+    { id: 26, name: 'Dark Pink', rgb: [203, 0, 122] },
+    { id: 27, name: 'Pink', rgb: [236, 31, 128] },
+    { id: 28, name: 'Light Pink', rgb: [243, 141, 169] },
+    { id: 29, name: 'Dark Brown', rgb: [104, 70, 52] },
+    { id: 30, name: 'Brown', rgb: [149, 104, 42] },
+    { id: 31, name: 'Beige', rgb: [248, 178, 119] },
+    { id: 32, name: 'Medium Gray', rgb: [170, 170, 170] },
+    { id: 33, name: 'Dark Red', rgb: [165, 14, 30] },
+    { id: 34, name: 'Light Red', rgb: [250, 128, 114] },
+    { id: 35, name: 'Dark Orange', rgb: [228, 92, 26] },
+    { id: 36, name: 'Light Tan', rgb: [214, 181, 148] },
+    { id: 37, name: 'Dark Goldenrod', rgb: [156, 132, 49] },
+    { id: 38, name: 'Goldenrod', rgb: [197, 173, 49] },
+    { id: 39, name: 'Light Goldenrod', rgb: [232, 212, 95] },
+    { id: 40, name: 'Dark Olive', rgb: [74, 107, 58] },
+    { id: 41, name: 'Olive', rgb: [90, 148, 74] },
+    { id: 42, name: 'Light Olive', rgb: [132, 197, 115] },
+    { id: 43, name: 'Dark Cyan', rgb: [15, 121, 159] },
+    { id: 44, name: 'Light Cyan', rgb: [187, 250, 242] },
+    { id: 45, name: 'Light Blue', rgb: [125, 199, 255] },
+    { id: 46, name: 'Dark Indigo', rgb: [77, 49, 184] },
+    { id: 47, name: 'Dark Slate Blue', rgb: [74, 66, 132] },
+    { id: 48, name: 'Slate Blue', rgb: [122, 113, 196] },
+    { id: 49, name: 'Light Slate Blue', rgb: [181, 174, 241] },
+    { id: 50, name: 'Light Brown', rgb: [219, 164, 99] },
+    { id: 51, name: 'Dark Beige', rgb: [209, 128, 81] },
+    { id: 52, name: 'Light Beige', rgb: [255, 197, 165] },
+    { id: 53, name: 'Dark Peach', rgb: [155, 82, 73] },
+    { id: 54, name: 'Peach', rgb: [209, 128, 120] },
+    { id: 55, name: 'Light Peach', rgb: [250, 182, 164] },
+    { id: 56, name: 'Dark Tan', rgb: [123, 99, 82] },
+    { id: 57, name: 'Tan', rgb: [156, 132, 107] },
+    { id: 58, name: 'Dark Slate', rgb: [51, 57, 65] },
+    { id: 59, name: 'Slate', rgb: [109, 117, 141] },
+    { id: 60, name: 'Light Slate', rgb: [179, 185, 209] },
+    { id: 61, name: 'Dark Stone', rgb: [109, 100, 63] },
+    { id: 62, name: 'Stone', rgb: [148, 140, 107] },
+    { id: 63, name: 'Light Stone', rgb: [205, 197, 158] },
 ];
 
 function getContrastColor(r, g, b) {
     const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-    return luma > 186 ? "#000" : "#fff";
+    return luma > 186 ? '#000' : '#fff';
 }
 
 function computePalette(template) {
@@ -5568,7 +6384,7 @@ function computePalette(template) {
         const isPremium = id >= 32 && id <= 63;
         items.push({ id, rgb: rgbStr, count, isPremium });
     }
-    items.sort((a, b) => (b.count - a.count) || (a.id - b.id));
+    items.sort((a, b) => b.count - a.count || a.id - b.id);
     return items;
 }
 
@@ -5583,14 +6399,15 @@ function renderPalette(template) {
     const totalPainted = items.reduce((acc, it) => acc + it.count, 0);
     totalEl.textContent = String(totalPainted);
 
-    list.innerHTML = items.map(it => {
-        const meta = COLORS.find(c => c.id === it.id);
-        const name = meta ? meta.name : 'Unknown';
-        const [r, g, b] = meta ? meta.rgb : it.rgb.split(',').map(Number);
-        const textColor = getContrastColor(r, g, b);
-        const kind = it.isPremium ? 'Premium' : 'Basic';
+    list.innerHTML = items
+        .map((it) => {
+            const meta = COLORS.find((c) => c.id === it.id);
+            const name = meta ? meta.name : 'Unknown';
+            const [r, g, b] = meta ? meta.rgb : it.rgb.split(',').map(Number);
+            const textColor = getContrastColor(r, g, b);
+            const kind = it.isPremium ? 'Premium' : 'Basic';
 
-        return `
+            return `
       <article class="palette-item" data-id="${it.id}" data-kind="${kind.toLowerCase()}" title="ID ${it.id}">
         <div class="swatch" style="background: rgb(${r}, ${g}, ${b}); color: ${textColor}; font-size: 10px;">#${it.id}</div>
         <div class="palette-meta">
@@ -5599,7 +6416,8 @@ function renderPalette(template) {
         </div>
       </article>
     `;
-    }).join('');
+        })
+        .join('');
 }
 
 function killPreviewPipelines() {
@@ -5633,7 +6451,11 @@ function fillEditorFromTemplate(t) {
     // === 1) Full reset of previous state ===
     try {
         // hide/clear preview
-        if (previewCanvas) { previewCanvas.width = 0; previewCanvas.height = 0; previewCanvas.style.display = "none"; }
+        if (previewCanvas) {
+            previewCanvas.width = 0;
+            previewCanvas.height = 0;
+            previewCanvas.style.display = 'none';
+        }
         // clear working canvas
         if (templateCanvas) {
             const ctx = templateCanvas.getContext('2d');
@@ -5655,7 +6477,7 @@ function fillEditorFromTemplate(t) {
             usePaidColors.removeEventListener('change', usePaidColors.__editHandler);
             usePaidColors.__editHandler = null;
         }
-    } catch (_) { }
+    } catch (_) {}
 
     // === 2) Template from the card ===
     const tpl = t?.template;
@@ -5681,10 +6503,14 @@ function fillEditorFromTemplate(t) {
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
                 let id = data[x][y] | 0;
-                if (id <= 0) { m[x][y] = 0; continue; }
-                if (id >= 32) { // premium — map to basic
-                    const rgb = colorById(id);               // "r,g,b"
-                    id = (rgb && basic_colors[rgb]) ? basic_colors[rgb] : closest(rgb);
+                if (id <= 0) {
+                    m[x][y] = 0;
+                    continue;
+                }
+                if (id >= 32) {
+                    // premium — map to basic
+                    const rgb = colorById(id); // "r,g,b"
+                    id = rgb && basic_colors[rgb] ? basic_colors[rgb] : closest(rgb);
                 }
                 m[x][y] = id;
                 inkCount++;
@@ -5697,8 +6523,8 @@ function fillEditorFromTemplate(t) {
     const paidVariant = {
         width: tpl.width,
         height: tpl.height,
-        data: tpl.data.map(col => col.slice()),
-        ink: (typeof tpl.ink === 'number') ? tpl.ink : recalcInk(tpl)
+        data: tpl.data.map((col) => col.slice()),
+        ink: typeof tpl.ink === 'number' ? tpl.ink : recalcInk(tpl),
     };
     const basicVariant = projectToBasicPalette(paidVariant);
 
@@ -5710,12 +6536,14 @@ function fillEditorFromTemplate(t) {
         currentTemplate = variant;
         // no canvas size reset — just redraw to avoid flicker
         drawTemplate(currentTemplate, templateCanvas);
-        details.style.display = "block";
+        details.style.display = 'block';
         // do not hide details on toggle to avoid flicker
         size.textContent = `${currentTemplate.width}x${currentTemplate.height}px`;
-        ink.textContent = String(typeof currentTemplate.ink === 'number' ? currentTemplate.ink : recalcInk(currentTemplate));
+        ink.textContent = String(
+            typeof currentTemplate.ink === 'number' ? currentTemplate.ink : recalcInk(currentTemplate)
+        );
         renderPalette(currentTemplate);
-        if (editTmpltMsg) editTmpltMsg.style.display = "block";
+        if (editTmpltMsg) editTmpltMsg.style.display = 'block';
     };
 
     apply(usePaidColors && usePaidColors.checked ? paidVariant : basicVariant);
@@ -5733,12 +6561,14 @@ function fillEditorFromTemplate(t) {
             apply(usePaidColors.checked ? paidVariant : basicVariant);
             requestAnimationFrame(() => {
                 const sel = document.getElementById('userSortMode');
-                if (sel) { sel.value = 'priority'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+                if (sel) {
+                    sel.value = 'priority';
+                    sel.dispatchEvent(new Event('change', { bubbles: true }));
+                }
             });
         };
         usePaidColors.addEventListener('change', usePaidColors.__editHandler);
     }
-
 }
 
 function resortUsersAfterPalette(maxTries = 40, delay = 50) {
@@ -5754,22 +6584,21 @@ function resortUsersAfterPalette(maxTries = 40, delay = 50) {
     })();
 }
 
-
 // colorsManager
-const colorsManager = $("colorsManager");
-const paletteAllColors = $("paletteAllColors");
-const colorDetailsCard = $("colorDetailsCard");
-const selectedColorTitle = $("selectedColorTitle");
-const selectedColorKind = $("selectedColorKind");
-const selectedColorId = $("selectedColorId");
-const selectedColorSwatch = $("selectedColorSwatch");
-const usersHaveColor = $("usersHaveColor");
-const usersNoColor = $("usersNoColor");
-const selectAllNoColor = $("selectAllNoColor");
-const UnselectAllNoColor = $("UnselectAllNoColor");
-const purchaseColorBtn = $("purchaseColorBtn");
-const purchaseReport = $("purchaseReport");
-const editTmpltMsg = $("editTmpltMsg");
+const colorsManager = $('colorsManager');
+const paletteAllColors = $('paletteAllColors');
+const colorDetailsCard = $('colorDetailsCard');
+const selectedColorTitle = $('selectedColorTitle');
+const selectedColorKind = $('selectedColorKind');
+const selectedColorId = $('selectedColorId');
+const selectedColorSwatch = $('selectedColorSwatch');
+const usersHaveColor = $('usersHaveColor');
+const usersNoColor = $('usersNoColor');
+const selectAllNoColor = $('selectAllNoColor');
+const UnselectAllNoColor = $('UnselectAllNoColor');
+const purchaseColorBtn = $('purchaseColorBtn');
+const purchaseReport = $('purchaseReport');
+const editTmpltMsg = $('editTmpltMsg');
 
 let COLORS_INIT = false;
 let CURRENT_SELECTED_COLOR = null;
@@ -5780,36 +6609,50 @@ const USERS_COLOR_STATE = {};
 // Colors cache in localStorage
 const COLORS_CACHE_KEY = 'wplacer_colors_cache_v1';
 let COLORS_CACHE = null;
-try { COLORS_CACHE = JSON.parse(localStorage.getItem(COLORS_CACHE_KEY) || 'null'); } catch (_) { COLORS_CACHE = null; }
-const saveColorsCache = () => { try { localStorage.setItem(COLORS_CACHE_KEY, JSON.stringify(COLORS_CACHE)); } catch (_) { } };
-const colorsLastCheckLabel = $("colorsLastCheckLabel");
-const usersColorsLastCheckLabel = $("usersColorsLastCheckLabel");
-const checkColorsAll = $("checkColorsAll");
-const loadColorsCacheBtn = $("loadColorsCache");
+try {
+    COLORS_CACHE = JSON.parse(localStorage.getItem(COLORS_CACHE_KEY) || 'null');
+} catch (_) {
+    COLORS_CACHE = null;
+}
+const saveColorsCache = () => {
+    try {
+        localStorage.setItem(COLORS_CACHE_KEY, JSON.stringify(COLORS_CACHE));
+    } catch (_) {}
+};
+const colorsLastCheckLabel = $('colorsLastCheckLabel');
+const usersColorsLastCheckLabel = $('usersColorsLastCheckLabel');
+const checkColorsAll = $('checkColorsAll');
+const loadColorsCacheBtn = $('loadColorsCache');
 
 function buildAllColorsPalette() {
     if (!paletteAllColors) return;
-    const items = COLORS.filter(c => c.id !== 0);
+    const items = COLORS.filter((c) => c.id !== 0);
     // prepare owners count map per color
     const countByColor = new Map();
     try {
-        const mapById = COLORS_CACHE?.report?.reduce((m, r) => { if (r && r.userId && !r.error) m[r.userId] = r; return m; }, {}) || {};
+        const mapById =
+            COLORS_CACHE?.report?.reduce((m, r) => {
+                if (r && r.userId && !r.error) m[r.userId] = r;
+                return m;
+            }, {}) || {};
         for (const uid of Object.keys(mapById)) {
             const bitmap = mapById[uid].extraColorsBitmap | 0;
             for (let cid = 1; cid <= 63; cid++) {
-                const has = cid < 32 ? true : ((bitmap & (1 << (cid - 32))) !== 0);
+                const has = cid < 32 ? true : (bitmap & (1 << (cid - 32))) !== 0;
                 if (has) countByColor.set(cid, (countByColor.get(cid) || 0) + 1);
             }
         }
-    } catch (_) { }
+    } catch (_) {}
 
-    paletteAllColors.innerHTML = items.map(it => {
-        const [r, g, b] = it.rgb;
-        const textColor = getContrastColor(r, g, b);
-        const kind = it.id >= 32 ? 'Premium' : 'Basic';
-        const cnt = countByColor.get(it.id) || 0;
-        const badge = (it.id >= 32 && cnt > 0) ? `<span class="count-badge" title="Users with this color">${cnt}</span>` : '';
-        return `
+    paletteAllColors.innerHTML = items
+        .map((it) => {
+            const [r, g, b] = it.rgb;
+            const textColor = getContrastColor(r, g, b);
+            const kind = it.id >= 32 ? 'Premium' : 'Basic';
+            const cnt = countByColor.get(it.id) || 0;
+            const badge =
+                it.id >= 32 && cnt > 0 ? `<span class="count-badge" title="Users with this color">${cnt}</span>` : '';
+            return `
       <article class="palette-item color-tile" data-color-id="${it.id}" data-kind="${kind.toLowerCase()}" title="ID ${it.id}">
         <div class="swatch" style="background: rgb(${r}, ${g}, ${b}); color: ${textColor}">#${it.id}</div>
         <div class="palette-meta">
@@ -5819,34 +6662,39 @@ function buildAllColorsPalette() {
         ${badge}
       </article>
     `;
-    }).join('');
+        })
+        .join('');
 }
 
 function hasPremiumColor(extraColorsBitmap, colorId) {
     // premium: 32..63
     if (colorId < 32) return true;
-    const bit = (colorId - 32);
+    const bit = colorId - 32;
     return (extraColorsBitmap & (1 << bit)) !== 0;
 }
 
 async function loadUsersColorState(fromCacheOnly = false) {
-    const { data: users } = await axios.get("/users");
+    const { data: users } = await axios.get('/users');
     if (fromCacheOnly) {
-        const mapById = COLORS_CACHE?.report?.reduce((m, r) => { if (r && r.userId && !r.error) m[r.userId] = r; return m; }, {}) || {};
+        const mapById =
+            COLORS_CACHE?.report?.reduce((m, r) => {
+                if (r && r.userId && !r.error) m[r.userId] = r;
+                return m;
+            }, {}) || {};
         for (const id of Object.keys(users)) {
             const r = mapById[id];
             if (!r) continue;
             USERS_COLOR_STATE[id] = {
                 name: users[id]?.name || `#${id}`,
                 extraColorsBitmap: r.extraColorsBitmap | 0,
-                droplets: r.droplets | 0
+                droplets: r.droplets | 0,
             };
             LAST_USER_STATUS[id] = {
                 ...(LAST_USER_STATUS[id] || {}),
                 droplets: r.droplets | 0,
-                max: r.charges?.max ?? (LAST_USER_STATUS[id]?.max ?? 0),
-                charges: Math.floor(r.charges?.count ?? (LAST_USER_STATUS[id]?.charges ?? 0)),
-                level: Math.floor(r.level ?? (LAST_USER_STATUS[id]?.level ?? 0)),
+                max: r.charges?.max ?? LAST_USER_STATUS[id]?.max ?? 0,
+                charges: Math.floor(r.charges?.count ?? LAST_USER_STATUS[id]?.charges ?? 0),
+                level: Math.floor(r.level ?? LAST_USER_STATUS[id]?.level ?? 0),
                 progress: Math.round((r.progress ?? 0) | 0),
                 extraColorsBitmap: r.extraColorsBitmap | 0,
             };
@@ -5859,41 +6707,48 @@ async function loadUsersColorState(fromCacheOnly = false) {
     COLORS_CACHE = { ts: data?.ts || Date.now(), report: data?.report || [] };
     saveColorsCache();
     // Rebuild palette to refresh badges without page reload
-    try { buildAllColorsPalette(); } catch (_) { }
+    try {
+        buildAllColorsPalette();
+    } catch (_) {}
     if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
     if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
 
-    const mapById = COLORS_CACHE.report.reduce((m, r) => { if (r && r.userId && !r.error) m[r.userId] = r; return m; }, {});
+    const mapById = COLORS_CACHE.report.reduce((m, r) => {
+        if (r && r.userId && !r.error) m[r.userId] = r;
+        return m;
+    }, {});
     for (const [id, u] of Object.entries(users)) {
         const r = mapById[id];
         if (!r) continue;
         USERS_COLOR_STATE[id] = {
             name: u?.name || `#${id}`,
             extraColorsBitmap: r.extraColorsBitmap | 0,
-            droplets: r.droplets | 0
+            droplets: r.droplets | 0,
         };
         LAST_USER_STATUS[id] = {
             ...(LAST_USER_STATUS[id] || {}),
             droplets: r.droplets | 0,
-            max: r.charges?.max ?? (LAST_USER_STATUS[id]?.max ?? 0),
-            charges: Math.floor(r.charges?.count ?? (LAST_USER_STATUS[id]?.charges ?? 0)),
-            level: Math.floor(r.level ?? (LAST_USER_STATUS[id]?.level ?? 0)),
+            max: r.charges?.max ?? LAST_USER_STATUS[id]?.max ?? 0,
+            charges: Math.floor(r.charges?.count ?? LAST_USER_STATUS[id]?.charges ?? 0),
+            level: Math.floor(r.level ?? LAST_USER_STATUS[id]?.level ?? 0),
             progress: Math.round((r.progress ?? 0) | 0),
             extraColorsBitmap: r.extraColorsBitmap | 0,
         };
     }
     saveLastStatus();
     // Refresh current color details and palette badges
-    try { buildAllColorsPalette(); } catch (_) { }
+    try {
+        buildAllColorsPalette();
+    } catch (_) {}
 }
 
 function showColorDetails(colorId) {
     CURRENT_SELECTED_COLOR = colorId;
-    const meta = COLORS.find(c => c.id === colorId);
+    const meta = COLORS.find((c) => c.id === colorId);
     if (!meta) return;
     const [r, g, b] = meta.rgb;
     selectedColorTitle.textContent = meta.name;
-    selectedColorKind.textContent = colorId >= 32 ? "Premium" : "Basic";
+    selectedColorKind.textContent = colorId >= 32 ? 'Premium' : 'Basic';
     selectedColorKind.classList.toggle('premium', colorId >= 32);
     selectedColorId.textContent = String(colorId);
     selectedColorSwatch.style.background = `rgb(${r}, ${g}, ${b})`;
@@ -5910,18 +6765,23 @@ function showColorDetails(colorId) {
 
     usersHaveColor.classList.add('chips');
     usersHaveColor.innerHTML = have.length
-        ? have.map(u => `
+        ? have
+              .map(
+                  (u) => `
         <span class="account-chip" title="#${u.id}">
           <span class="account-name">${u.name}</span>
           <span class="account-id-badge">#${u.id}</span>
-        </span>`).join('')
+        </span>`
+              )
+              .join('')
         : `<span class="muted">Nobody has this color yet.</span>`;
 
     usersNoColor.innerHTML = notHave.length
-        ? notHave.map(u => {
-            const last = (LAST_USER_STATUS?.[u.id] || {});
-            const drops = (typeof last.droplets === 'number') ? last.droplets : '-';
-            return `
+        ? notHave
+              .map((u) => {
+                  const last = LAST_USER_STATUS?.[u.id] || {};
+                  const drops = typeof last.droplets === 'number' ? last.droplets : '-';
+                  return `
         <div class="user-select-item">
           <input type="checkbox" id="color_user_${u.id}" value="${u.id}">
           <label class="label-margin0" for="color_user_${u.id}">
@@ -5929,7 +6789,8 @@ function showColorDetails(colorId) {
           </label>
           <span class="drops-badge" title="Droplets at last check">${drops} drops</span>
         </div>`;
-        }).join('')
+              })
+              .join('')
         : `<span class="muted">Everyone already has this color.</span>`;
 
     const premium = colorId >= 32;
@@ -5946,12 +6807,14 @@ async function initColorsManager() {
         COLORS_INIT = true;
     }
     // show date if cache exists
-    if (COLORS_CACHE?.ts && colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
-    if (COLORS_CACHE?.ts && usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
+    if (COLORS_CACHE?.ts && colorsLastCheckLabel)
+        colorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
+    if (COLORS_CACHE?.ts && usersColorsLastCheckLabel)
+        usersColorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
     // by default, load from cache only, no server trigger
     if (COLORS_CACHE) await loadUsersColorState(true);
     if (CURRENT_SELECTED_COLOR == null) {
-        const firstPremium = COLORS.find(c => c.id >= 32)?.id ?? 32;
+        const firstPremium = COLORS.find((c) => c.id >= 32)?.id ?? 32;
         showColorDetails(firstPremium);
     } else {
         showColorDetails(CURRENT_SELECTED_COLOR);
@@ -5964,31 +6827,33 @@ paletteAllColors?.addEventListener('click', (e) => {
     const cid = parseInt(tile.dataset.colorId, 10);
     if (!Number.isFinite(cid)) return;
     // visually mark selected
-    paletteAllColors.querySelectorAll('.color-tile.selected').forEach(el => el.classList.remove('selected'));
+    paletteAllColors.querySelectorAll('.color-tile.selected').forEach((el) => el.classList.remove('selected'));
     tile.classList.add('selected');
     showColorDetails(cid);
 });
 
 selectAllNoColor?.addEventListener('click', () => {
-    usersNoColor.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+    usersNoColor.querySelectorAll('input[type="checkbox"]').forEach((cb) => (cb.checked = true));
 });
 UnselectAllNoColor?.addEventListener('click', () => {
-    usersNoColor.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+    usersNoColor.querySelectorAll('input[type="checkbox"]').forEach((cb) => (cb.checked = false));
 });
 
 purchaseColorBtn?.addEventListener('click', async () => {
     if (CURRENT_SELECTED_COLOR == null) {
-        showMessage("Error", "Select a color first.");
+        showMessage('Error', 'Select a color first.');
         return;
     }
     const colorId = CURRENT_SELECTED_COLOR;
     if (colorId < 32) {
-        showMessage("Info", "Basic colors are available for everyone. No purchase required.");
+        showMessage('Info', 'Basic colors are available for everyone. No purchase required.');
         return;
     }
-    const selectedUserIds = Array.from(usersNoColor.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    const selectedUserIds = Array.from(usersNoColor.querySelectorAll('input[type="checkbox"]:checked')).map(
+        (cb) => cb.value
+    );
     if (!selectedUserIds.length) {
-        showMessage("Error", "Select at least one user without this color.");
+        showMessage('Error', 'Select at least one user without this color.');
         return;
     }
 
@@ -6007,7 +6872,7 @@ purchaseColorBtn?.addEventListener('click', async () => {
         let timer = null;
         try {
             purchaseColorBtn.disabled = true;
-            purchaseColorBtn.textContent = "Processing...";
+            purchaseColorBtn.textContent = 'Processing...';
 
             // progress polling like in Colors Check (All)
             const updateProgress = async () => {
@@ -6018,23 +6883,36 @@ purchaseColorBtn?.addEventListener('click', async () => {
                     if (data?.active && total > 0) {
                         purchaseColorBtn.textContent = `Processing... ${completed}/${total}`;
                     }
-                } catch (_) { /* ignore */ }
+                } catch (_) {
+                    /* ignore */
+                }
             };
             timer = setInterval(updateProgress, 500);
-            updateProgress().catch(() => { });
+            updateProgress().catch(() => {});
 
             const { data } = await axios.post('/users/purchase-color', {
                 colorId,
-                userIds: selectedUserIds
+                userIds: selectedUserIds,
             });
 
             const report = data?.report || [];
-            let ok = 0, skipped = 0, failed = 0;
-            const lines = report.map(r => {
-                if (r.error) { failed++; return `❌ ${r.name} (#${r.userId}): ${r.error}`; }
-                if (r.skipped) { skipped++; return `⏭️ ${r.name} (#${r.userId}): ${r.reason || 'skipped'}`; }
-                if (r.ok || r.success) { ok++; }
-                const before = (r.beforeDroplets ?? '-'), after = (r.afterDroplets ?? '-');
+            let ok = 0,
+                skipped = 0,
+                failed = 0;
+            const lines = report.map((r) => {
+                if (r.error) {
+                    failed++;
+                    return `❌ ${r.name} (#${r.userId}): ${r.error}`;
+                }
+                if (r.skipped) {
+                    skipped++;
+                    return `⏭️ ${r.name} (#${r.userId}): ${r.reason || 'skipped'}`;
+                }
+                if (r.ok || r.success) {
+                    ok++;
+                }
+                const before = r.beforeDroplets ?? '-',
+                    after = r.afterDroplets ?? '-';
                 return `✅ ${r.name} (#${r.userId}) — purchased. Droplets ${before} → ${after}`;
             });
 
@@ -6046,12 +6924,12 @@ purchaseColorBtn?.addEventListener('click', async () => {
       ${lines.slice(0, 20).join('<br>')}
       ${lines.length > 20 ? `<br>...and ${lines.length - 20} more` : ''}
     `;
-            showMessage("Purchase Report", html);
+            showMessage('Purchase Report', html);
 
             // locally update cache only for users with ok/updated
             try {
                 const nowTs = Date.now();
-                const byId = new Map((COLORS_CACHE?.report || []).map(r => [String(r.userId), r]));
+                const byId = new Map((COLORS_CACHE?.report || []).map((r) => [String(r.userId), r]));
                 for (const r of report) {
                     if (r && !r.error && !r.skipped) {
                         const prev = byId.get(String(r.userId));
@@ -6062,7 +6940,7 @@ purchaseColorBtn?.addEventListener('click', async () => {
                             droplets: r.afterDroplets ?? prev?.droplets ?? 0,
                             charges: prev?.charges ?? { count: 0, max: 0 },
                             level: prev?.level ?? 0,
-                            progress: prev?.progress ?? 0
+                            progress: prev?.progress ?? 0,
                         });
                     }
                 }
@@ -6070,17 +6948,19 @@ purchaseColorBtn?.addEventListener('click', async () => {
                 saveColorsCache();
                 if (colorsLastCheckLabel) colorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
                 if (usersColorsLastCheckLabel) usersColorsLastCheckLabel.textContent = new Date(nowTs).toLocaleString();
-            } catch (_) { }
+            } catch (_) {}
             await loadUsersColorState(true);
             // Rebuild palette to update badges immediately and keep current selection
-            try { buildAllColorsPalette(); } catch (_) { }
+            try {
+                buildAllColorsPalette();
+            } catch (_) {}
             showColorDetails(colorId);
         } catch (error) {
             handleError(error);
         } finally {
             if (timer) clearInterval(timer);
             purchaseColorBtn.disabled = false;
-            purchaseColorBtn.textContent = "Attempt to Buy for Selected";
+            purchaseColorBtn.textContent = 'Attempt to Buy for Selected';
         }
     });
 });
@@ -6101,18 +6981,23 @@ checkColorsAll?.addEventListener('click', async () => {
                 if (data?.active && total > 0) {
                     checkColorsAll.textContent = `Checking... ${completed}/${total}`;
                 }
-            } catch (_) { /* ignore */ }
+            } catch (_) {
+                /* ignore */
+            }
         };
         timer = setInterval(updateProgress, 500);
         // kick first read
-        updateProgress().catch(() => { });
+        updateProgress().catch(() => {});
 
         await loadUsersColorState(false);
-        try { buildAllColorsPalette(); } catch (_) { }
-        const id = CURRENT_SELECTED_COLOR ?? (COLORS.find(c => c.id >= 32)?.id ?? 32);
+        try {
+            buildAllColorsPalette();
+        } catch (_) {}
+        const id = CURRENT_SELECTED_COLOR ?? COLORS.find((c) => c.id >= 32)?.id ?? 32;
         showColorDetails(id);
-    } catch (e) { handleError(e); }
-    finally {
+    } catch (e) {
+        handleError(e);
+    } finally {
         if (timer) clearInterval(timer);
         checkColorsAll.disabled = false;
         checkColorsAll.innerHTML = '<img src="icons/check.svg" alt="" />Check Colors (All)';
@@ -6124,11 +7009,15 @@ loadColorsCacheBtn?.addEventListener('click', async () => {
         showMessage('Info', 'No cached data yet. Press "Check Colors (All)" first.');
         return;
     }
-    if (colorsLastCheckLabel && COLORS_CACHE.ts) colorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
-    if (usersColorsLastCheckLabel && COLORS_CACHE.ts) usersColorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
+    if (colorsLastCheckLabel && COLORS_CACHE.ts)
+        colorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
+    if (usersColorsLastCheckLabel && COLORS_CACHE.ts)
+        usersColorsLastCheckLabel.textContent = new Date(COLORS_CACHE.ts).toLocaleString();
     await loadUsersColorState(true);
-    try { buildAllColorsPalette(); } catch (_) { }
-    const id = CURRENT_SELECTED_COLOR ?? (COLORS.find(c => c.id >= 32)?.id ?? 32);
+    try {
+        buildAllColorsPalette();
+    } catch (_) {}
+    const id = CURRENT_SELECTED_COLOR ?? COLORS.find((c) => c.id >= 32)?.id ?? 32;
     showColorDetails(id);
 });
 
@@ -6157,16 +7046,16 @@ if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile 
             const text = await file.text();
 
             // Parse lines, trim, ignore comments, strip quotes, remove empties
-            const rawLines = text.split(/\r?\n/).map(l => l.trim());
+            const rawLines = text.split(/\r?\n/).map((l) => l.trim());
             const parsed = rawLines
-                .map(l => {
+                .map((l) => {
                     if (!l) return '';
                     // handle "j=..." or cookies style lines gracefully by extracting last token-like chunk
                     // but keep it simple: remove surrounding quotes and whitespace
                     let t = l.replace(/(^["']|["']$)/g, '').trim();
                     return t;
                 })
-                .filter(l => l && !l.startsWith('#') && !l.startsWith('//'));
+                .filter((l) => l && !l.startsWith('#') && !l.startsWith('//'));
 
             const inputCount = rawLines.length;
             const deduped = Array.from(new Set(parsed)); // de-duplicate within file
@@ -6186,23 +7075,29 @@ if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile 
                 const existingUsers = resp?.data ?? {};
                 const existingJ = new Set(
                     Object.values(existingUsers || {})
-                        .map(u => u?.cookies?.j)
+                        .map((u) => u?.cookies?.j)
                         .filter(Boolean)
                         .map(String)
-                        .map(s => s.trim())
+                        .map((s) => s.trim())
                 );
 
                 const before = tokensToProcess.length;
-                tokensToProcess = tokensToProcess.filter(t => !existingJ.has(t));
+                tokensToProcess = tokensToProcess.filter((t) => !existingJ.has(t));
                 skippedExisting = before - tokensToProcess.length;
             } catch (fetchErr) {
                 // if we fail to fetch, proceed but warn in console (we'll attempt to import everything)
-                console.warn('Could not fetch existing users; proceeding without server-side dedupe:', fetchErr?.message ?? fetchErr);
+                console.warn(
+                    'Could not fetch existing users; proceeding without server-side dedupe:',
+                    fetchErr?.message ?? fetchErr
+                );
             }
 
             // Nothing left to import
             if (tokensToProcess.length === 0) {
-                showMessage('Import Summary', `All provided tokens already exist.<br>Input lines: ${inputCount}<br>Unique tokens in file: ${dedupedCount}<br>Skipped existing: ${skippedExisting}`);
+                showMessage(
+                    'Import Summary',
+                    `All provided tokens already exist.<br>Input lines: ${inputCount}<br>Unique tokens in file: ${dedupedCount}<br>Skipped existing: ${skippedExisting}`
+                );
                 importJwtFile.value = null;
                 return;
             }
@@ -6219,8 +7114,8 @@ if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile 
                             const idx = i++;
                             running++;
                             Promise.resolve(fn(items[idx], idx))
-                                .then(r => results[idx] = { status: 'fulfilled', value: r })
-                                .catch(err => results[idx] = { status: 'rejected', reason: err })
+                                .then((r) => (results[idx] = { status: 'fulfilled', value: r }))
+                                .catch((err) => (results[idx] = { status: 'rejected', reason: err }))
                                 .finally(() => {
                                     running--;
                                     // schedule next; microtask to avoid deep recursion
@@ -6250,7 +7145,9 @@ if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile 
                     if (name && id) {
                         const line = `${name} (#${id})`;
                         addedUsers.push(line);
-                        try { console.log(`[Import] Added user ${line}`); } catch { }
+                        try {
+                            console.log(`[Import] Added user ${line}`);
+                        } catch {}
                     } else {
                         // if no nice response body, still count as success
                         addedUsers.push(`Imported ${short(token)}`);
@@ -6281,15 +7178,17 @@ if (typeof importJwtBtn !== 'undefined' && importJwtBtn && typeof importJwtFile 
                 `Processed: ${processed}`,
                 `Success: ${success}`,
                 `Failed: ${failed}`,
-                `Skipped existing: ${skippedExisting}`
+                `Skipped existing: ${skippedExisting}`,
             ];
             if (addedUsers.length) summaryLines.push(`Added: ${addedUsers.join(', ')}`);
-            if (errors.length) summaryLines.push(`Errors: ${errors.map(e => `${e.token} → ${e.message}`).join('; ')}`);
+            if (errors.length)
+                summaryLines.push(`Errors: ${errors.map((e) => `${e.token} → ${e.message}`).join('; ')}`);
 
             showMessage('Import Summary', summaryLines.join('<br>'));
             // Refresh Manage Users view
-            try { openManageUsers.click(); } catch (e) { }
-
+            try {
+                openManageUsers.click();
+            } catch (e) {}
         } catch (readErr) {
             clearBusy();
             importJwtFile.value = null;
@@ -6326,7 +7225,6 @@ if (exportJwtBtn) {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-
         } catch (err) {
             console.error('Error exporting JWT tokens:', err);
             alert('An error occurred while exporting JWT tokens.');
@@ -6345,12 +7243,12 @@ function formatTime(seconds) {
     const s = Math.floor(seconds % 60);
 
     let parts = [];
-    if (d > 0) parts.push(d + "d");
-    if (h > 0) parts.push(h + "h");
-    if (m > 0) parts.push(m + "m");
-    if (s > 0 || parts.length === 0) parts.push(s + "s");
+    if (d > 0) parts.push(d + 'd');
+    if (h > 0) parts.push(h + 'h');
+    if (m > 0) parts.push(m + 'm');
+    if (s > 0 || parts.length === 0) parts.push(s + 's');
 
-    return parts.join(" ");
+    return parts.join(' ');
 }
 
 // ====== QUEUE PREVIEW LOGIC ======
@@ -6424,21 +7322,22 @@ function updateQueueUserList(users) {
 
     const hideSensitive = hideSensitiveInfoQueue.checked;
 
-    const html = users.map(user => {
-        let statusClass = getStatusClass(user.status);
-        let statusText = getStatusText(user.status);
-        if (!user.charges && user.status === 'active') {
-            statusText = 'SYNC'
-        }
+    const html = users
+        .map((user) => {
+            let statusClass = getStatusClass(user.status);
+            let statusText = getStatusText(user.status);
+            if (!user.charges && user.status === 'active') {
+                statusText = 'SYNC';
+            }
 
-        const cooldownText = user.cooldownTime ? formatTime(user.cooldownTime) : '';
-        const displayName = hideSensitive ? `User #${user.id.slice(-4)}` : user.name;
-        const displayId = hideSensitive ? `#${user.id.slice(-4)}` : `#${user.id}`;
+            const cooldownText = user.cooldownTime ? formatTime(user.cooldownTime) : '';
+            const displayName = hideSensitive ? `User #${user.id.slice(-4)}` : user.name;
+            const displayId = hideSensitive ? `#${user.id.slice(-4)}` : `#${user.id}`;
 
-        const animateClass = isFirstLoad ? 'animate-in' : '';
-        const barWidth = user.charges ? user.charges.percentage : 0;
+            const animateClass = isFirstLoad ? 'animate-in' : '';
+            const barWidth = user.charges ? user.charges.percentage : 0;
 
-        return `
+            return `
             <div class="queue-user-item ${animateClass}">
                 <div class="queue-user-name">${displayName} <span class="queue-user-id">${displayId}</span> <span class="queue-charges-current">${user.charges ? user.charges.current : '--'}</span>/${user.charges ? user.charges.max : '--'} <span class="queue-charges-percentage">(${barWidth + '%'})</span></div>
                 <div class="queue-progress-bar">
@@ -6448,32 +7347,47 @@ function updateQueueUserList(users) {
 
             </div>
         `;
-    }).join('');
+        })
+        .join('');
 
     queueUserList.innerHTML = html;
 }
 
 function getStatusClass(status) {
     switch (status) {
-        case 'ready': return 'queue-status-ready';
-        case 'waiting': return '⌛';
-        case 'cooldown': return '🔋';
-        case 'suspended': return '‼️';
-        case 'active': return 'queue-status-ready';
-        case 'no-data': return 'queue-status-cooldown';
-        default: return 'queue-status-waiting';
+        case 'ready':
+            return 'queue-status-ready';
+        case 'waiting':
+            return '⌛';
+        case 'cooldown':
+            return '🔋';
+        case 'suspended':
+            return '‼️';
+        case 'active':
+            return 'queue-status-ready';
+        case 'no-data':
+            return 'queue-status-cooldown';
+        default:
+            return 'queue-status-waiting';
     }
 }
 
 function getStatusText(status) {
     switch (status) {
-        case 'ready': return 'Ready';
-        case 'waiting': return 'Waiting';
-        case 'cooldown': return 'Cooldown';
-        case 'suspended': return 'Suspended';
-        case 'active': return 'Active';
-        case 'no-data': return 'No Data';
-        default: return 'Unknown';
+        case 'ready':
+            return 'Ready';
+        case 'waiting':
+            return 'Waiting';
+        case 'cooldown':
+            return 'Cooldown';
+        case 'suspended':
+            return 'Suspended';
+        case 'active':
+            return 'Active';
+        case 'no-data':
+            return 'No Data';
+        default:
+            return 'Unknown';
     }
 }
 
@@ -6505,7 +7419,7 @@ function saveQueueSettings() {
     const settings = {
         autoRefresh: autoRefreshQueue.checked,
         hideSensitive: hideSensitiveInfoQueue.checked,
-        refreshInterval: queueRefreshIntervalInput.value || 5
+        refreshInterval: queueRefreshIntervalInput.value || 5,
     };
     localStorage.setItem('queuePreviewSettings', JSON.stringify(settings));
 }

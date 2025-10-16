@@ -2995,7 +2995,7 @@ const authenticateToken = (req, res, next) => {
     }
 
     // Skip authentication only for specific public static file paths
-    const publicPaths = ['/', '/index.html', '/scripts/', '/styles/', '/icons/', '/favicon.png'];
+    const publicPaths = ['/', '/index.html', '/scripts/', '/styles/', '/icons/', '/favicon.png', '/logs/stream'];
     const isPublicPath = publicPaths.some((path) => {
         // Exact match for root, or startsWith for other paths
         if (path === '/') return req.path === path;
