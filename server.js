@@ -3086,7 +3086,7 @@ app.use((err, req, res, next) => {
 });
 
 // --- API: tokens ---
-app.get('/token-needed/long', authenticateToken, (req, res) => {
+app.get('/token-needed/long', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     let done = false;
     const finish = (needed) => {
@@ -3104,12 +3104,13 @@ app.get('/token-needed/long', authenticateToken, (req, res) => {
         longWaiters.delete(fn);
         clearTimeout(timer);
     });
+    s;
     if (TokenManager.isTokenNeeded) fn();
 });
-app.get('/token-needed', authenticateToken, (req, res) => {
+app.get('/token-needed', (req, res) => {
     res.json({ needed: TokenManager.isTokenNeeded });
 });
-app.post('/t', authenticateToken, (req, res) => {
+app.post('/t', (req, res) => {
     const { t, pawtect, fp } = req.body || {};
     if (!t) return res.sendStatus(400);
     TokenManager.setToken(t);
