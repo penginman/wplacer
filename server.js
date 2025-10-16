@@ -5329,6 +5329,84 @@ app.get('/test-proxy', authenticateToken, async (req, res) => {
     }
 });
 
+// 添加代理到文件的 API 路由
+app.post('/add-proxy', authenticateToken, async (req, res) => {
+    try {
+        const { proxy } = req.body;
+
+        if (!proxy || typeof proxy !== 'string') {
+            return res.status(400).json({ error: 'Proxy string is required' });
+        }
+
+        // 验证代理格式
+        const proxyPattern = /^((https|http|socks5|socks4)?):\/\/([^:@]+)(?::([^@]+))?@([^:@]+)(?::(\d+))$/;
+        if (!proxyPattern.test(proxy)) {
+            return res.status(400).json({ error: 'Invalid proxy format' });
+        }
+
+        const proxyPath = path.join(dataDir, 'proxies.txt');
+
+        // 检查代理是否已存在
+        let existingProxies = [];
+        if (existsSync(proxyPath)) {
+            const existingContent = readFileSync(proxyPath, 'utf8');
+            existingProxies = existingContent.split('\n').filter((line) => line.trim() !== '');
+        }
+
+        // 解析新代理进行比较
+        const parseProxy = (proxyStr) => {
+            try {
+                const url = new URL(proxyStr);
+                return {
+                    protocol: url.protocol.slice(0, -1), // 移除 ':'
+                    username: decodeURIComponent(url.username),
+                    password: decodeURIComponent(url.password),
+                    host: url.hostname,
+                    port: parseInt(url.port) || (url.protocol === 'https:' ? 443 : 80),
+                };
+            } catch {
+                return null;
+            }
+        };
+
+        const newProxyParsed = parseProxy(proxy);
+        if (!newProxyParsed) {
+            return res.status(400).json({ error: 'Invalid proxy format' });
+        }
+
+        // 检查是否已存在相同的代理
+        const proxyExists = existingProxies.some((existingProxy) => {
+            const existingParsed = parseProxy(existingProxy);
+            return (
+                existingParsed &&
+                existingParsed.host === newProxyParsed.host &&
+                existingParsed.port === newProxyParsed.port
+            );
+        });
+
+        if (proxyExists) {
+            return res.status(409).json({ error: 'Proxy already exists' });
+        }
+
+        // 添加新代理到文件
+        appendFileSync(proxyPath, proxy + '\n');
+
+        // 重新加载代理列表
+        loadProxies();
+
+        log('SYSTEM', 'wplacer', `➕ Added new proxy: ${proxy}`);
+
+        res.json({
+            success: true,
+            message: 'Proxy added successfully',
+            proxyCount: loadedProxies.length,
+        });
+    } catch (error) {
+        console.error('Error adding proxy:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 app.post('/proxies/cleanup', authenticateToken, (req, res) => {
     try {
         const keepIdx = Array.isArray(req.body?.keepIdx)

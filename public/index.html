@@ -1417,7 +1417,29 @@
                                             >.
                                         </small>
                                     </div>
-
+                                    <div class="field" style="margin-top: 8px">
+                                        <label for="newProxy">Add New Proxy</label>
+                                        <div class="input-group">
+                                            <input
+                                                type="text"
+                                                id="newProxy"
+                                                placeholder="protocol://user:pass@host:port"
+                                                style="flex: 1"
+                                            />
+                                            <button
+                                                type="button"
+                                                id="addProxyBtn"
+                                                class="secondary-button"
+                                                style="margin-left: 8px"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                        <small class="help">
+                                            Format: protocol://user:pass@host:port<br />
+                                            Example: http://username:password@192.168.1.1:8080
+                                        </small>
+                                    </div>
                                     <div class="setting-toggle">
                                         <label for="logProxyUsage" class="label-margin0">Log proxy connections</label>
                                         <label class="switch">
@@ -1532,5 +1554,59 @@
         </div>
 
         <script src="scripts/index.js" type="text/javascript"></script>
+        <script type="text/javascript">
+            // 添加代理功能
+            document.getElementById('addProxyBtn')?.addEventListener('click', async () => {
+                const newProxyInput = document.getElementById('newProxy');
+                const proxyString = newProxyInput.value.trim();
+
+                if (!proxyString) {
+                    showMessage('Please enter a proxy string', 'error');
+                    return;
+                }
+
+                // 验证代理格式
+                const proxyPattern = /^((https|http|socks5|socks4)?):\/\/([^:@]+)(?::([^@]+))?@([^:@]+)(?::(\d+))$/;
+                if (!proxyPattern.test(proxyString)) {
+                    showMessage('Invalid proxy format. Use: protocol://user:pass@host:port', 'error');
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/add-proxy', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ proxy: proxyString }),
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        showMessage('Proxy added successfully', 'success');
+                        newProxyInput.value = '';
+                        // 刷新代理列表显示
+                        updateProxyCount();
+                    } else {
+                        showMessage(result.error || 'Failed to add proxy', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error adding proxy:', error);
+                    showMessage('Failed to add proxy: ' + error.message, 'error');
+                }
+            });
+
+            // 更新代理数量显示
+            async function updateProxyCount() {
+                try {
+                    const response = await fetch('/settings');
+                    const settings = await response.json();
+                    document.getElementById('proxyCount').textContent = settings.proxyCount || 0;
+                } catch (error) {
+                    console.error('Error updating proxy count:', error);
+                }
+            }
+        </script>
     </body>
 </html>
