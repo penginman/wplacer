@@ -5,12 +5,98 @@ const SAFETY_REFRESH_ALARM_NAME = 'wplacer-safety-refresh-alarm';
 const TOKEN_TIMEOUT_ALARM_NAME = 'wplacer-token-timeout-alarm';
 const AUTO_RELOAD_ALARM_NAME = 'wplacer-auto-reload-alarm';
 
+const parseHostSetting = (value) => {
+    const result = { host: '127.0.0.1', derivedPort: null };
+    if (value === undefined || value === null) {
+        return result;
+    }
+
+    let host = String(value).trim();
+    host = host.replace(/^https?:\/\//i, '').trim();
+    if (host.includes('/')) {
+        host = host.split('/')[0].trim();
+    }
+
+    if (!host || /\s/.test(host)) {
+        return result;
+    }
+
+    if (host.startsWith('[')) {
+        const closingIndex = host.indexOf(']');
+        const normalizedHost = closingIndex === -1 ? `${host}]` : host.slice(0, closingIndex + 1);
+        const remainder = closingIndex === -1 ? '' : host.slice(closingIndex + 1).trim();
+        if (remainder) {
+            if (remainder.startsWith(':')) {
+                const candidatePort = Number.parseInt(remainder.slice(1), 10);
+                if (Number.isInteger(candidatePort)) {
+                    result.derivedPort = candidatePort;
+                }
+            } else {
+                return result;
+            }
+        }
+        result.host = normalizedHost;
+        return result;
+    }
+
+    const colonMatches = host.match(/:/g) || [];
+    if (colonMatches.length === 1) {
+        const [baseHost, portCandidate] = host.split(':');
+        const candidatePort = Number.parseInt(portCandidate, 10);
+        if (Number.isInteger(candidatePort)) {
+            result.derivedPort = candidatePort;
+        }
+        result.host = baseHost;
+        return result;
+    }
+
+    if (colonMatches.length > 1) {
+        result.host = `[${host}]`;
+        return result;
+    }
+
+    result.host = host;
+    return result;
+};
+
 const getSettings = async () => {
-    const result = await chrome.storage.local.get(['wplacerPort', 'wplacerAutoReload']);
+    const result = await chrome.storage.local.get(['wplacerHost', 'wplacerPort', 'wplacerAutoReload']);
+    const hostResult = parseHostSetting(result.wplacerHost);
+
+    const parsedPort = Number.parseInt(result.wplacerPort, 10);
+    let port = Number.isInteger(parsedPort) && parsedPort >= 1 && parsedPort <= 65535 ? parsedPort : null;
+    if (!port && Number.isInteger(hostResult.derivedPort) && hostResult.derivedPort >= 1 && hostResult.derivedPort <= 65535) {
+        port = hostResult.derivedPort;
+    }
+    if (!port) {
+        port = 80;
+    }
+
+    const updates = {};
+    if (typeof result.wplacerHost === 'string') {
+        const trimmedHost = result.wplacerHost.trim();
+        if (trimmedHost !== hostResult.host) {
+            updates.wplacerHost = hostResult.host;
+        }
+    }
+    if ((!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) && Number.isInteger(hostResult.derivedPort) && hostResult.derivedPort >= 1 && hostResult.derivedPort <= 65535) {
+        updates.wplacerPort = hostResult.derivedPort;
+    }
+    if (Object.keys(updates).length > 0) {
+        try {
+            await chrome.storage.local.set(updates);
+        } catch (error) {
+            console.warn('wplacer: failed to persist sanitized server settings', error);
+        }
+    }
+
+    const parsedAutoReload = Number.parseInt(result.wplacerAutoReload, 10);
+    const autoReloadInterval = Number.isInteger(parsedAutoReload) && parsedAutoReload >= 0 && parsedAutoReload <= 3600 ? parsedAutoReload : 0;
+
     return {
-        port: result.wplacerPort || 80,
-        host: '127.0.0.1',
-        autoReloadInterval: result.wplacerAutoReload || 0
+        port,
+        host: hostResult.host,
+        autoReloadInterval
     };
 };
 
